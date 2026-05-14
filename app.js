@@ -93,6 +93,7 @@ function cacheDOM() {
    'view-home','view-list','view-budget','view-cat',
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap','lineWrap','budgetBars',
    'subDonutWrap','weekdayDonutWrap','inOutDonutWrap','saldoCumWrap','dailyBarsWrap',
+   'compareWrap','heatmapWrap','topSpeseWrap','ricorrentiWrap',
    'donutCarousel','donutCarouselDots','donutCarouselTitle',
    'trendCarousel','trendCarouselDots','trendCarouselTitle',
    'searchInput','listFilters','txList',
@@ -494,11 +495,248 @@ function renderHome() {
   // Trend: spesa giornaliera del mese corrente
   renderDailyBars(arr);
 
+  // Trend: confronto mese precedente
+  renderCompareMonth(arr);
+
+  // Trend: heatmap calendario
+  renderHeatmap(arr);
+
+  // Top 5 spese del mese
+  renderTopSpese(arr);
+
+  // Spese ricorrenti rilevate
+  renderRicorrenti();
+
   // Setup caroselli (idempotente: viene chiamato ad ogni render, ma listener attivati una volta)
   setupCarousels();
 
   // Budget vs reale
   renderBudgetBars();
+}
+
+// ─── CONFRONTO COL MESE PRECEDENTE ──────────────────────────
+function renderCompareMonth(arrCurrentMonth) {
+  if (!D.compareWrap) return;
+  const { anno, mese } = S.currentMonth;
+  // ricava mese precedente
+  let prevY = anno, prevM = mese - 1;
+  if (prevM < 1) { prevM = 12; prevY--; }
+  const prevArr = S.tx.filter(t => inMonth(t.data, prevY, prevM));
+
+  // somma per macro nei due mesi (solo uscite)
+  function sumByMacro(arr) {
+    const m = {};
+    arr.filter(t => t.tipo === 'uscita').forEach(t => {
+      const c = catById(t.categoria_id);
+      const macroId = (c && c.macro_categoria) || 'altro';
+      m[macroId] = (m[macroId] || 0) + Number(t.importo);
+    });
+    return m;
+  }
+  const curByMacro  = sumByMacro(arrCurrentMonth);
+  const prevByMacro = sumByMacro(prevArr);
+  const allMacros = new Set([...Object.keys(curByMacro), ...Object.keys(prevByMacro)]);
+
+  if (!allMacros.size) {
+    D.compareWrap.innerHTML = '<div class="empty"><div class="emoji">📊</div><div>Nessuna spesa nei 2 mesi</div></div>';
+    return;
+  }
+
+  // ordina per max(cur, prev) decrescente
+  const rows = Array.from(allMacros).map(id => ({
+    id,
+    cur: curByMacro[id] || 0,
+    prev: prevByMacro[id] || 0
+  }));
+  rows.sort((a, b) => Math.max(b.cur, b.prev) - Math.max(a.cur, a.prev));
+  const maxVal = Math.max(...rows.map(r => Math.max(r.cur, r.prev))) || 1;
+
+  let html = '';
+  rows.forEach(r => {
+    const m = macroById(r.id);
+    const macroIcon = m ? m.icon : '📦';
+    let delta = 0;
+    let deltaCls = 'same';
+    let deltaTxt = '—';
+    if (r.prev > 0) {
+      delta = ((r.cur - r.prev) / r.prev) * 100;
+      if (Math.abs(delta) < 1) { deltaCls = 'same'; deltaTxt = '≈'; }
+      else if (delta > 0)      { deltaCls = 'up';   deltaTxt = '+' + delta.toFixed(0) + '%'; }
+      else                     { deltaCls = 'down'; deltaTxt = delta.toFixed(0) + '%'; }
+    } else if (r.cur > 0) {
+      deltaCls = 'up'; deltaTxt = 'NEW';
+    } else if (r.prev > 0) {
+      deltaCls = 'down'; deltaTxt = '−100%';
+    }
+    const curW  = (r.cur  / maxVal) * 100;
+    const prevW = (r.prev / maxVal) * 100;
+    html += '<div class="compare-row">' +
+      '<div class="compare-top">' +
+        '<span class="cmp-name">' + macroIcon + ' ' + esc(macroLabel(r.id)) + '</span>' +
+        '<span class="cmp-delta ' + deltaCls + '">' + deltaTxt + '</span>' +
+      '</div>' +
+      '<div class="compare-bars">' +
+        '<div class="compare-bar-row cur">' +
+          '<span class="cmp-bar-label">ora</span>' +
+          '<div class="cmp-bar"><div class="cmp-bar-fill" style="width:' + curW + '%"></div></div>' +
+          '<span class="cmp-val">' + Charts.fmtEurShort(r.cur) + '</span>' +
+        '</div>' +
+        '<div class="compare-bar-row prev">' +
+          '<span class="cmp-bar-label">prec</span>' +
+          '<div class="cmp-bar"><div class="cmp-bar-fill" style="width:' + prevW + '%"></div></div>' +
+          '<span class="cmp-val">' + Charts.fmtEurShort(r.prev) + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  });
+  D.compareWrap.innerHTML = html;
+}
+
+// ─── HEATMAP CALENDARIO ─────────────────────────────────────
+function renderHeatmap(arrCurrentMonth) {
+  if (!D.heatmapWrap) return;
+  const { anno, mese } = S.currentMonth;
+  const daysInMonth = new Date(anno, mese, 0).getDate();
+  const firstDow = (new Date(anno, mese - 1, 1).getDay() + 6) % 7; // 0 = lunedì
+  const totByDay = new Array(daysInMonth).fill(0);
+  arrCurrentMonth.filter(t => t.tipo === 'uscita').forEach(t => {
+    const d = Number(t.data.split('-')[2]);
+    if (d >= 1 && d <= daysInMonth) totByDay[d - 1] += Number(t.importo);
+  });
+  const maxV = Math.max.apply(null, totByDay);
+  if (maxV <= 0) {
+    D.heatmapWrap.innerHTML = '<div class="empty"><div class="emoji">📅</div><div>Nessuna uscita questo mese</div></div>';
+    return;
+  }
+  function levelClass(v) {
+    if (v <= 0) return 'empty';
+    const r = v / maxV;
+    if (r < 0.25) return 'l1';
+    if (r < 0.50) return 'l2';
+    if (r < 0.75) return 'l3';
+    return 'l4';
+  }
+  const t = new Date();
+  const todayStr = anno + '-' + String(mese).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
+  const isCurrentMonth = (t.getFullYear() === anno && t.getMonth() + 1 === mese);
+
+  let html = '<div class="heatmap-week-labels"><span>L</span><span>M</span><span>M</span><span>G</span><span>V</span><span>S</span><span>D</span></div>';
+  html += '<div class="heatmap-grid">';
+  for (let i = 0; i < firstDow; i++) html += '<div class="heatmap-cell empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const v = totByDay[d - 1];
+    const cls = levelClass(v);
+    const todayCls = (isCurrentMonth && d === t.getDate()) ? ' today' : '';
+    const dataCls = v > 0 ? ' has-data' : '';
+    const title = v > 0 ? d + '/' + mese + ' — ' + Charts.fmtEur(v) : d + '/' + mese;
+    html += '<div class="heatmap-cell ' + cls + dataCls + todayCls + '" title="' + title + '">' + d + '</div>';
+  }
+  html += '</div>';
+  html += '<div class="heatmap-legend">' +
+    '<span>meno</span>' +
+    '<span class="hl-cell" style="background:var(--surface-2)"></span>' +
+    '<span class="hl-cell l1"></span>' +
+    '<span class="hl-cell l2"></span>' +
+    '<span class="hl-cell l3"></span>' +
+    '<span class="hl-cell l4"></span>' +
+    '<span>più</span>' +
+  '</div>';
+  D.heatmapWrap.innerHTML = html;
+}
+
+// ─── TOP 5 SPESE DEL MESE ───────────────────────────────────
+function renderTopSpese(arrCurrentMonth) {
+  if (!D.topSpeseWrap) return;
+  const usc = arrCurrentMonth.filter(t => t.tipo === 'uscita').slice();
+  if (!usc.length) {
+    D.topSpeseWrap.innerHTML = '<div class="empty" style="padding:18px 4px;font-size:13px"><div class="emoji">💸</div><div>Nessuna spesa questo mese</div></div>';
+    return;
+  }
+  usc.sort((a, b) => Number(b.importo) - Number(a.importo));
+  const top = usc.slice(0, 5);
+  let html = '';
+  top.forEach((t, idx) => {
+    const c = catById(t.categoria_id);
+    const icon = c ? c.icona : '📦';
+    const color = c ? c.colore : '#94a3b8';
+    const name = c ? c.nome : 'Senza categoria';
+    const meta = [fmtData(t.data), t.descrizione || '', t.autore ? '👤 ' + t.autore : ''].filter(Boolean).join(' • ');
+    html += '<div class="top-spesa-row" data-tx-id="' + t.id + '">' +
+      '<div class="top-spesa-rank">' + (idx + 1) + '</div>' +
+      '<div class="top-spesa-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
+      '<div class="top-spesa-body">' +
+        '<div class="top-spesa-name">' + esc(name) + '</div>' +
+        '<div class="top-spesa-meta">' + esc(meta) + '</div>' +
+      '</div>' +
+      '<div class="top-spesa-amt">' + Charts.fmtEur(Number(t.importo)) + '</div>' +
+    '</div>';
+  });
+  D.topSpeseWrap.innerHTML = html;
+  $$('.top-spesa-row', D.topSpeseWrap).forEach(el => {
+    el.addEventListener('click', () => openTxEdit(el.getAttribute('data-tx-id')));
+  });
+}
+
+// ─── SPESE RICORRENTI RILEVATE ──────────────────────────────
+// Logica: una categoria è "ricorrente" se ha avuto transazioni in almeno 2 dei 3 mesi precedenti
+// (escluso il mese corrente, perché potrebbe non essere ancora completo).
+function renderRicorrenti() {
+  if (!D.ricorrentiWrap) return;
+  const { anno, mese } = S.currentMonth;
+  // 3 mesi precedenti (m-1, m-2, m-3)
+  const monthsToCheck = [];
+  for (let i = 1; i <= 3; i++) {
+    let m = mese - i, y = anno;
+    while (m < 1) { m += 12; y--; }
+    monthsToCheck.push({ y, m });
+  }
+  // per ogni categoria, conta in quanti mesi è apparsa e somma totale
+  const stats = {};
+  S.tx.filter(t => t.tipo === 'uscita').forEach(t => {
+    const m = monthsToCheck.find(mm => inMonth(t.data, mm.y, mm.m));
+    if (!m) return;
+    const cid = t.categoria_id;
+    if (cid == null) return;
+    if (!stats[cid]) stats[cid] = { months: new Set(), total: 0, count: 0 };
+    stats[cid].months.add(monthKey(m.y, m.m));
+    stats[cid].total += Number(t.importo);
+    stats[cid].count++;
+  });
+  const ricorrenti = Object.entries(stats)
+    .filter(([_, s]) => s.months.size >= 2)
+    .map(([cid, s]) => {
+      const c = catById(Number(cid));
+      return {
+        c,
+        mesi: s.months.size,
+        media: s.total / s.months.size,
+        count: s.count
+      };
+    })
+    .filter(r => r.c)
+    .sort((a, b) => b.media - a.media)
+    .slice(0, 6);
+
+  if (!ricorrenti.length) {
+    D.ricorrentiWrap.innerHTML = '<div class="empty" style="padding:18px 4px;font-size:13px"><div class="emoji">🔁</div><div>Nessuna ricorrenza rilevata nei 3 mesi scorsi</div></div>';
+    return;
+  }
+  let html = '';
+  ricorrenti.forEach(r => {
+    const c = r.c;
+    const badge = r.mesi === 3 ? 'Mensile' : 'Frequente';
+    const badgeCls = r.mesi === 3 ? 'monthly' : '';
+    html += '<div class="ricorrente-row">' +
+      '<div class="ricorrente-icon" style="background:' + (c.colore || '#666') + '22;color:' + (c.colore || '#666') + '">' + (c.icona || '?') + '</div>' +
+      '<div class="ricorrente-body">' +
+        '<div class="ricorrente-name">' + esc(c.nome) + '</div>' +
+        '<div class="ricorrente-meta">media mensile · ' + r.count + ' tx in ' + r.mesi + '/3 mesi</div>' +
+      '</div>' +
+      '<span class="ricorrente-badge ' + badgeCls + '">' + badge + '</span>' +
+      '<div class="ricorrente-amt">' + Charts.fmtEur(r.media) + '</div>' +
+    '</div>';
+  });
+  D.ricorrentiWrap.innerHTML = html;
 }
 
 // ─── ALTRE ANALISI DONUT ────────────────────────────────────
@@ -629,7 +867,7 @@ function renderDailyBars(arrCurrentMonth) {
 
 // ─── CAROUSEL setup ─────────────────────────────────────────
 const DONUT_TITLES = ['Uscite per categoria', 'Uscite per autore', 'Uscite per sotto-categoria', 'Uscite per giorno settimana', 'Entrate vs Uscite'];
-const TREND_TITLES = ['Trend 12 mesi', 'Saldo cumulativo 12 mesi', 'Uscite giornaliere del mese'];
+const TREND_TITLES = ['Trend 12 mesi', 'Saldo cumulativo 12 mesi', 'Uscite giornaliere del mese', 'Confronto col mese precedente', 'Heatmap calendario'];
 let _carouselsInited = false;
 function setupCarousels() {
   if (_carouselsInited) return;
