@@ -97,7 +97,7 @@ function cacheDOM() {
    'fab','toast',
    // modals
    'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaMoreBtn','qaExtraRow','qaDesc','qaAutore',
-   'qaDateBtn','qaDateLabel','qaDatePicker',
+   'qaDateBtn','qaDateLabel','qaDatePicker','qaSaveBtn','qaSaveLabel',
    'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
@@ -796,7 +796,8 @@ function switchView(name) {
 }
 
 // ─── QUICK ADD ──────────────────────────────────────────────
-const QA = { tipo: 'uscita', amt: '', desc: '', data: '', autore: '', extraOpen: false };
+const QA = { tipo: 'uscita', amt: '', desc: '', data: '', autore: '', extraOpen: false, selectedCatId: undefined };
+// selectedCatId: undefined = nessuna scelta; number = id sotto-cat; null = "Altro" (senza categoria)
 let qaPickerMacroId = null; // null = mostra elenco macro; "casa"/"cibo"/... = mostra sotto-cat di quella macro
 function openQuickAdd(tipo) {
   try {
@@ -806,6 +807,7 @@ function openQuickAdd(tipo) {
     QA.data = today();
     QA.autore = S.prefs.autoreDefault || (S.prefs.autori && S.prefs.autori[0]) || 'Stefano';
     QA.extraOpen = false;
+    QA.selectedCatId = undefined;
     qaPickerMacroId = null;
     setQaTipo(QA.tipo);
     setQaAmt('');
@@ -819,12 +821,37 @@ function openQuickAdd(tipo) {
     if (D.qaExtraRow) D.qaExtraRow.style.display = 'none';
     if (D.qaMoreBtn) D.qaMoreBtn.textContent = '+ Mostra altre opzioni';
     renderQaCats();
+    updateQaSaveBtn();
     openModal('modalQa');
   } catch (err) {
     console.error('openQuickAdd failed:', err);
     toast('Errore: ricaricamento app in corso…', 'error', 3000);
     // versione HTML/JS incoerenti — forza cache wipe + reload
     setTimeout(() => { try { applyUpdate(); } catch(_) { location.reload(); } }, 400);
+  }
+}
+
+// Aggiorna visibilità e label del bottone Salva
+function updateQaSaveBtn() {
+  if (!D.qaSaveBtn) return;
+  const importo = parseAmount(QA.amt);
+  const hasAmt = importo && importo > 0;
+  const hasCat = QA.selectedCatId !== undefined; // null è "Altro", number è sub-cat
+  if (hasAmt && hasCat) {
+    let catLabel;
+    if (QA.selectedCatId === null) {
+      catLabel = '📦 Altro';
+    } else {
+      const c = catById(QA.selectedCatId);
+      catLabel = c ? (c.icona + ' ' + c.nome) : '?';
+    }
+    if (D.qaSaveLabel) {
+      D.qaSaveLabel.innerHTML = 'Salva ' + esc(catLabel) + ' · <strong>' + fmtEur(importo) + '</strong>';
+    }
+    D.qaSaveBtn.style.display = 'flex';
+    D.qaSaveBtn.disabled = false;
+  } else {
+    D.qaSaveBtn.style.display = 'none';
   }
 }
 
@@ -856,8 +883,10 @@ function setQaTipo(t) {
   $$('button', D.qaToggle).forEach(b => b.classList.toggle('active', b.getAttribute('data-tipo') === t));
   D.qaTitle.textContent = (t === 'entrata' ? 'Nuova entrata' : 'Nuova uscita');
   localStorage.setItem(LS.LAST_TIPO, t);
-  qaPickerMacroId = null; // reset al cambio tipo
+  qaPickerMacroId = null;
+  QA.selectedCatId = undefined; // reset selezione al cambio tipo
   renderQaCats();
+  updateQaSaveBtn();
 }
 function setQaAmt(v) {
   QA.amt = v;
@@ -868,6 +897,7 @@ function setQaAmt(v) {
     D.qaAmt.classList.remove('empty');
     D.qaAmtVal.textContent = v;
   }
+  updateQaSaveBtn();
 }
 function numpadPress(k) {
   let v = QA.amt;
@@ -930,7 +960,8 @@ function renderQaCats() {
     }).join('');
 
     // chip "Altro" sempre presente come fallback "senza categoria"
-    const altroHtml = '<button class="qa-cat qa-altro" data-altro="1" title="Salva senza categoria">' +
+    const altroSelCls = (QA.selectedCatId === null) ? ' qa-sel' : '';
+    const altroHtml = '<button class="qa-cat qa-altro' + altroSelCls + '" data-altro="1" title="Senza categoria">' +
       '<div class="qa-cat-icon">📦</div>' +
       '<div class="qa-cat-name">Altro</div>' +
     '</button>';
@@ -938,15 +969,17 @@ function renderQaCats() {
 
     $$('.qa-cat[data-macro]', D.qaCats).forEach(el => {
       el.addEventListener('click', () => {
-        // sempre apri il sub-picker per mostrare la sotto-categoria (anche se unica)
+        // apri il sub-picker per scegliere la sotto-categoria
         qaPickerMacroId = el.getAttribute('data-macro');
         renderQaCats();
       });
     });
     $$('.qa-cat[data-altro]', D.qaCats).forEach(el => {
       el.addEventListener('click', () => {
-        // salva senza categoria (categoria_id = null)
-        quickSave(null);
+        // seleziona "Altro" (categoria_id = null) — non salva
+        QA.selectedCatId = (QA.selectedCatId === null) ? undefined : null;
+        renderQaCats();
+        updateQaSaveBtn();
       });
     });
   } else {
@@ -961,19 +994,24 @@ function renderQaCats() {
       '<div class="qa-cat-name">' + (m ? m.icon : '?') + ' ' + esc(macroLabel(qaPickerMacroId)) + '</div>' +
     '</button>';
 
-    html += subs.map(c =>
-      '<button class="qa-cat" data-cat-id="' + c.id + '">' +
+    html += subs.map(c => {
+      const sel = (QA.selectedCatId === c.id) ? ' qa-sel' : '';
+      return '<button class="qa-cat' + sel + '" data-cat-id="' + c.id + '">' +
         '<div class="qa-cat-icon" style="color:' + (c.colore || '#666') + '">' + (c.icona || '?') + '</div>' +
         '<div class="qa-cat-name">' + esc(c.nome) + '</div>' +
-      '</button>'
-    ).join('');
+      '</button>';
+    }).join('');
 
     D.qaCats.innerHTML = html;
     const back = $('#qaBack', D.qaCats);
     if (back) back.addEventListener('click', () => { qaPickerMacroId = null; renderQaCats(); });
     $$('.qa-cat[data-cat-id]', D.qaCats).forEach(el => {
       el.addEventListener('click', () => {
-        quickSave(Number(el.getAttribute('data-cat-id')));
+        const id = Number(el.getAttribute('data-cat-id'));
+        // toggle selezione (non salva!)
+        QA.selectedCatId = (QA.selectedCatId === id) ? undefined : id;
+        renderQaCats();
+        updateQaSaveBtn();
       });
     });
   }
@@ -1680,6 +1718,13 @@ function bindEvents() {
     D.qaExtraRow.style.display = QA.extraOpen ? 'grid' : 'none';
     D.qaMoreBtn.textContent = QA.extraOpen ? '− Nascondi opzioni' : '+ Mostra altre opzioni';
   });
+  // Salva button (visibile solo quando importo + categoria scelti)
+  if (D.qaSaveBtn) {
+    D.qaSaveBtn.addEventListener('click', () => {
+      if (QA.selectedCatId === undefined) return;
+      quickSave(QA.selectedCatId);
+    });
+  }
   // Date pill: tap apre il date picker nativo
   if (D.qaDateBtn && D.qaDatePicker) {
     D.qaDateBtn.addEventListener('click', e => {

@@ -573,6 +573,33 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   background: var(--ok);
 }
 
+/* Save button (visibile solo quando importo + categoria scelti) */
+.qa-save-btn {
+  width: 100%;
+  background: var(--accent);
+  color: #0f1419;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform .15s, opacity .2s, background .15s;
+  box-shadow: 0 4px 14px rgba(125, 211, 168, .35);
+  animation: qa-save-pop .25s cubic-bezier(.2,.8,.3,1);
+}
+.qa-save-btn:active { transform: scale(.98); }
+.qa-save-btn:disabled { opacity: .45; pointer-events: none; }
+@keyframes qa-save-pop {
+  from { opacity: 0; transform: translateY(6px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0)  scale(1);    }
+}
+
 /* Date pill — sempre visibile nel quick-add */
 .qa-date-row {
   display: flex;
@@ -720,6 +747,12 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   color: var(--text-dim);
 }
 .qa-cat.qa-altro .qa-cat-icon { color: var(--text-dim); }
+.qa-cat.qa-sel {
+  border: 2px solid var(--accent);
+  background: rgba(125, 211, 168, .12);
+}
+.qa-cat.qa-sel .qa-cat-name { color: var(--text); font-weight: 700; }
+.qa-cat.qa-altro.qa-sel { border-style: solid; }
 
 .qa-cat.qa-back {
   background: var(--surface);
