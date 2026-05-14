@@ -9,14 +9,17 @@
 -- ── TABELLE ───────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.cdc_categorie (
-  id          bigserial PRIMARY KEY,
-  nome        text    NOT NULL,
-  tipo        text    NOT NULL CHECK (tipo IN ('entrata','uscita')),
-  colore      text,
-  icona       text,
-  ordine      integer NOT NULL DEFAULT 0,
-  created_at  timestamptz DEFAULT now()
+  id              bigserial PRIMARY KEY,
+  nome            text    NOT NULL,
+  tipo            text    NOT NULL CHECK (tipo IN ('entrata','uscita')),
+  colore          text,
+  icona           text,
+  macro_categoria text,        -- es. 'bollette', 'casa', 'cibo', ... derivata dal picker emoji
+  ordine          integer NOT NULL DEFAULT 0,
+  created_at      timestamptz DEFAULT now()
 );
+-- migration safe: se il campo non c'era ancora
+ALTER TABLE public.cdc_categorie ADD COLUMN IF NOT EXISTS macro_categoria text;
 
 CREATE TABLE IF NOT EXISTS public.cdc_transazioni (
   id           bigserial PRIMARY KEY,
@@ -147,22 +150,22 @@ END $$;
 -- ── SEED categorie iniziali ──────────────────────────────────
 -- Si applica solo se la tabella e` vuota
 
-INSERT INTO public.cdc_categorie (nome, tipo, colore, icona, ordine)
+INSERT INTO public.cdc_categorie (nome, tipo, colore, icona, macro_categoria, ordine)
 SELECT * FROM (VALUES
-  ('Spesa',         'uscita', '#e74c3c', '🛒', 0),
-  ('Casa',          'uscita', '#3498db', '🏠', 1),
-  ('Bollette',      'uscita', '#f39c12', '💡', 2),
-  ('Trasporti',     'uscita', '#9b59b6', '🚗', 3),
-  ('Ristorante',    'uscita', '#e91e63', '🍽️', 4),
-  ('Salute',        'uscita', '#1abc9c', '💊', 5),
-  ('Tempo libero',  'uscita', '#34d399', '🎮', 6),
-  ('Abbigliamento', 'uscita', '#a777e3', '👕', 7),
-  ('Regali',        'uscita', '#ff5722', '🎁', 8),
-  ('Altro uscita',  'uscita', '#607d8b', '📦', 9),
-  ('Stipendio',     'entrata','#2ecc71', '💰', 0),
-  ('Rimborso',      'entrata','#5ab885', '💼', 1),
-  ('Altro entrata', 'entrata','#7dd3a8', '✨', 2)
-) AS v(nome, tipo, colore, icona, ordine)
+  ('Spesa',         'uscita', '#e74c3c', '🛒', 'cibo',          0),
+  ('Casa',          'uscita', '#3498db', '🏠', 'casa',          1),
+  ('Bollette',      'uscita', '#f39c12', '💡', 'bollette',      2),
+  ('Trasporti',     'uscita', '#9b59b6', '🚗', 'trasporti',     3),
+  ('Ristorante',    'uscita', '#e91e63', '🍽️', 'cibo',         4),
+  ('Salute',        'uscita', '#1abc9c', '💊', 'salute',        5),
+  ('Tempo libero',  'uscita', '#34d399', '🎮', 'svago',         6),
+  ('Abbigliamento', 'uscita', '#a777e3', '👕', 'abbigliamento', 7),
+  ('Regali',        'uscita', '#ff5722', '🎁', 'regali',        8),
+  ('Altro uscita',  'uscita', '#607d8b', '📦', 'simboli',       9),
+  ('Stipendio',     'entrata','#2ecc71', '💰', 'soldi',         0),
+  ('Rimborso',      'entrata','#5ab885', '💼', 'soldi',         1),
+  ('Altro entrata', 'entrata','#7dd3a8', '✨', 'simboli',       2)
+) AS v(nome, tipo, colore, icona, macro_categoria, ordine)
 WHERE NOT EXISTS (SELECT 1 FROM public.cdc_categorie);
 
 -- ═══════════════════════════════════════════════════════════════

@@ -433,20 +433,33 @@ function renderHome() {
     bindTxRows(D.ultime);
   }
 
-  // Donut uscite
-  const uscBy = {};
+  // Donut uscite RAGGRUPPATO PER MACRO-CATEGORIA
+  const uscByMacro = {};
   arr.filter(t => t.tipo === 'uscita').forEach(t => {
+    const c = catById(t.categoria_id);
+    const macroId = (c && c.macro_categoria) || 'simboli';
+    if (!uscByMacro[macroId]) uscByMacro[macroId] = { total: 0, breakdown: {} };
+    uscByMacro[macroId].total += Number(t.importo);
     const cid = t.categoria_id || 0;
-    uscBy[cid] = (uscBy[cid] || 0) + Number(t.importo);
+    uscByMacro[macroId].breakdown[cid] = (uscByMacro[macroId].breakdown[cid] || 0) + Number(t.importo);
   });
-  const segs = Object.keys(uscBy).map(cid => {
-    const c = catById(Number(cid));
+  // colore macro: prende il colore della prima categoria utente sotto quella macro,
+  // oppure un colore stabile derivato dall'id macro
+  const MACRO_COLORS = {
+    casa:'#3498db', cibo:'#e74c3c', bollette:'#f39c12', trasporti:'#9b59b6',
+    salute:'#1abc9c', svago:'#34d399', sport:'#16a34a', abbigliamento:'#a777e3',
+    famiglia:'#f472b6', animali:'#fb923c', tecnologia:'#0ea5e9', regali:'#ff5722',
+    viaggi:'#06b6d4', lavoro:'#64748b', soldi:'#2ecc71', natura:'#22c55e', simboli:'#94a3b8'
+  };
+  const segs = Object.keys(uscByMacro).map(macroId => {
+    const m = macroById(macroId);
     return {
-      label: c ? c.nome : 'Senza categoria',
-      value: uscBy[cid],
-      color: c ? c.colore : '#666',
+      label: m ? (m.icon + ' ' + macroLabel(macroId)) : 'Senza categoria',
+      value: uscByMacro[macroId].total,
+      color: MACRO_COLORS[macroId] || '#666',
+      macroId: macroId,
       onClick: function () {
-        S.donutFilter = c ? c.id : null;
+        S.donutFilter = { type: 'macro', value: macroId };
         S.listFilter = 'uscita';
         switchView('list');
       }
@@ -537,12 +550,14 @@ function txRowHtml(t) {
   const icon = c ? c.icona : '❔';
   const color = c ? c.colore : '#666';
   const name = c ? c.nome : 'Senza categoria';
+  const macro = c && c.macro_categoria ? macroById(c.macro_categoria) : null;
+  const macroPrefix = macro ? '<span class="tx-macro">' + macro.icon + ' ' + macroLabel(c.macro_categoria) + '</span> › ' : '';
   const pendingCls = S.pendingTxIds.has(t.id) ? ' pending' : '';
   const meta = [fmtData(t.data), t.descrizione || '', t.autore || ''].filter(Boolean).join(' • ');
   return '<div class="tx-row' + pendingCls + '" data-tx-id="' + t.id + '">' +
     '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
     '<div class="tx-body">' +
-      '<div class="tx-cat">' + esc(name) + '</div>' +
+      '<div class="tx-cat">' + macroPrefix + esc(name) + '</div>' +
       '<div class="tx-meta">' + esc(meta) + '</div>' +
     '</div>' +
     '<div class="tx-amt ' + (t.tipo === 'entrata' ? 'in' : 'out') + '">' +
@@ -561,7 +576,16 @@ function renderList() {
   const { anno, mese } = S.currentMonth;
   let arr = S.tx.filter(t => inMonth(t.data, anno, mese));
   if (S.listFilter !== 'all') arr = arr.filter(t => t.tipo === S.listFilter);
-  if (S.donutFilter != null) arr = arr.filter(t => t.categoria_id === S.donutFilter);
+  if (S.donutFilter != null) {
+    if (typeof S.donutFilter === 'object' && S.donutFilter.type === 'macro') {
+      const macroId = S.donutFilter.value;
+      const catIdsInMacro = new Set(S.cats.filter(c => (c.macro_categoria || 'simboli') === macroId).map(c => c.id));
+      arr = arr.filter(t => catIdsInMacro.has(t.categoria_id));
+    } else {
+      // legacy: filter by categoria_id
+      arr = arr.filter(t => t.categoria_id === S.donutFilter);
+    }
+  }
   if (S.listSearch) {
     const q = S.listSearch.toLowerCase();
     arr = arr.filter(t => {
@@ -588,8 +612,15 @@ function renderList() {
   });
   // filtro donut indicatore
   if (S.donutFilter != null) {
-    const c = catById(S.donutFilter);
-    html = '<div class="chip active" id="clearDonut">Solo: ' + (c ? c.nome : '?') + ' ✕</div>' + html;
+    let label;
+    if (typeof S.donutFilter === 'object' && S.donutFilter.type === 'macro') {
+      const m = macroById(S.donutFilter.value);
+      label = (m ? m.icon + ' ' : '') + macroLabel(S.donutFilter.value);
+    } else {
+      const c = catById(S.donutFilter);
+      label = c ? c.nome : '?';
+    }
+    html = '<div class="chip active" id="clearDonut">Solo: ' + label + ' ✕</div>' + html;
   }
   D.txList.innerHTML = html;
   bindTxRows(D.txList);
@@ -645,12 +676,20 @@ function renderCatView() {
     D.catList.innerHTML = '<div class="empty"><div class="emoji">📁</div><div>Nessuna categoria.</div></div>';
     return;
   }
-  D.catList.innerHTML = cats.map(c =>
-    '<div class="cat-row" draggable="true" data-cat-id="' + c.id + '">' +
+  D.catList.innerHTML = cats.map(c => {
+    const macro = c.macro_categoria ? macroById(c.macro_categoria) : null;
+    const macroLine = macro
+      ? '<div class="tx-meta">' + macro.icon + ' ' + esc(macroLabel(c.macro_categoria)) + '</div>'
+      : '';
+    return '<div class="cat-row" draggable="true" data-cat-id="' + c.id + '">' +
       '<span class="cat-handle">⋮⋮</span>' +
       '<div class="cat-icon" style="background:' + (c.colore || '#666') + '22;color:' + (c.colore || '#666') + '">' + (c.icona || '?') + '</div>' +
-      '<span class="cat-name">' + esc(c.nome) + '</span>' +
-    '</div>').join('');
+      '<div style="flex:1;min-width:0">' +
+        '<div class="cat-name">' + esc(c.nome) + '</div>' +
+        macroLine +
+      '</div>' +
+    '</div>';
+  }).join('');
   bindCatDragAndClick();
 }
 function bindCatDragAndClick() {
@@ -955,12 +994,12 @@ function populateAutoreSelect(sel, current) {
 }
 
 // ─── EDIT CATEGORIA ─────────────────────────────────────────
-let catEditState = { icona: '🛒', colore: COLORS[0], isNew: false, emojiCatIdx: 0 };
+let catEditState = { icona: '🛒', colore: COLORS[0], isNew: false, emojiCatIdx: 0, macro_categoria: 'cibo' };
 function openCatEdit(id) {
   S.editCatId = id;
   let c;
   if (id == null) {
-    c = { id: null, nome: '', tipo: activeCatTab, icona: EMOJI_CATS[0].emojis[0], colore: COLORS[0], ordine: S.cats.length };
+    c = { id: null, nome: '', tipo: activeCatTab, icona: EMOJI_CATS[0].emojis[0], colore: COLORS[0], ordine: S.cats.length, macro_categoria: EMOJI_CATS[0].id };
     catEditState.isNew = true;
     D.catEditTitle.textContent = 'Nuova categoria';
     D.catEditDelete.style.display = 'none';
@@ -973,14 +1012,45 @@ function openCatEdit(id) {
   }
   catEditState.icona = c.icona || EMOJI_CATS[0].emojis[0];
   catEditState.colore = c.colore || COLORS[0];
-  // posiziona la tab emoji sulla categoria che contiene l'emoji corrente, se la trovo
-  const foundIdx = EMOJI_CATS.findIndex(cat => cat.emojis.includes(catEditState.icona));
-  catEditState.emojiCatIdx = foundIdx >= 0 ? foundIdx : 0;
+  // posiziona la tab emoji sulla macro esistente, oppure deduci dalla icona
+  let idx = -1;
+  if (c.macro_categoria) {
+    idx = EMOJI_CATS.findIndex(cat => cat.id === c.macro_categoria);
+  }
+  if (idx < 0) idx = EMOJI_CATS.findIndex(cat => cat.emojis.includes(catEditState.icona));
+  catEditState.emojiCatIdx = idx >= 0 ? idx : 0;
+  catEditState.macro_categoria = EMOJI_CATS[catEditState.emojiCatIdx].id;
   D.catEditName.value = c.nome || '';
   D.catEditTipo.value = c.tipo || 'uscita';
+  // aggiorna breadcrumb quando l'utente digita
+  D.catEditName.oninput = renderCatBreadcrumb;
   renderEmojiPicker();
   renderColorPicker();
+  renderCatBreadcrumb();
   openModal('modalCat');
+}
+
+function macroById(id) {
+  return EMOJI_CATS.find(m => m.id === id);
+}
+function macroLabel(id) {
+  const m = macroById(id);
+  if (!m) return id || '?';
+  return m.id.charAt(0).toUpperCase() + m.id.slice(1);
+}
+function renderCatBreadcrumb() {
+  let bc = document.getElementById('catBreadcrumb');
+  if (!bc) {
+    bc = document.createElement('div');
+    bc.id = 'catBreadcrumb';
+    bc.className = 'cat-breadcrumb';
+    const body = document.querySelector('#modalCat .sheet-body');
+    if (body) body.insertBefore(bc, body.firstChild);
+  }
+  const macro = macroById(catEditState.macro_categoria);
+  bc.innerHTML = '<span class="bc-macro">' + (macro ? macro.icon : '?') + ' ' + macroLabel(catEditState.macro_categoria) + '</span>' +
+                 '<span class="bc-sep">›</span>' +
+                 '<span class="bc-leaf">' + catEditState.icona + ' ' + (D.catEditName.value || 'sotto-categoria') + '</span>';
 }
 
 function renderEmojiPicker() {
@@ -1004,19 +1074,28 @@ function renderEmojiPicker() {
   html += '</div>';
   wrap.innerHTML = html;
 
-  // tab clicks
+  // tab clicks (cambio macro-categoria)
   $$('.ec-tab', wrap).forEach(b => {
     b.addEventListener('click', () => {
       catEditState.emojiCatIdx = Number(b.getAttribute('data-ci'));
+      catEditState.macro_categoria = EMOJI_CATS[catEditState.emojiCatIdx].id;
+      // se l'emoji selezionata non sta più nella nuova macro, prendi la prima della macro
+      const newMacro = EMOJI_CATS[catEditState.emojiCatIdx];
+      if (!newMacro.emojis.includes(catEditState.icona)) {
+        catEditState.icona = newMacro.emojis[0];
+      }
       renderEmojiPicker();
+      renderCatBreadcrumb();
       scrollActiveTabIntoView();
     });
   });
-  // emoji clicks
+  // emoji clicks (sotto-categoria)
   $$('.ec-grid button', wrap).forEach(b => {
     b.addEventListener('click', () => {
       catEditState.icona = b.getAttribute('data-e');
+      catEditState.macro_categoria = EMOJI_CATS[catEditState.emojiCatIdx].id;
       renderEmojiPicker();
+      renderCatBreadcrumb();
       scrollActiveTabIntoView();
     });
   });
@@ -1033,7 +1112,13 @@ function renderEmojiPicker() {
 function shiftEmojiCat(delta) {
   const n = EMOJI_CATS.length;
   catEditState.emojiCatIdx = ((catEditState.emojiCatIdx + delta) % n + n) % n;
+  catEditState.macro_categoria = EMOJI_CATS[catEditState.emojiCatIdx].id;
+  const newMacro = EMOJI_CATS[catEditState.emojiCatIdx];
+  if (!newMacro.emojis.includes(catEditState.icona)) {
+    catEditState.icona = newMacro.emojis[0];
+  }
   renderEmojiPicker();
+  renderCatBreadcrumb();
 }
 
 function scrollActiveTabIntoView() {
@@ -1089,7 +1174,8 @@ async function saveCatEdit() {
     nome,
     tipo: D.catEditTipo.value,
     icona: catEditState.icona,
-    colore: catEditState.colore
+    colore: catEditState.colore,
+    macro_categoria: catEditState.macro_categoria || null
   };
   if (catEditState.isNew) {
     payload.ordine = S.cats.filter(c => c.tipo === payload.tipo).length;
