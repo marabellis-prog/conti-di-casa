@@ -142,11 +142,60 @@ function inMonth(dateStr, anno, mese) {
   return Number(y) === anno && Number(m) === mese;
 }
 function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
-function toast(msg, ms) {
-  D.toast.textContent = msg;
-  D.toast.classList.add('show');
+
+const TOAST_ICONS = { success: '✓', error: '✕', warn: '!', info: 'i' };
+function toast(msg, type, ms) {
+  if (!type) type = 'info';
+  const el = D.toast;
+  if (!el) return;
+  const icEl = document.getElementById('toastIc');
+  const msgEl = document.getElementById('toastMsg');
+  if (msgEl) msgEl.textContent = msg;
+  else el.textContent = msg;
+  if (icEl) icEl.textContent = TOAST_ICONS[type] || 'i';
+  el.className = 'toast show toast-' + type;
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => D.toast.classList.remove('show'), ms || 1700);
+  const dur = ms || (type === 'error' ? 2400 : (type === 'warn' ? 2200 : 1700));
+  toast._t = setTimeout(() => el.classList.remove('show'), dur);
+}
+
+// Confirm dialog elegante (sostituisce window.confirm)
+// Ritorna una Promise<boolean>.
+function confirmDlg(opts) {
+  // opts: {title, message, confirmLabel, cancelLabel, danger}
+  return new Promise(resolve => {
+    const tEl = document.getElementById('confirmTitle');
+    const mEl = document.getElementById('confirmMsg');
+    const okEl = document.getElementById('confirmOk');
+    const cancelEl = document.getElementById('confirmCancel');
+    if (tEl) tEl.textContent = opts.title || 'Conferma';
+    if (mEl) mEl.textContent = opts.message || '';
+    if (okEl) {
+      okEl.textContent = opts.confirmLabel || 'Conferma';
+      okEl.className = opts.danger ? 'btn-danger' : 'btn-primary';
+      okEl.style.marginTop = '8px';
+    }
+    if (cancelEl) cancelEl.textContent = opts.cancelLabel || 'Annulla';
+    let settled = false;
+    function settle(v) {
+      if (settled) return;
+      settled = true;
+      okEl && okEl.removeEventListener('click', onOk);
+      cancelEl && cancelEl.removeEventListener('click', onCancel);
+      const modal = document.getElementById('modalConfirm');
+      modal && modal.removeEventListener('cdc:closed', onClosed);
+      closeModal('modalConfirm');
+      resolve(v);
+    }
+    function onOk()     { settle(true); }
+    function onCancel() { settle(false); }
+    function onClosed() { settle(false); }
+    okEl && okEl.addEventListener('click', onOk);
+    cancelEl && cancelEl.addEventListener('click', onCancel);
+    const modal = document.getElementById('modalConfirm');
+    modal && modal.addEventListener('cdc:closed', onClosed);
+    openModal('modalConfirm');
+  });
 }
 
 // ─── SUPABASE FETCH (REST) ──────────────────────────────────
@@ -208,9 +257,9 @@ async function drainQueue() {
   }
   S.queue = remaining;
   saveQueue();
-  if (S.queue.length === 0) {
+  if (S.queue.length === 0 && remaining.length === 0) {
     await fullReload();
-    toast('Sincronizzato');
+    toast('Sincronizzato', 'success');
   }
 }
 
@@ -660,7 +709,7 @@ async function persistCatOrder() {
     try { await supaFetch(path, options); }
     catch { enqueue({ path, options }); }
   }
-  toast('Ordine salvato');
+  toast('Ordine salvato', 'success');
 }
 
 // ─── SWITCH VIEW ────────────────────────────────────────────
@@ -779,7 +828,7 @@ function showAllCats() {
 async function quickSave(categoria_id) {
   const importo = parseAmount(QA.amt);
   if (!importo || importo <= 0) {
-    toast('Inserisci l\'importo');
+    toast('Inserisci l\'importo', 'warn');
     return;
   }
   const desc = D.qaDesc.value.trim();
@@ -795,7 +844,7 @@ async function quickSave(categoria_id) {
   });
   closeModal('modalQa');
   vibrate(20);
-  toast('Salvato');
+  toast('Salvato', 'success');
 }
 
 async function saveTransaction(payload) {
@@ -856,14 +905,14 @@ async function saveTxEdit() {
     descrizione: D.txEditDesc.value.trim() || null,
     autore: D.txEditAutore.value || null
   };
-  if (!payload.importo || payload.importo <= 0) { toast('Importo non valido'); return; }
+  if (!payload.importo || payload.importo <= 0) { toast('Importo non valido', 'warn'); return; }
   // optimistic
   const idx = S.tx.findIndex(t => t.id === S.editTxId);
   if (idx >= 0) S.tx[idx] = Object.assign({}, S.tx[idx], payload);
   saveLocalCache();
   renderHome(); renderList();
   closeModal('modalTx');
-  toast('Modificato');
+  toast('Transazione modificata', 'success');
   const path = T.TX + '?id=eq.' + S.editTxId;
   const options = { method: 'PATCH', body: JSON.stringify(payload) };
   if (!isOnline()) { enqueue({ path, options }); S.editTxId = null; return; }
@@ -873,13 +922,19 @@ async function saveTxEdit() {
 }
 async function deleteTxEdit() {
   if (S.editTxId == null) return;
-  if (!confirm('Eliminare la transazione?')) return;
+  const ok = await confirmDlg({
+    title: 'Elimina transazione',
+    message: 'Vuoi davvero eliminare questa transazione? L\'azione non è reversibile.',
+    confirmLabel: 'Elimina',
+    danger: true
+  });
+  if (!ok) return;
   // optimistic
   S.tx = S.tx.filter(t => t.id !== S.editTxId);
   saveLocalCache();
   renderHome(); renderList();
   closeModal('modalTx');
-  toast('Eliminata');
+  toast('Transazione eliminata', 'success');
   const path = T.TX + '?id=eq.' + S.editTxId;
   const options = { method: 'DELETE' };
   if (!isOnline()) { enqueue({ path, options }); S.editTxId = null; return; }
@@ -1029,7 +1084,7 @@ function renderColorPicker() {
 }
 async function saveCatEdit() {
   const nome = D.catEditName.value.trim();
-  if (!nome) { toast('Nome richiesto'); return; }
+  if (!nome) { toast('Inserisci un nome per la categoria', 'warn'); return; }
   const payload = {
     nome,
     tipo: D.catEditTipo.value,
@@ -1048,9 +1103,9 @@ async function saveCatEdit() {
       activeCatTab = payload.tipo;
       $$('button', D.catTabs).forEach(b => b.classList.toggle('active', b.getAttribute('data-tipo') === activeCatTab));
       renderCatView();
-      toast('Categoria creata');
+      toast('Categoria creata', 'success');
     } catch (e) {
-      toast('Errore: ' + e.message);
+      toast('Errore: ' + e.message, 'error');
     }
   } else {
     // optimistic locale
@@ -1059,7 +1114,7 @@ async function saveCatEdit() {
     saveLocalCache();
     renderCatView(); renderHome(); renderList();
     closeModal('modalCat');
-    toast('Modificato');
+    toast('Categoria modificata', 'success');
     const path = T.CATS + '?id=eq.' + S.editCatId;
     const options = { method: 'PATCH', body: JSON.stringify(payload) };
     if (!isOnline()) { enqueue({ path, options }); S.editCatId = null; return; }
@@ -1069,13 +1124,19 @@ async function saveCatEdit() {
 }
 async function deleteCatEdit() {
   if (S.editCatId == null) return;
-  if (!confirm('Eliminare la categoria? Le transazioni esistenti diventeranno "Senza categoria".')) return;
+  const ok = await confirmDlg({
+    title: 'Elimina categoria',
+    message: 'Le transazioni associate diventeranno "Senza categoria" ma non verranno cancellate. Procedere?',
+    confirmLabel: 'Elimina',
+    danger: true
+  });
+  if (!ok) return;
   S.cats = S.cats.filter(c => c.id !== S.editCatId);
   S.tx.forEach(t => { if (t.categoria_id === S.editCatId) t.categoria_id = null; });
   saveLocalCache();
   renderCatView(); renderHome(); renderList();
   closeModal('modalCat');
-  toast('Eliminata');
+  toast('Categoria eliminata', 'success');
   const path = T.CATS + '?id=eq.' + S.editCatId;
   const options = { method: 'DELETE' };
   if (!isOnline()) { enqueue({ path, options }); S.editCatId = null; return; }
@@ -1098,7 +1159,7 @@ function openBudgetEdit(catId) {
 async function saveBudgetEdit() {
   if (S.editBudgetCatId == null) return;
   const importo = parseAmount(D.budgetEditAmt.value);
-  if (!(importo >= 0)) { toast('Valore non valido'); return; }
+  if (!(importo >= 0)) { toast('Inserisci un importo valido (numero ≥ 0)', 'warn'); return; }
   const { anno, mese } = S.currentMonth;
   const existing = S.budgets.find(x => x.categoria_id === S.editBudgetCatId && x.anno === anno && x.mese === mese);
   if (existing) {
@@ -1109,7 +1170,7 @@ async function saveBudgetEdit() {
   saveLocalCache();
   renderBudgetView(); renderHome();
   closeModal('modalBudget');
-  toast('Budget salvato');
+  toast('Budget salvato', 'success');
   // remoto: upsert via on_conflict
   const path = T.BUDGET + '?on_conflict=categoria_id,anno,mese';
   const body = { categoria_id: S.editBudgetCatId, anno, mese, importo };
@@ -1136,7 +1197,7 @@ async function deleteBudgetEdit() {
   saveLocalCache();
   renderBudgetView(); renderHome();
   closeModal('modalBudget');
-  toast('Budget rimosso');
+  toast('Budget rimosso', 'success');
   if (typeof existing.id === 'number') {
     const path = T.BUDGET + '?id=eq.' + existing.id;
     const options = { method: 'DELETE' };
@@ -1164,7 +1225,7 @@ async function saveSettings() {
   applyTheme();
   saveLocalCache();
   closeModal('modalSettings');
-  toast('Impostazioni salvate');
+  toast('Impostazioni salvate', 'success');
   // sync prefs su Supabase
   const path = T.PREFS + '?id=eq.1';
   const options = { method: 'PATCH', body: JSON.stringify({ dati: { autori: S.prefs.autori, autoreDefault: S.prefs.autoreDefault } }) };
@@ -1188,10 +1249,15 @@ function exportCsv() {
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 100);
-  toast('CSV scaricato');
+  toast('CSV scaricato', 'success');
 }
 async function clearCache() {
-  if (!confirm('Pulire la cache locale e ricaricare?')) return;
+  const ok = await confirmDlg({
+    title: 'Pulisci cache locale',
+    message: 'Verranno cancellati i dati salvati in locale e l\'app verrà ricaricata. I dati su Supabase non saranno toccati.',
+    confirmLabel: 'Pulisci e ricarica'
+  });
+  if (!ok) return;
   const keys = await caches.keys();
   await Promise.all(keys.map(k => caches.delete(k)));
   ['cdc-cats','cdc-tx','cdc-budgets','cdc-prefs','cdc-ts','cdc-deploy-sha'].forEach(k => localStorage.removeItem(k));
@@ -1208,11 +1274,13 @@ function openModal(id) {
 function closeModal(id) {
   const m = document.getElementById(id);
   if (!m) return;
+  const wasOpen = m.classList.contains('open');
   m.classList.remove('open');
   document.body.style.overflow = '';
   // reset sheet position se draggata
   const sheet = m.querySelector('.sheet');
   if (sheet) sheet.style.transform = '';
+  if (wasOpen) m.dispatchEvent(new CustomEvent('cdc:closed'));
 }
 
 function bindModalClose() {
@@ -1428,8 +1496,8 @@ function bindEvents() {
   D.budgetEditSave.addEventListener('click', saveBudgetEdit);
   D.budgetEditDelete.addEventListener('click', deleteBudgetEdit);
   // online/offline
-  window.addEventListener('online', () => { toast('Online — sincronizzo'); drainQueue(); });
-  window.addEventListener('offline', () => toast('Modalità offline'));
+  window.addEventListener('online', () => { toast('Online — sincronizzo', 'success'); drainQueue(); });
+  window.addEventListener('offline', () => toast('Modalità offline', 'warn'));
   // modal close + drag
   bindModalClose();
   bindDragToClose();
@@ -1496,7 +1564,7 @@ function setupPullToRefresh() {
         renderAll();
       } catch (err) {
         console.warn('PTR reload failed', err);
-        toast('Aggiornamento non riuscito');
+        toast('Aggiornamento non riuscito', 'error');
       }
       PTR.classList.remove('spinning');
       setTimeout(() => {

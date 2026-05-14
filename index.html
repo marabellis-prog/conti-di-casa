@@ -298,8 +298,26 @@
     </div>
   </div>
 
+  <!-- Confirm modal -->
+  <div class="modal" id="modalConfirm">
+    <div class="sheet" id="sheetConfirm">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="confirmTitle">Conferma</h3>
+      </div>
+      <div class="sheet-body">
+        <p id="confirmMsg" class="txt-dim" style="font-size:14px;margin:4px 0 18px;line-height:1.5;"></p>
+        <button id="confirmOk" class="btn-primary">Conferma</button>
+        <button id="confirmCancel" class="btn-secondary" style="margin-top:8px">Annulla</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast -->
-  <div id="toast" class="toast"></div>
+  <div id="toast" class="toast">
+    <span id="toastIc" class="toast-ic"></span>
+    <span id="toastMsg" class="toast-msg"></span>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./charts.js"></script>
