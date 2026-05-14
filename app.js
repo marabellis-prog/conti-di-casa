@@ -97,7 +97,8 @@ function cacheDOM() {
    'meseCmpPrev','meseCmpNext','meseCmpLabel',
    'donutCarousel','donutCarouselDots','donutCarouselTitle',
    'trendCarousel','trendCarouselDots','trendCarouselTitle',
-   'analisiContent',
+   'subDonutWrap','weekdayDonutWrap','inOutDonutWrap','heatmapWrap','saldoCumWrap','dailyBarsWrap',
+   'topSpeseWrap','ricorrentiWrap','budgetBarsAnalisi',
    'searchInput','listFilters','txList',
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
@@ -442,8 +443,8 @@ function renderHome() {
   D.saldoIn.textContent = fmtEur(inSum);
   D.saldoOut.textContent = fmtEur(outSum);
 
-  // Ultime 5
-  const ultime = arr.slice(0, 5);
+  // Ultime 4
+  const ultime = arr.slice(0, 4);
   if (!ultime.length) {
     D.ultime.innerHTML = '<div class="txt-faint mt-8" style="font-size:13px">Nessuna transazione in questo mese.</div>';
   } else {
@@ -1379,14 +1380,52 @@ function switchView(name) {
 }
 
 function renderAnalisi() {
-  if (!D.analisiContent) return;
-  // Placeholder per ora — la sezione sarà popolata in prossime iterazioni
-  D.analisiContent.innerHTML =
-    '<div class="empty" style="padding:40px 20px">' +
-      '<div class="emoji">📊</div>' +
-      '<div style="font-size:14px;margin-top:8px">Analisi dati dettagliate</div>' +
-      '<div class="txt-faint" style="font-size:12px;margin-top:6px">Sezione in costruzione</div>' +
-    '</div>';
+  const arr = txInCurrentMonth();
+  const inSum  = arr.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
+  const outSum = arr.filter(t => t.tipo === 'uscita').reduce((s, t) => s + Number(t.importo), 0);
+  renderSubCatDonut(arr);
+  renderWeekdayDonut(arr);
+  renderInOutDonut(arr, inSum, outSum);
+  renderHeatmap(arr);
+  renderSaldoCumulativo();
+  renderDailyBars(arr);
+  renderTopSpese(arr);
+  renderRicorrenti();
+  renderAnalisiBudgetBars();
+}
+
+function renderAnalisiBudgetBars() {
+  if (!D.budgetBarsAnalisi) return;
+  const { anno, mese } = S.currentMonth;
+  const monthBudgets = S.budgets.filter(b => b.anno === anno && b.mese === mese);
+  const arr = txInCurrentMonth();
+  const uscBy = {};
+  arr.filter(t => t.tipo === 'uscita').forEach(t => {
+    const cid = t.categoria_id;
+    if (cid != null) uscBy[cid] = (uscBy[cid] || 0) + Number(t.importo);
+  });
+  // categorie di uscita: mostro TUTTE per permettere creazione budget al tap
+  const cats = S.cats.filter(c => c.tipo === 'uscita').sort((a, b) => a.ordine - b.ordine);
+  if (!cats.length) {
+    D.budgetBarsAnalisi.innerHTML = '<div class="empty" style="padding:18px 4px;font-size:13px">Crea prima alcune categorie di uscita.</div>';
+    return;
+  }
+  const rows = cats.map(c => {
+    const b = monthBudgets.find(x => x.categoria_id === c.id);
+    return {
+      label: (c.icona ? c.icona + ' ' : '') + c.nome,
+      speso: uscBy[c.id] || 0,
+      budget: b ? Number(b.importo) : 0,
+      onClick: () => openBudgetEdit(c.id)
+    };
+  });
+  // Filtro: mostra solo categorie con budget oppure spesa > 0
+  const visible = rows.filter(r => r.budget > 0 || r.speso > 0);
+  if (!visible.length) {
+    D.budgetBarsAnalisi.innerHTML = '<div class="empty" style="padding:18px 4px;font-size:13px"><div class="emoji">🎯</div><div>Nessun budget impostato e nessuna spesa</div></div>';
+    return;
+  }
+  Charts.renderBudgetBars(D.budgetBarsAnalisi, visible);
 }
 
 // ─── QUICK ADD ──────────────────────────────────────────────

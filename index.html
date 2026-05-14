@@ -122,8 +122,59 @@
     <!-- ANALISI -->
     <section id="view-analisi" class="view">
       <h2>Analisi dati</h2>
-      <p class="txt-dim" style="font-size:13px;margin:0 4px 14px;">Sezione di analisi approfondite — in arrivo nei prossimi step.</p>
-      <div id="analisiContent"></div>
+      <p class="txt-dim" style="font-size:13px;margin:0 4px 14px;">Tutte le statistiche del mese selezionato in alto.</p>
+
+      <div class="card">
+        <h3 class="card-title">Uscite per sotto-categoria</h3>
+        <div id="subDonutWrap" class="donut-wrap"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Uscite per giorno della settimana</h3>
+        <div id="weekdayDonutWrap" class="donut-wrap"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Entrate vs Uscite</h3>
+        <div id="inOutDonutWrap" class="donut-wrap"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Heatmap calendario</h3>
+        <div id="heatmapWrap" class="heatmap-wrap"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Saldo cumulativo 12 mesi</h3>
+        <div id="saldoCumWrap" class="line-wrap"></div>
+        <div class="line-legend">
+          <span><span class="dot" style="background:var(--accent)"></span>Saldo cumulativo</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Uscite giornaliere del mese</h3>
+        <div id="dailyBarsWrap" class="line-wrap"></div>
+        <div class="line-legend">
+          <span><span class="dot" style="background:var(--danger)"></span>Uscite giornaliere</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Top 5 spese del mese</h3>
+        <div id="topSpeseWrap"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Spese ricorrenti rilevate</h3>
+        <div id="ricorrentiWrap"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Budget vs reale</h3>
+        <p class="txt-dim" style="font-size:12px;margin:0 0 10px;">Tap su una categoria per impostare o modificare un budget mensile.</p>
+        <div id="budgetBarsAnalisi"></div>
+      </div>
     </section>
 
     <!-- CATEGORIE -->
