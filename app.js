@@ -672,31 +672,52 @@ function renderBudgetView() {
 // ─── CATEGORIE VIEW ─────────────────────────────────────────
 let activeCatTab = 'uscita';
 function renderCatView() {
-  const cats = S.cats.filter(c => c.tipo === activeCatTab).sort((a, b) => a.ordine - b.ordine);
+  const cats = S.cats.filter(c => c.tipo === activeCatTab);
   if (!cats.length) {
     D.catList.innerHTML = '<div class="empty"><div class="emoji">📁</div><div>Nessuna categoria.</div></div>';
     return;
   }
-  D.catList.innerHTML = cats.map(c => {
-    const macro = c.macro_categoria ? macroById(c.macro_categoria) : null;
-    const macroLine = macro
-      ? '<div class="tx-meta">' + macro.icon + ' ' + esc(macroLabel(c.macro_categoria)) + '</div>'
-      : '';
-    return '<div class="cat-row" draggable="true" data-cat-id="' + c.id + '">' +
-      '<span class="cat-handle">⋮⋮</span>' +
-      '<div class="cat-icon" style="background:' + (c.colore || '#666') + '22;color:' + (c.colore || '#666') + '">' + (c.icona || '?') + '</div>' +
-      '<div style="flex:1;min-width:0">' +
+  // Raggruppa per macro_categoria
+  const groups = {};
+  cats.forEach(c => {
+    const m = c.macro_categoria || 'altro';
+    if (!groups[m]) groups[m] = [];
+    groups[m].push(c);
+  });
+  // Ordina sotto-categorie dentro ogni macro per ordine
+  Object.values(groups).forEach(arr => arr.sort((a, b) => a.ordine - b.ordine));
+  // Ordine delle macro: prima quelle definite in EMOJI_CATS (ordinate come elencate), poi altre
+  const orderedMacroIds = EMOJI_CATS.map(e => e.id).filter(id => groups[id]);
+  Object.keys(groups).forEach(id => { if (!orderedMacroIds.includes(id)) orderedMacroIds.push(id); });
+
+  let html = '';
+  orderedMacroIds.forEach(mid => {
+    const m = macroById(mid);
+    const subs = groups[mid];
+    html += '<div class="cat-group" data-macro="' + mid + '">';
+    html +=   '<div class="cat-group-header">';
+    html +=     '<span class="cgh-ic">' + (m ? m.icon : '📦') + '</span>';
+    html +=     '<span class="cgh-name">' + esc(macroLabel(mid)) + '</span>';
+    html +=     '<span class="cgh-count">' + subs.length + '</span>';
+    html +=   '</div>';
+    html +=   '<div class="cat-group-subs">';
+    subs.forEach(c => {
+      html += '<div class="cat-row sub" draggable="true" data-cat-id="' + c.id + '" data-macro="' + mid + '">' +
+        '<span class="cat-handle">⋮⋮</span>' +
+        '<div class="cat-icon" style="background:' + (c.colore || '#666') + '22;color:' + (c.colore || '#666') + '">' + (c.icona || '?') + '</div>' +
         '<div class="cat-name">' + esc(c.nome) + '</div>' +
-        macroLine +
-      '</div>' +
-    '</div>';
-  }).join('');
+      '</div>';
+    });
+    html +=   '</div>';
+    html += '</div>';
+  });
+  D.catList.innerHTML = html;
   bindCatDragAndClick();
 }
 function bindCatDragAndClick() {
   let draggedEl = null;
   $$('.cat-row', D.catList).forEach(el => {
-    el.addEventListener('click', e => {
+    el.addEventListener('click', () => {
       if (draggedEl) return;
       openCatEdit(Number(el.getAttribute('data-cat-id')));
     });
@@ -712,27 +733,32 @@ function bindCatDragAndClick() {
       setTimeout(() => { draggedEl = null; }, 50);
     });
     el.addEventListener('dragover', e => {
+      if (!draggedEl || draggedEl === el) return;
+      // riordino consentito solo intra-macro (la macro cambia dal modal di modifica)
+      if (draggedEl.getAttribute('data-macro') !== el.getAttribute('data-macro')) return;
       e.preventDefault();
-      if (draggedEl && draggedEl !== el) el.classList.add('drag-over');
+      el.classList.add('drag-over');
     });
     el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
     el.addEventListener('drop', async e => {
       e.preventDefault();
       el.classList.remove('drag-over');
       if (!draggedEl || draggedEl === el) return;
-      const allRows = Array.from($$('.cat-row', D.catList));
-      const srcIdx = allRows.indexOf(draggedEl);
-      const dstIdx = allRows.indexOf(el);
-      if (srcIdx < dstIdx) D.catList.insertBefore(draggedEl, el.nextSibling);
-      else D.catList.insertBefore(draggedEl, el);
+      if (draggedEl.getAttribute('data-macro') !== el.getAttribute('data-macro')) return;
+      // sposta dentro lo stesso .cat-group-subs
+      const parent = el.parentNode;
+      const allInGroup = Array.from(parent.querySelectorAll('.cat-row'));
+      const srcIdx = allInGroup.indexOf(draggedEl);
+      const dstIdx = allInGroup.indexOf(el);
+      if (srcIdx < dstIdx) parent.insertBefore(draggedEl, el.nextSibling);
+      else parent.insertBefore(draggedEl, el);
       await persistCatOrder();
     });
   });
-  // touch drag fallback (long-press + manual reorder via touchmove)
-  // Per semplicità su mobile usiamo solo dragstart/drop nativo che funziona anche per touch nei browser recenti.
 }
 
 async function persistCatOrder() {
+  // Itera tutti i gruppi: ordine = posizione globale top-to-bottom
   const rows = Array.from($$('.cat-row', D.catList));
   const updates = rows.map((el, idx) => ({ id: Number(el.getAttribute('data-cat-id')), ordine: idx }));
   // Aggiorna locale

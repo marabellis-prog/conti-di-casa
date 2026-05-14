@@ -828,6 +828,48 @@ button.btn-danger {
   box-shadow: 0 1px 4px rgba(0,0,0,.2);
 }
 
+/* Gruppi macro nella view Categorie */
+.cat-group {
+  margin-bottom: 18px;
+}
+.cat-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px 8px 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 700;
+}
+.cat-group-header .cgh-ic { font-size: 18px; }
+.cat-group-header .cgh-name { flex: 1; }
+.cat-group-header .cgh-count {
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  min-width: 24px;
+  text-align: center;
+}
+.cat-group-subs {
+  position: relative;
+}
+.cat-group-subs::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 0;
+  bottom: 8px;
+  width: 2px;
+  background: var(--border);
+  border-radius: 1px;
+}
+
 .cat-row {
   display: flex;
   align-items: center;
@@ -839,6 +881,20 @@ button.btn-danger {
   margin-bottom: 6px;
   cursor: grab;
   touch-action: pan-y;
+}
+.cat-row.sub {
+  margin-left: 28px;
+  position: relative;
+}
+.cat-row.sub::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  width: 10px;
+  height: 2px;
+  background: var(--border);
+  border-radius: 1px;
 }
 .cat-row.dragging {
   opacity: .5;
