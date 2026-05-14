@@ -1384,7 +1384,6 @@ function renderAnalisi() {
   const inSum  = arr.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
   const outSum = arr.filter(t => t.tipo === 'uscita').reduce((s, t) => s + Number(t.importo), 0);
   renderSubCatDonut(arr);
-  renderWeekdayDonut(arr);
   renderInOutDonut(arr, inSum, outSum);
   renderHeatmap(arr);
   renderSaldoCumulativo();
