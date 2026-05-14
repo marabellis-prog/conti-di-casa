@@ -884,15 +884,32 @@ button.btn-danger {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 4px 8px 12px;
+  padding: 8px 4px 8px 6px;
   font-size: 12px;
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.6px;
   font-weight: 700;
+  cursor: grab;
+  user-select: none;
+  border-radius: 8px;
+  transition: background .15s;
+}
+.cat-group-header:hover { background: var(--surface-2); }
+.cat-group-header:active { cursor: grabbing; }
+.cat-group-header .cgh-handle {
+  color: var(--text-faint);
+  font-size: 14px;
+  letter-spacing: -1px;
 }
 .cat-group-header .cgh-ic { font-size: 18px; }
 .cat-group-header .cgh-name { flex: 1; }
+.cat-group.dragging-group { opacity: .5; }
+.cat-group.drag-over-group {
+  outline: 2px dashed var(--accent);
+  outline-offset: 4px;
+  border-radius: 10px;
+}
 .cat-group-header .cgh-count {
   background: var(--surface-2);
   color: var(--text);

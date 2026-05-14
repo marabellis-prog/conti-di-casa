@@ -686,8 +686,12 @@ function renderCatView() {
   });
   // Ordina sotto-categorie dentro ogni macro per ordine
   Object.values(groups).forEach(arr => arr.sort((a, b) => a.ordine - b.ordine));
-  // Ordine delle macro: prima quelle definite in EMOJI_CATS (ordinate come elencate), poi altre
-  const orderedMacroIds = EMOJI_CATS.map(e => e.id).filter(id => groups[id]);
+  // Ordine macro: usa S.prefs.macroOrder se settato (drag&drop persistito),
+  // altrimenti ordine di EMOJI_CATS, in coda eventuali macro nuove non presenti.
+  const defaultOrder = EMOJI_CATS.map(e => e.id);
+  const savedOrder = (S.prefs.macroOrder && S.prefs.macroOrder.length) ? S.prefs.macroOrder : defaultOrder;
+  const orderedMacroIds = [];
+  savedOrder.forEach(id => { if (groups[id] && !orderedMacroIds.includes(id)) orderedMacroIds.push(id); });
   Object.keys(groups).forEach(id => { if (!orderedMacroIds.includes(id)) orderedMacroIds.push(id); });
 
   let html = '';
@@ -695,7 +699,8 @@ function renderCatView() {
     const m = macroById(mid);
     const subs = groups[mid];
     html += '<div class="cat-group" data-macro="' + mid + '">';
-    html +=   '<div class="cat-group-header">';
+    html +=   '<div class="cat-group-header" draggable="true" data-macro="' + mid + '">';
+    html +=     '<span class="cgh-handle" title="Trascina per riordinare">⋮⋮</span>';
     html +=     '<span class="cgh-ic">' + (m ? m.icon : '📦') + '</span>';
     html +=     '<span class="cgh-name">' + esc(macroLabel(mid)) + '</span>';
     html +=     '<span class="cgh-count">' + subs.length + '</span>';
@@ -715,6 +720,52 @@ function renderCatView() {
   bindCatDragAndClick();
 }
 function bindCatDragAndClick() {
+  // ── Drag&drop dei gruppi macro (sui cat-group-header) ──────────
+  let draggedGroup = null;
+  $$('.cat-group-header', D.catList).forEach(h => {
+    h.addEventListener('dragstart', e => {
+      draggedGroup = h.closest('.cat-group');
+      if (!draggedGroup) return;
+      draggedGroup.classList.add('dragging-group');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', 'macro:' + h.getAttribute('data-macro'));
+      // stopPropagation in modo che dragstart non scateni anche su cat-row
+      e.stopPropagation();
+    });
+    h.addEventListener('dragend', () => {
+      if (draggedGroup) draggedGroup.classList.remove('dragging-group');
+      $$('.drag-over-group', D.catList).forEach(x => x.classList.remove('drag-over-group'));
+      const ref = draggedGroup;
+      setTimeout(() => { if (ref === draggedGroup) draggedGroup = null; }, 50);
+    });
+    h.addEventListener('dragover', e => {
+      if (!draggedGroup) return;
+      const tg = h.closest('.cat-group');
+      if (!tg || tg === draggedGroup) return;
+      e.preventDefault();
+      e.stopPropagation();
+      tg.classList.add('drag-over-group');
+    });
+    h.addEventListener('dragleave', e => {
+      const tg = h.closest('.cat-group');
+      tg && tg.classList.remove('drag-over-group');
+    });
+    h.addEventListener('drop', async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const tg = h.closest('.cat-group');
+      tg && tg.classList.remove('drag-over-group');
+      if (!draggedGroup || draggedGroup === tg || !tg) return;
+      const allGroups = Array.from($$('.cat-group', D.catList));
+      const srcIdx = allGroups.indexOf(draggedGroup);
+      const dstIdx = allGroups.indexOf(tg);
+      if (srcIdx < dstIdx) D.catList.insertBefore(draggedGroup, tg.nextSibling);
+      else D.catList.insertBefore(draggedGroup, tg);
+      await persistMacroOrder();
+    });
+  });
+
+  // ── Drag&drop delle sotto-categorie (intra-macro) ──────────────
   let draggedEl = null;
   $$('.cat-row', D.catList).forEach(el => {
     el.addEventListener('click', () => {
@@ -755,6 +806,17 @@ function bindCatDragAndClick() {
       await persistCatOrder();
     });
   });
+}
+
+async function persistMacroOrder() {
+  const ids = Array.from($$('.cat-group', D.catList)).map(el => el.getAttribute('data-macro'));
+  S.prefs.macroOrder = ids;
+  saveLocalCache();
+  const path = T.PREFS + '?id=eq.1';
+  const options = { method: 'PATCH', body: JSON.stringify({ dati: Object.assign({}, S.prefs, { macroOrder: ids }) }) };
+  try { if (isOnline()) await supaFetch(path, options); else enqueue({ path, options }); }
+  catch { enqueue({ path, options }); }
+  toast('Ordine gruppi salvato', 'success');
 }
 
 async function persistCatOrder() {
@@ -1446,7 +1508,7 @@ async function saveSettings() {
   closeModal('modalSettings');
   toast('Impostazioni salvate', 'success');
   const path = T.PREFS + '?id=eq.1';
-  const options = { method: 'PATCH', body: JSON.stringify({ dati: { theme: themeNew } }) };
+  const options = { method: 'PATCH', body: JSON.stringify({ dati: Object.assign({}, S.prefs, { theme: themeNew }) }) };
   try { if (isOnline()) await supaFetch(path, options); else enqueue({ path, options }); }
   catch { enqueue({ path, options }); }
 }
