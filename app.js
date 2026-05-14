@@ -37,7 +37,7 @@ const COLORS = ['#e74c3c','#f39c12','#f1c40f','#2ecc71','#1abc9c','#3498db','#9b
 const EMOJI_CATS = [
   { id: 'casa',          icon: '🏠', emojis: '🏠 🏡 🏢 🛋️ 🛏️ 🚿 🛁 🚽 🚪 🪟 🪜 🪑 📺 🖼️ 🧹 🧺 🧼 🪣 🧴 🪥 🧻 🛠️ 🔧 🔨 🔑 🗝️ 🪞 🛒'.split(' ') },
   { id: 'cibo',          icon: '🍕', emojis: '🛒 🍕 🍔 🍟 🌭 🍿 🥗 🥙 🌮 🌯 🥘 🍝 🍜 🍱 🍣 🍤 🥟 🍙 🥪 🍞 🥐 🥖 🥨 🧀 🍳 🥞 🥩 🍗 🍖 🥑 🥒 🥦 🍅 🥕 🌽 🥔 🍠 🍎 🍏 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🍒 🥭 🍍 🥥 🥝 🍯 🎂 🧁 🍰 🍩 🍪 🍫 🍬 ☕ 🫖 🍵 🥤 🧋 🍷 🍺 🥃 🍶 🥂 🍸 🍹 🍾 🥛'.split(' ') },
-  { id: 'bollette',      icon: '💡', emojis: '💡 🔌 🔋 ⚡ 🔥 💧 📶 📡 📞 ☎️ 📱 💻 🖥️ 🖨️ 📺 📻 🌡️ 🛜 💸 🧾 📨'.split(' ') },
+  { id: 'bollette',      icon: '💡', emojis: '💡 🔌 🔋 ⚡ 🔥 💧 🗑️ ♻️ 📶 📡 📞 ☎️ 📱 💻 🖥️ 🖨️ 📺 📻 🌡️ 🛜 💸 🧾 📨'.split(' ') },
   { id: 'trasporti',     icon: '🚗', emojis: '🚗 🚙 🚕 🏎️ 🚐 🛻 🚚 🛵 🏍️ 🛴 🚲 ⛽ 🚉 🚆 🚇 🚊 ✈️ 🛩️ 🚁 ⛵ 🚢 🅿️ 🚦 🚥 🛣️ 🚌 🚎 🛺 🚖 🚍'.split(' ') },
   { id: 'salute',        icon: '💊', emojis: '💊 💉 🩺 🩹 🌡️ 🦷 🧬 🏥 🚑 🧠 🫀 🫁 👁️ 👂 🦴 ♿ 🆘 ⚕️ 🩻 😷 🤒 🤕 🤧 🧴 🧼 🪥 🥼'.split(' ') },
   { id: 'svago',         icon: '🎮', emojis: '🎮 🕹️ 🎯 🎰 🎲 🧩 ♟️ 🎭 🎨 🎬 🎤 🎧 🎵 🎶 🎷 🎸 🎺 🎻 🥁 📚 📖 📰 📷 📸 🎥 🎞️ 🖼️ 🎪 🎢 🎡 🎠 🎟️ 🎫 🧸 🪅 🎳 🪩'.split(' ') },
