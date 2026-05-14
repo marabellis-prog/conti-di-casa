@@ -323,6 +323,89 @@
     container.appendChild(svg);
   }
 
+  // ─── BARRE DIFF (variazione positiva/negativa con asse 0) ─
+  // rows: [{ label, value, icon }]  - value può essere negativo
+  function renderDiffBars(container, rows, opts) {
+    opts = opts || {};
+    container.innerHTML = '';
+    if (!rows.length) {
+      container.innerHTML = '<div class="empty"><div class="emoji">📊</div><div>Nessuna variazione</div></div>';
+      return;
+    }
+    const W = 360, H = 200, PAD_L = 4, PAD_R = 4, PAD_T = 18, PAD_B = 28;
+    const N = rows.length;
+    const maxAbs = Math.max.apply(null, rows.map(r => Math.abs(r.value))) || 1;
+    const niceMax = niceCeil(maxAbs);
+    const innerH = H - PAD_T - PAD_B;
+    const zeroY = PAD_T + innerH / 2;
+    const slotW = (W - PAD_L - PAD_R) / N;
+    const barW = Math.max(8, slotW * 0.55);
+
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    // linea asse 0
+    const axis = document.createElementNS(NS, 'line');
+    axis.setAttribute('x1', PAD_L); axis.setAttribute('x2', W - PAD_R);
+    axis.setAttribute('y1', zeroY); axis.setAttribute('y2', zeroY);
+    axis.setAttribute('stroke', 'var(--border)');
+    axis.setAttribute('stroke-width', '1.5');
+    svg.appendChild(axis);
+    // label max +/−
+    const lblPos = document.createElementNS(NS, 'text');
+    lblPos.setAttribute('x', PAD_L + 2); lblPos.setAttribute('y', PAD_T + 9);
+    lblPos.setAttribute('fill', 'var(--text-faint)');
+    lblPos.setAttribute('font-size', '10');
+    lblPos.textContent = '+' + fmtEurShort(niceMax);
+    svg.appendChild(lblPos);
+    const lblNeg = document.createElementNS(NS, 'text');
+    lblNeg.setAttribute('x', PAD_L + 2); lblNeg.setAttribute('y', H - PAD_B + 12);
+    lblNeg.setAttribute('fill', 'var(--text-faint)');
+    lblNeg.setAttribute('font-size', '10');
+    lblNeg.textContent = '−' + fmtEurShort(niceMax);
+    svg.appendChild(lblNeg);
+
+    // barre
+    rows.forEach((r, i) => {
+      const h = (Math.abs(r.value) / niceMax) * (innerH / 2);
+      const x = PAD_L + i * slotW + (slotW - barW) / 2;
+      const isUp = r.value > 0;
+      const y = isUp ? (zeroY - h) : zeroY;
+      const color = r.value === 0 ? 'var(--text-faint)' : (isUp ? 'var(--danger)' : 'var(--ok)');
+      const rect = document.createElementNS(NS, 'rect');
+      rect.setAttribute('x', x.toFixed(1));
+      rect.setAttribute('y', y.toFixed(1));
+      rect.setAttribute('width', barW.toFixed(1));
+      rect.setAttribute('height', h.toFixed(1));
+      rect.setAttribute('fill', color);
+      rect.setAttribute('rx', '2');
+      svg.appendChild(rect);
+      // valore sopra/sotto la barra
+      if (r.value !== 0) {
+        const valTxt = document.createElementNS(NS, 'text');
+        valTxt.setAttribute('x', (x + barW / 2).toFixed(1));
+        valTxt.setAttribute('y', isUp ? (y - 3).toFixed(1) : (y + h + 9).toFixed(1));
+        valTxt.setAttribute('text-anchor', 'middle');
+        valTxt.setAttribute('fill', color);
+        valTxt.setAttribute('font-size', '9');
+        valTxt.setAttribute('font-weight', '700');
+        valTxt.textContent = (isUp ? '+' : '−') + fmtEurShort(Math.abs(r.value));
+        svg.appendChild(valTxt);
+      }
+      // icona sotto come label
+      const ic = document.createElementNS(NS, 'text');
+      ic.setAttribute('x', (x + barW / 2).toFixed(1));
+      ic.setAttribute('y', H - 6);
+      ic.setAttribute('text-anchor', 'middle');
+      ic.setAttribute('font-size', '13');
+      ic.textContent = r.icon || '?';
+      svg.appendChild(ic);
+    });
+
+    container.appendChild(svg);
+  }
+
   // Expose
-  window.Charts = { renderDonut, renderLine, renderBars, renderBudgetBars, fmtEur, fmtEurShort };
+  window.Charts = { renderDonut, renderLine, renderBars, renderBudgetBars, renderDiffBars, fmtEur, fmtEurShort };
 })();

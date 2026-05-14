@@ -100,7 +100,7 @@ function cacheDOM() {
    'anCatDonut','anCatDetail','anAutoreDonut','anAutoreDetail',
    'anTrend12Chart','anTrend12Detail',
    'anMeseTrendPrev','anMeseTrendNext','anMeseTrendLabel','anMeseTrendChart','anMeseTrendDetail',
-   'anCmpPrev','anCmpNext','anCmpLabel','anCmpWrap','anCmpDetail',
+   'anCmpPrev','anCmpNext','anCmpLabel','anCmpWrap','anCmpDetail','anCmpDiffChart',
    'searchInput','listFilters','txList',
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
@@ -1731,6 +1731,15 @@ function _drawAnCompare(anno, mese, prevY, prevM) {
     '</tr>';
     html += '</tbody></table>';
     D.anCmpDetail.innerHTML = html;
+  }
+  // Grafico "Variazione per macro"
+  if (D.anCmpDiffChart) {
+    const diffRows = rows.map(r => {
+      const m = macroById(r.id);
+      return { label: macroLabel(r.id), value: r.cur - r.prev, icon: m ? m.icon : '📦' };
+    }).filter(r => r.value !== 0)
+      .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+    Charts.renderDiffBars(D.anCmpDiffChart, diffRows);
   }
 }
 function shiftAnMeseCmp(delta) {
