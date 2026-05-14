@@ -92,6 +92,9 @@ function cacheDOM() {
   ['monthLabel','btnMonthPrev','btnMonthNext','btnSettings','btnUpdate',
    'view-home','view-list','view-budget','view-cat',
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap','lineWrap','budgetBars',
+   'subDonutWrap','weekdayDonutWrap','inOutDonutWrap','saldoCumWrap','dailyBarsWrap',
+   'donutCarousel','donutCarouselDots','donutCarouselTitle',
+   'trendCarousel','trendCarouselDots','trendCarouselTitle',
    'searchInput','listFilters','txList',
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
@@ -103,6 +106,7 @@ function cacheDOM() {
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
    'modalSettings','setTheme','setAutori','setAutoreDefault','setSave','setExport','setClearCache','setVersion',
    'autoreDonutWrap'
+
   ].forEach(id => D[id] = document.getElementById(id));
 }
 
@@ -472,11 +476,196 @@ function renderHome() {
   // Donut uscite per AUTORE
   renderAutoreDonut(arr);
 
-  // Trend 12 mesi
+  // Donut: per sotto-categoria (top 8 + altre)
+  renderSubCatDonut(arr);
+
+  // Donut: per giorno settimana
+  renderWeekdayDonut(arr);
+
+  // Donut: entrate vs uscite
+  renderInOutDonut(arr, inSum, outSum);
+
+  // Trend 12 mesi (entrate vs uscite)
   renderTrend();
+
+  // Trend: saldo cumulativo 12 mesi
+  renderSaldoCumulativo();
+
+  // Trend: spesa giornaliera del mese corrente
+  renderDailyBars(arr);
+
+  // Setup caroselli (idempotente: viene chiamato ad ogni render, ma listener attivati una volta)
+  setupCarousels();
 
   // Budget vs reale
   renderBudgetBars();
+}
+
+// ─── ALTRE ANALISI DONUT ────────────────────────────────────
+function renderSubCatDonut(arrCurrentMonth) {
+  if (!D.subDonutWrap) return;
+  const usc = arrCurrentMonth.filter(t => t.tipo === 'uscita');
+  if (!usc.length) {
+    D.subDonutWrap.innerHTML = '<div class="empty"><div class="emoji">🏷️</div><div>Nessuna uscita</div></div>';
+    return;
+  }
+  const byCat = {};
+  usc.forEach(t => {
+    const cid = t.categoria_id || 0;
+    byCat[cid] = (byCat[cid] || 0) + Number(t.importo);
+  });
+  // ordina decrescente, prendi top 8, gli altri in "Altre"
+  const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, 8);
+  const rest = sorted.slice(8);
+  const segs = top.map(([cid, val]) => {
+    const c = catById(Number(cid));
+    return {
+      label: c ? (c.icona + ' ' + c.nome) : 'Senza categoria',
+      value: val,
+      color: c ? c.colore : '#94a3b8'
+    };
+  });
+  if (rest.length) {
+    const restSum = rest.reduce((s, [_, v]) => s + v, 0);
+    segs.push({ label: 'Altre (' + rest.length + ')', value: restSum, color: '#64748b' });
+  }
+  Charts.renderDonut(D.subDonutWrap, segs, { subLabel: 'sotto-cat' });
+}
+
+const GIORNI_SETTIMANA = ['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
+const GIORNI_SHORT     = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+const GIORNI_COLORI    = ['#e91e63','#3498db','#9b59b6','#1abc9c','#f39c12','#34d399','#e74c3c'];
+
+function renderWeekdayDonut(arrCurrentMonth) {
+  if (!D.weekdayDonutWrap) return;
+  const usc = arrCurrentMonth.filter(t => t.tipo === 'uscita');
+  if (!usc.length) {
+    D.weekdayDonutWrap.innerHTML = '<div class="empty"><div class="emoji">📅</div><div>Nessuna uscita</div></div>';
+    return;
+  }
+  const byDay = new Array(7).fill(0);
+  usc.forEach(t => {
+    const d = new Date(t.data + 'T00:00:00');
+    byDay[d.getDay()] += Number(t.importo);
+  });
+  // ordina partendo da lunedì
+  const order = [1,2,3,4,5,6,0];
+  const segs = order.filter(d => byDay[d] > 0).map(d => ({
+    label: GIORNI_SETTIMANA[d],
+    value: byDay[d],
+    color: GIORNI_COLORI[d]
+  }));
+  Charts.renderDonut(D.weekdayDonutWrap, segs, { subLabel: 'per giorno' });
+}
+
+function renderInOutDonut(arrCurrentMonth, inSum, outSum) {
+  if (!D.inOutDonutWrap) return;
+  if (!inSum && !outSum) {
+    D.inOutDonutWrap.innerHTML = '<div class="empty"><div class="emoji">⚖️</div><div>Nessun movimento nel mese</div></div>';
+    return;
+  }
+  const segs = [];
+  if (inSum > 0)  segs.push({ label: 'Entrate', value: inSum,  color: 'var(--ok)' });
+  if (outSum > 0) segs.push({ label: 'Uscite',  value: outSum, color: 'var(--danger)' });
+  Charts.renderDonut(D.inOutDonutWrap, segs, { subLabel: 'flusso mensile' });
+}
+
+// ─── TREND aggiuntivi ───────────────────────────────────────
+async function renderSaldoCumulativo() {
+  if (!D.saldoCumWrap) return;
+  const endY = S.currentMonth.anno, endM = S.currentMonth.mese;
+  let startY = endY, startM = endM - 11;
+  while (startM < 1) { startM += 12; startY--; }
+  const startStr = startY + '-' + String(startM).padStart(2,'0') + '-01';
+  const lastDay = new Date(endY, endM, 0).getDate();
+  const endStr = endY + '-' + String(endM).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0');
+  try {
+    const rows = await supaFetch(T.TX + '?select=data,importo,tipo&data=gte.' + startStr + '&data=lte.' + endStr);
+    const buckets = new Map();
+    const labels = [];
+    let y = startY, m = startM;
+    for (let i = 0; i < 12; i++) {
+      const k = monthKey(y, m);
+      buckets.set(k, 0);
+      labels.push(MESI_SHORT[m - 1] + (m === 1 ? ' \'' + String(y).slice(-2) : ''));
+      m++; if (m > 12) { m = 1; y++; }
+    }
+    (rows || []).forEach(r => {
+      const [yy, mm] = r.data.split('-');
+      const k = monthKey(Number(yy), Number(mm));
+      if (!buckets.has(k)) return;
+      const sign = r.tipo === 'entrata' ? 1 : -1;
+      buckets.set(k, buckets.get(k) + sign * Number(r.importo));
+    });
+    // cumulativo
+    let acc = 0;
+    const cumPts = [];
+    buckets.forEach(v => { acc += v; cumPts.push(acc); });
+    Charts.renderLine(D.saldoCumWrap, [
+      { label: 'Saldo', color: 'var(--accent)', points: cumPts }
+    ], labels);
+  } catch (e) {
+    D.saldoCumWrap.innerHTML = '<div class="empty"><div class="emoji">📈</div><div>Saldo non disponibile offline</div></div>';
+  }
+}
+
+function renderDailyBars(arrCurrentMonth) {
+  if (!D.dailyBarsWrap) return;
+  const usc = arrCurrentMonth.filter(t => t.tipo === 'uscita');
+  if (!usc.length) {
+    D.dailyBarsWrap.innerHTML = '<div class="empty"><div class="emoji">📅</div><div>Nessuna uscita questo mese</div></div>';
+    return;
+  }
+  const { anno, mese } = S.currentMonth;
+  const daysInMonth = new Date(anno, mese, 0).getDate();
+  const arr = new Array(daysInMonth).fill(0);
+  usc.forEach(t => {
+    const d = Number(t.data.split('-')[2]);
+    if (d >= 1 && d <= daysInMonth) arr[d - 1] += Number(t.importo);
+  });
+  Charts.renderBars(D.dailyBarsWrap, arr, { color: 'var(--danger)' });
+}
+
+// ─── CAROUSEL setup ─────────────────────────────────────────
+const DONUT_TITLES = ['Uscite per categoria', 'Uscite per autore', 'Uscite per sotto-categoria', 'Uscite per giorno settimana', 'Entrate vs Uscite'];
+const TREND_TITLES = ['Trend 12 mesi', 'Saldo cumulativo 12 mesi', 'Uscite giornaliere del mese'];
+let _carouselsInited = false;
+function setupCarousels() {
+  if (_carouselsInited) return;
+  _carouselsInited = true;
+  setupCarousel(D.donutCarousel, D.donutCarouselDots, D.donutCarouselTitle, DONUT_TITLES);
+  setupCarousel(D.trendCarousel, D.trendCarouselDots, D.trendCarouselTitle, TREND_TITLES);
+}
+
+function setupCarousel(track, dotsEl, titleEl, titles) {
+  if (!track || !dotsEl) return;
+  const slides = Array.from(track.querySelectorAll('.carousel-slide'));
+  dotsEl.innerHTML = slides.map((_, i) => '<button class="carousel-dot' + (i===0?' active':'') + '" data-idx="' + i + '" aria-label="Vai a ' + (titles[i]||('slide '+(i+1))) + '"></button>').join('');
+  const setActive = i => {
+    dotsEl.querySelectorAll('.carousel-dot').forEach((d, idx) => d.classList.toggle('active', idx === i));
+    if (titleEl && titles[i]) titleEl.textContent = titles[i];
+  };
+  dotsEl.querySelectorAll('.carousel-dot').forEach(d => {
+    d.addEventListener('click', () => {
+      const i = Number(d.getAttribute('data-idx'));
+      const slide = slides[i];
+      if (slide) track.scrollTo({ left: slide.offsetLeft - track.offsetLeft, behavior: 'smooth' });
+      setActive(i);
+    });
+  });
+  // detect slide visibile durante swipe
+  if (window.IntersectionObserver) {
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting && e.intersectionRatio > 0.55) {
+          const idx = Number(e.target.getAttribute('data-slide'));
+          setActive(idx);
+        }
+      });
+    }, { root: track, threshold: [0.55, 0.9] });
+    slides.forEach(s => io.observe(s));
+  }
 }
 
 function renderAutoreDonut(arrCurrentMonth) {

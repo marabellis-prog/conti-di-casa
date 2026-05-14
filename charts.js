@@ -236,6 +236,93 @@
     });
   }
 
+  // ─── BARRE verticali (giornaliere) ────────────────────────
+  // values: array di numeri (uno per giorno)
+  // opts: { color, labelStep }
+  function renderBars(container, values, opts) {
+    opts = opts || {};
+    container.innerHTML = '';
+    if (!values.length) {
+      container.innerHTML = '<div class="empty"><div class="emoji">📊</div><div>Dati insufficienti</div></div>';
+      return;
+    }
+    const W = 360, H = 200, PAD_L = 14, PAD_R = 6, PAD_T = 12, PAD_B = 22;
+    const N = values.length;
+    let maxV = Math.max.apply(null, values);
+    if (maxV <= 0) maxV = 1;
+    const niceMax = niceCeil(maxV);
+    const slotW = (W - PAD_L - PAD_R) / N;
+    const barW = Math.max(2, slotW * 0.7);
+
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    // grid
+    for (let i = 0; i <= 3; i++) {
+      const y = PAD_T + ((H - PAD_T - PAD_B) * i / 3);
+      const ln = document.createElementNS(NS, 'line');
+      ln.setAttribute('x1', PAD_L); ln.setAttribute('x2', W - PAD_R);
+      ln.setAttribute('y1', y);     ln.setAttribute('y2', y);
+      ln.setAttribute('stroke', 'var(--border)');
+      ln.setAttribute('stroke-width', '1');
+      ln.setAttribute('opacity', i === 3 ? '1' : '.35');
+      svg.appendChild(ln);
+    }
+    const lblMax = document.createElementNS(NS, 'text');
+    lblMax.setAttribute('x', PAD_L + 2);
+    lblMax.setAttribute('y', PAD_T + 9);
+    lblMax.setAttribute('fill', 'var(--text-faint)');
+    lblMax.setAttribute('font-size', '10');
+    lblMax.textContent = fmtEurShort(niceMax);
+    svg.appendChild(lblMax);
+
+    // bars
+    const color = opts.color || 'var(--accent)';
+    values.forEach((v, i) => {
+      if (v <= 0) return;
+      const h = ((v / niceMax) * (H - PAD_T - PAD_B));
+      const x = PAD_L + i * slotW + (slotW - barW) / 2;
+      const y = H - PAD_B - h;
+      const r = document.createElementNS(NS, 'rect');
+      r.setAttribute('x', x.toFixed(1));
+      r.setAttribute('y', y.toFixed(1));
+      r.setAttribute('width', barW.toFixed(1));
+      r.setAttribute('height', h.toFixed(1));
+      r.setAttribute('fill', color);
+      r.setAttribute('rx', '1.5');
+      svg.appendChild(r);
+    });
+
+    // x labels: ogni N/6 (es. giorni 1,5,10,15,20,25,fine)
+    const step = Math.max(1, Math.ceil(N / 6));
+    for (let i = 0; i < N; i += step) {
+      const x = PAD_L + i * slotW + slotW / 2;
+      const t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', x);
+      t.setAttribute('y', H - 6);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('fill', 'var(--text-faint)');
+      t.setAttribute('font-size', '10');
+      t.textContent = String(i + 1);
+      svg.appendChild(t);
+    }
+    // ultimo
+    if ((N - 1) % step !== 0) {
+      const x = PAD_L + (N - 1) * slotW + slotW / 2;
+      const t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', x);
+      t.setAttribute('y', H - 6);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('fill', 'var(--text-faint)');
+      t.setAttribute('font-size', '10');
+      t.textContent = String(N);
+      svg.appendChild(t);
+    }
+
+    container.appendChild(svg);
+  }
+
   // Expose
-  window.Charts = { renderDonut, renderLine, renderBudgetBars, fmtEur, fmtEurShort };
+  window.Charts = { renderDonut, renderLine, renderBars, renderBudgetBars, fmtEur, fmtEurShort };
 })();

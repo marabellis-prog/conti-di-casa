@@ -60,22 +60,45 @@
         <div id="ultime"></div>
       </div>
 
-      <div class="card">
-        <h3 class="card-title">Uscite per categoria</h3>
-        <div id="donutWrap" class="donut-wrap"></div>
+      <div class="card carousel-card">
+        <div class="carousel-header">
+          <h3 class="card-title carousel-title" id="donutCarouselTitle">Uscite per categoria</h3>
+          <div class="carousel-dots" id="donutCarouselDots"></div>
+        </div>
+        <div class="carousel-track" id="donutCarousel">
+          <div class="carousel-slide" data-slide="0"><div id="donutWrap" class="donut-wrap"></div></div>
+          <div class="carousel-slide" data-slide="1"><div id="autoreDonutWrap" class="donut-wrap"></div></div>
+          <div class="carousel-slide" data-slide="2"><div id="subDonutWrap" class="donut-wrap"></div></div>
+          <div class="carousel-slide" data-slide="3"><div id="weekdayDonutWrap" class="donut-wrap"></div></div>
+          <div class="carousel-slide" data-slide="4"><div id="inOutDonutWrap" class="donut-wrap"></div></div>
+        </div>
       </div>
 
-      <div class="card">
-        <h3 class="card-title">Uscite per autore</h3>
-        <div id="autoreDonutWrap" class="donut-wrap"></div>
-      </div>
-
-      <div class="card">
-        <h3 class="card-title">Trend 12 mesi</h3>
-        <div id="lineWrap" class="line-wrap"></div>
-        <div class="line-legend">
-          <span><span class="dot" style="background:var(--ok)"></span>Entrate</span>
-          <span><span class="dot" style="background:var(--danger)"></span>Uscite</span>
+      <div class="card carousel-card">
+        <div class="carousel-header">
+          <h3 class="card-title carousel-title" id="trendCarouselTitle">Trend 12 mesi</h3>
+          <div class="carousel-dots" id="trendCarouselDots"></div>
+        </div>
+        <div class="carousel-track" id="trendCarousel">
+          <div class="carousel-slide" data-slide="0">
+            <div id="lineWrap" class="line-wrap"></div>
+            <div class="line-legend">
+              <span><span class="dot" style="background:var(--ok)"></span>Entrate</span>
+              <span><span class="dot" style="background:var(--danger)"></span>Uscite</span>
+            </div>
+          </div>
+          <div class="carousel-slide" data-slide="1">
+            <div id="saldoCumWrap" class="line-wrap"></div>
+            <div class="line-legend">
+              <span><span class="dot" style="background:var(--accent)"></span>Saldo cumulativo</span>
+            </div>
+          </div>
+          <div class="carousel-slide" data-slide="2">
+            <div id="dailyBarsWrap" class="line-wrap"></div>
+            <div class="line-legend">
+              <span><span class="dot" style="background:var(--danger)"></span>Uscite giornaliere</span>
+            </div>
+          </div>
         </div>
       </div>
 
