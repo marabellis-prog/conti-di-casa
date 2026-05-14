@@ -671,6 +671,13 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   place-items: center;
   box-shadow: 0 1px 3px rgba(0,0,0,.2);
 }
+.qa-cat.qa-altro {
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  color: var(--text-dim);
+}
+.qa-cat.qa-altro .qa-cat-icon { color: var(--text-dim); }
+
 .qa-cat.qa-back {
   background: var(--surface);
   border: 1px solid var(--border);

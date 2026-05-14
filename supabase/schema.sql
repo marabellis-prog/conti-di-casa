@@ -161,10 +161,10 @@ SELECT * FROM (VALUES
   ('Tempo libero',  'uscita', '#34d399', '🎮', 'svago',         6),
   ('Abbigliamento', 'uscita', '#a777e3', '👕', 'abbigliamento', 7),
   ('Regali',        'uscita', '#ff5722', '🎁', 'regali',        8),
-  ('Altro uscita',  'uscita', '#607d8b', '📦', 'simboli',       9),
+  ('Altro uscita',  'uscita', '#607d8b', '📦', 'altro',       9),
   ('Stipendio',     'entrata','#2ecc71', '💰', 'soldi',         0),
   ('Rimborso',      'entrata','#5ab885', '💼', 'soldi',         1),
-  ('Altro entrata', 'entrata','#7dd3a8', '✨', 'simboli',       2)
+  ('Altro entrata', 'entrata','#7dd3a8', '✨', 'altro',       2)
 ) AS v(nome, tipo, colore, icona, macro_categoria, ordine)
 WHERE NOT EXISTS (SELECT 1 FROM public.cdc_categorie);
 

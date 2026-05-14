@@ -51,7 +51,7 @@ const EMOJI_CATS = [
   { id: 'lavoro',        icon: '💼', emojis: '💼 🗂️ 📁 📂 📋 📌 📍 📎 ✂️ 🖊️ 🖋️ ✒️ 📐 📏 📑 📕 📗 📘 📙 📰 ⏰ 🏢 🖥️ ⌨️ 📞 📧 ✉️ 🪧 📇 📒'.split(' ') },
   { id: 'soldi',         icon: '💰', emojis: '💰 💵 💴 💶 💷 💸 💳 🪙 💎 🏦 🧾 📊 📈 📉 💹 🤑 🏧 🛒 🛍️ 🏪 🏬 💼'.split(' ') },
   { id: 'natura',        icon: '🌳', emojis: '🌳 🌲 🌴 🌵 🌿 ☘️ 🍀 🪴 🌱 🌾 🌻 🌹 🌷 🌼 🌸 💐 🪷 🌺 🌞 ☀️ 🌝 🌚 🌛 🌜 🌙 ⭐ 🌟 ✨ ☁️ ⛅ 🌧️ ⛈️ 🌨️ ❄️ ☃️ ⛄ 🌪️ 🌫️ 🌊 ☔'.split(' ') },
-  { id: 'simboli',       icon: '⭐', emojis: '⭐ 🌟 ✨ 💫 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💯 💢 💥 ✅ ❌ ✔️ ➕ ➖ ➗ ⚠️ 🚫 ❗ ❓ 💬 💭 🔔 🔕 🎯 🚩 🏁'.split(' ') }
+  { id: 'altro',         icon: '📦', emojis: '📦 📥 📤 📨 📩 📪 📫 ⭐ 🌟 ✨ 💫 ❤️ 🧡 💛 💚 💙 💜 🖤 💯 ✅ ❌ ✔️ ➕ ➖ ➗ ⚠️ 🚫 ❗ ❓ 💬 💭 🔔 🎯 🚩 🏁'.split(' ') }
 ];
 // flat list (per uso di default / fallback)
 const ALL_EMOJIS = EMOJI_CATS.flatMap(c => c.emojis);
@@ -449,7 +449,7 @@ function renderHome() {
     casa:'#3498db', cibo:'#e74c3c', bollette:'#f39c12', trasporti:'#9b59b6',
     salute:'#1abc9c', svago:'#34d399', sport:'#16a34a', abbigliamento:'#a777e3',
     famiglia:'#f472b6', animali:'#fb923c', tecnologia:'#0ea5e9', regali:'#ff5722',
-    viaggi:'#06b6d4', lavoro:'#64748b', soldi:'#2ecc71', natura:'#22c55e', simboli:'#94a3b8'
+    viaggi:'#06b6d4', lavoro:'#64748b', soldi:'#2ecc71', natura:'#22c55e', altro:'#94a3b8'
   };
   const segs = Object.keys(uscByMacro).map(macroId => {
     const m = macroById(macroId);
@@ -547,9 +547,9 @@ function catById(id) { return S.cats.find(c => c.id === id); }
 
 function txRowHtml(t) {
   const c = catById(t.categoria_id);
-  const icon = c ? c.icona : '❔';
-  const color = c ? c.colore : '#666';
-  const name = c ? c.nome : 'Senza categoria';
+  const icon = c ? c.icona : '📦';
+  const color = c ? c.colore : '#94a3b8';
+  const name = c ? c.nome : 'Altro';
   const macro = c && c.macro_categoria ? macroById(c.macro_categoria) : null;
   const macroPrefix = macro ? '<span class="tx-macro">' + macro.icon + ' ' + macroLabel(c.macro_categoria) + '</span> › ' : '';
   const pendingCls = S.pendingTxIds.has(t.id) ? ' pending' : '';
@@ -579,7 +579,7 @@ function renderList() {
   if (S.donutFilter != null) {
     if (typeof S.donutFilter === 'object' && S.donutFilter.type === 'macro') {
       const macroId = S.donutFilter.value;
-      const catIdsInMacro = new Set(S.cats.filter(c => (c.macro_categoria || 'simboli') === macroId).map(c => c.id));
+      const catIdsInMacro = new Set(S.cats.filter(c => (c.macro_categoria || 'altro') === macroId).map(c => c.id));
       arr = arr.filter(t => catIdsInMacro.has(t.categoria_id));
     } else {
       // legacy: filter by categoria_id
@@ -847,7 +847,7 @@ function renderQaCats() {
     // raggruppa categorie utente per macro_categoria, mostra solo macro con >=1 sotto-cat
     const groups = new Map(); // macroId -> { count, useTotal, subs: [] }
     allCats.forEach(c => {
-      const mid = c.macro_categoria || 'simboli';
+      const mid = c.macro_categoria || 'altro';
       if (!groups.has(mid)) groups.set(mid, { count: 0, useTotal: 0, subs: [] });
       const g = groups.get(mid);
       g.count++;
@@ -868,6 +868,13 @@ function renderQaCats() {
       '</button>';
     }).join('');
 
+    // chip "Altro" sempre presente come fallback "senza categoria"
+    const altroHtml = '<button class="qa-cat qa-altro" data-altro="1" title="Salva senza categoria">' +
+      '<div class="qa-cat-icon">📦</div>' +
+      '<div class="qa-cat-name">Altro</div>' +
+    '</button>';
+    D.qaCats.insertAdjacentHTML('beforeend', altroHtml);
+
     $$('.qa-cat[data-macro]', D.qaCats).forEach(el => {
       el.addEventListener('click', () => {
         const mid = el.getAttribute('data-macro');
@@ -881,10 +888,16 @@ function renderQaCats() {
         }
       });
     });
+    $$('.qa-cat[data-altro]', D.qaCats).forEach(el => {
+      el.addEventListener('click', () => {
+        // salva senza categoria (categoria_id = null)
+        quickSave(null);
+      });
+    });
   } else {
     // ─── LIVELLO 2: sotto-categorie della macro selezionata ──────
     const subs = allCats
-      .filter(c => (c.macro_categoria || 'simboli') === qaPickerMacroId)
+      .filter(c => (c.macro_categoria || 'altro') === qaPickerMacroId)
       .sort((a, b) => (useByCat[b.id] || 0) - (useByCat[a.id] || 0) || a.ordine - b.ordine);
     const m = macroById(qaPickerMacroId);
 
