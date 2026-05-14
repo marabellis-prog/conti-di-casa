@@ -1219,9 +1219,24 @@ function bindModalClose() {
   $$('[data-close]').forEach(b => {
     b.addEventListener('click', () => closeModal(b.getAttribute('data-close')));
   });
+  // Chiusura tap su backdrop: chiude SOLO se l'utente ha iniziato il press
+  // direttamente sul backdrop (non dentro un figlio). Cosi' selezionare testo
+  // dentro un input e rilasciare fuori NON chiude il modal.
   $$('.modal').forEach(m => {
+    let pressedOnBackdrop = false;
+    m.addEventListener('pointerdown', e => {
+      pressedOnBackdrop = (e.target === m);
+    });
+    // fallback per browser senza pointerevents
+    m.addEventListener('mousedown', e => {
+      pressedOnBackdrop = (e.target === m);
+    });
+    m.addEventListener('touchstart', e => {
+      pressedOnBackdrop = (e.target === m);
+    }, { passive: true });
     m.addEventListener('click', e => {
-      if (e.target === m) closeModal(m.id);
+      if (e.target === m && pressedOnBackdrop) closeModal(m.id);
+      pressedOnBackdrop = false;
     });
   });
 }
