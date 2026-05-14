@@ -66,6 +66,11 @@
       </div>
 
       <div class="card">
+        <h3 class="card-title">Uscite per autore</h3>
+        <div id="autoreDonutWrap" class="donut-wrap"></div>
+      </div>
+
+      <div class="card">
         <h3 class="card-title">Trend 12 mesi</h3>
         <div id="lineWrap" class="line-wrap"></div>
         <div class="line-legend">
@@ -147,7 +152,10 @@
 
         <div id="qaAmt" class="qa-amt empty"><span class="euro">€</span><span id="qaAmtVal">0</span></div>
 
-        <input type="text" id="qaDesc" class="qa-desc-input" placeholder="Descrizione (opzionale)" autocomplete="off">
+        <div class="qa-desc-row">
+          <input type="text" id="qaDesc" class="qa-desc-input" placeholder="Descrizione (opzionale)" autocomplete="off">
+          <select id="qaAutore" class="qa-autore-select" title="Chi sta inserendo la spesa"></select>
+        </div>
 
         <div class="numpad" id="numpad">
           <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
@@ -197,6 +205,10 @@
         <div class="form-field">
           <label>Descrizione</label>
           <input type="text" id="txEditDesc">
+        </div>
+        <div class="form-field">
+          <label>Autore</label>
+          <select id="txEditAutore"></select>
         </div>
         <button id="txEditSave" class="btn-primary">Salva</button>
         <button id="txEditDelete" class="btn-danger">Elimina</button>
@@ -273,6 +285,14 @@
             <option value="dark">Scuro</option>
             <option value="light">Chiaro</option>
           </select>
+        </div>
+        <div class="form-field">
+          <label>Nomi autori (separati da virgola)</label>
+          <input type="text" id="setAutori" placeholder="Stefano, Flavia">
+        </div>
+        <div class="form-field">
+          <label>Autore predefinito</label>
+          <select id="setAutoreDefault"></select>
         </div>
         <button id="setSave" class="btn-primary">Salva impostazioni</button>
         <button id="setExport" class="btn-secondary" style="margin-top:14px">Esporta CSV transazioni</button>

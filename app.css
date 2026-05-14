@@ -573,20 +573,43 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   background: var(--ok);
 }
 
-/* Input descrizione (sotto importo, sopra numpad) */
+/* Riga descrizione + autore (sotto importo, sopra numpad) */
+.qa-desc-row {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
 .qa-desc-input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
   font-size: 14px;
   color: var(--text);
-  margin: 4px 0 12px;
   text-align: center;
 }
 .qa-desc-input::placeholder { color: var(--text-faint); font-style: italic; }
 .qa-desc-input:focus { border-color: var(--accent); outline: none; }
+.qa-autore-select {
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 28px 10px 12px;
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 600;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 10px) 50%;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+  max-width: 130px;
+}
+.qa-autore-select:focus { border-color: var(--accent); outline: none; }
 
 /* Save button (visibile solo quando importo + categoria scelti) */
 .qa-save-btn {

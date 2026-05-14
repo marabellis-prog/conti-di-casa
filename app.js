@@ -61,7 +61,7 @@ const S = {
   cats: [],          // categorie complete
   tx: [],            // transazioni (cache locale: ultimi 3 mesi)
   budgets: [],       // budget anno corrente
-  prefs: { theme: 'auto' },
+  prefs: { theme: 'auto', autori: ['Stefano', 'Flavia'], autoreDefault: 'Stefano' },
   ts: 0,
   queue: [],
   // navigation
@@ -96,12 +96,13 @@ function cacheDOM() {
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
    // modals
-   'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaDesc',
+   'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaDesc','qaAutore',
    'qaDateBtn','qaDateLabel','qaDatePicker','qaSaveBtn','qaSaveLabel',
-   'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditSave','txEditDelete',
+   'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
-   'modalSettings','setTheme','setSave','setExport','setClearCache','setVersion'
+   'modalSettings','setTheme','setAutori','setAutoreDefault','setSave','setExport','setClearCache','setVersion',
+   'autoreDonutWrap'
   ].forEach(id => D[id] = document.getElementById(id));
 }
 
@@ -468,11 +469,34 @@ function renderHome() {
   });
   Charts.renderDonut(D.donutWrap, segs, { subLabel: 'uscite mese' });
 
+  // Donut uscite per AUTORE
+  renderAutoreDonut(arr);
+
   // Trend 12 mesi
   renderTrend();
 
   // Budget vs reale
   renderBudgetBars();
+}
+
+function renderAutoreDonut(arrCurrentMonth) {
+  if (!D.autoreDonutWrap) return;
+  const usc = arrCurrentMonth.filter(t => t.tipo === 'uscita');
+  if (!usc.length) {
+    D.autoreDonutWrap.innerHTML = '<div class="empty"><div class="emoji">👥</div><div>Nessuna uscita nel mese</div></div>';
+    return;
+  }
+  const byAut = {};
+  usc.forEach(t => {
+    const nome = t.autore || '(non attribuito)';
+    byAut[nome] = (byAut[nome] || 0) + Number(t.importo);
+  });
+  const segs = Object.keys(byAut).map(nome => ({
+    label: nome,
+    value: byAut[nome],
+    color: colorForAutore(nome === '(non attribuito)' ? null : nome)
+  }));
+  Charts.renderDonut(D.autoreDonutWrap, segs, { subLabel: 'per persona' });
 }
 
 async function renderTrend() {
@@ -554,7 +578,7 @@ function txRowHtml(t) {
   const macro = c && c.macro_categoria ? macroById(c.macro_categoria) : null;
   const macroPrefix = macro ? '<span class="tx-macro">' + macro.icon + ' ' + macroLabel(c.macro_categoria) + '</span> › ' : '';
   const pendingCls = S.pendingTxIds.has(t.id) ? ' pending' : '';
-  const meta = [fmtData(t.data), t.descrizione || ''].filter(Boolean).join(' • ');
+  const meta = [fmtData(t.data), t.descrizione || '', t.autore ? '👤 ' + t.autore : ''].filter(Boolean).join(' • ');
   return '<div class="tx-row' + pendingCls + '" data-tx-id="' + t.id + '">' +
     '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
     '<div class="tx-body">' +
@@ -872,6 +896,7 @@ function openQuickAdd(tipo) {
     setQaTipo(QA.tipo);
     setQaAmt('');
     if (D.qaDesc) D.qaDesc.value = '';
+    if (D.qaAutore) populateAutoreSelect(D.qaAutore, S.prefs.autoreDefault || (S.prefs.autori && S.prefs.autori[0]) || 'Stefano');
     if (D.qaDatePicker) {
       D.qaDatePicker.value = QA.data;
       D.qaDatePicker.max = today();
@@ -1081,12 +1106,14 @@ async function quickSave(categoria_id) {
   }
   const desc = D.qaDesc ? D.qaDesc.value.trim() : '';
   const dataStr = D.qaDatePicker.value || QA.data || today();
+  const autore = (D.qaAutore && D.qaAutore.value) || S.prefs.autoreDefault || null;
   await saveTransaction({
     importo,
     tipo: QA.tipo,
     categoria_id,
     descrizione: desc || null,
-    data: dataStr
+    data: dataStr,
+    autore: autore || null
   });
   closeModal('modalQa');
   vibrate(20);
@@ -1135,7 +1162,7 @@ function openTxEdit(idStr) {
   populateCatSelect(D.txEditCat, t.tipo, t.categoria_id);
   D.txEditData.value = t.data;
   D.txEditDesc.value = t.descrizione || '';
-  // cambia categorie quando cambia tipo
+  if (D.txEditAutore) populateAutoreSelect(D.txEditAutore, t.autore || S.prefs.autoreDefault);
   D.txEditTipo.onchange = () => populateCatSelect(D.txEditCat, D.txEditTipo.value, null);
   openModal('modalTx');
 }
@@ -1147,7 +1174,8 @@ async function saveTxEdit() {
     tipo: D.txEditTipo.value,
     categoria_id: D.txEditCat.value ? Number(D.txEditCat.value) : null,
     data: D.txEditData.value || today(),
-    descrizione: D.txEditDesc.value.trim() || null
+    descrizione: D.txEditDesc.value.trim() || null,
+    autore: (D.txEditAutore && D.txEditAutore.value) || null
   };
   if (!payload.importo || payload.importo <= 0) { toast('Importo non valido', 'warn'); return; }
   // optimistic
@@ -1192,6 +1220,22 @@ function populateCatSelect(sel, tipo, currentId) {
   sel.innerHTML = '<option value="">(senza categoria)</option>' +
     cats.map(c => '<option value="' + c.id + '"' + (c.id === currentId ? ' selected' : '') + '>' +
       (c.icona ? c.icona + ' ' : '') + esc(c.nome) + '</option>').join('');
+}
+function populateAutoreSelect(sel, current) {
+  const list = (S.prefs.autori && S.prefs.autori.length) ? S.prefs.autori : ['Stefano','Flavia'];
+  sel.innerHTML = list.map(a => '<option' + (a === current ? ' selected' : '') + '>' + esc(a) + '</option>').join('');
+}
+// Colore stabile per autore (per donut autori)
+const AUTORE_COLORS = ['#3498db', '#e91e63', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+function colorForAutore(nome) {
+  if (!nome) return '#94a3b8';
+  const list = (S.prefs.autori && S.prefs.autori.length) ? S.prefs.autori : ['Stefano','Flavia'];
+  const idx = list.indexOf(nome);
+  if (idx >= 0) return AUTORE_COLORS[idx % AUTORE_COLORS.length];
+  // fallback: hash semplice
+  let h = 0;
+  for (let i = 0; i < nome.length; i++) h = (h * 31 + nome.charCodeAt(i)) & 0xffffffff;
+  return AUTORE_COLORS[Math.abs(h) % AUTORE_COLORS.length];
 }
 
 // ─── EDIT CATEGORIA ─────────────────────────────────────────
@@ -1499,16 +1543,24 @@ async function deleteBudgetEdit() {
 // ─── IMPOSTAZIONI ───────────────────────────────────────────
 function renderSettings() {
   D.setTheme.value = S.prefs.theme || 'auto';
+  if (D.setAutori) D.setAutori.value = (S.prefs.autori || ['Stefano', 'Flavia']).join(', ');
+  if (D.setAutoreDefault) populateAutoreSelect(D.setAutoreDefault, S.prefs.autoreDefault || (S.prefs.autori && S.prefs.autori[0]) || 'Stefano');
 }
 async function saveSettings() {
   const themeNew = D.setTheme.value;
+  const autoriNew = D.setAutori
+    ? D.setAutori.value.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4)
+    : (S.prefs.autori || ['Stefano', 'Flavia']);
+  const autoreDefaultNew = (D.setAutoreDefault && D.setAutoreDefault.value) || autoriNew[0] || 'Stefano';
   S.prefs.theme = themeNew;
+  S.prefs.autori = autoriNew.length ? autoriNew : ['Stefano', 'Flavia'];
+  S.prefs.autoreDefault = autoreDefaultNew;
   applyTheme();
   saveLocalCache();
   closeModal('modalSettings');
   toast('Impostazioni salvate', 'success');
   const path = T.PREFS + '?id=eq.1';
-  const options = { method: 'PATCH', body: JSON.stringify({ dati: Object.assign({}, S.prefs, { theme: themeNew }) }) };
+  const options = { method: 'PATCH', body: JSON.stringify({ dati: S.prefs }) };
   try { if (isOnline()) await supaFetch(path, options); else enqueue({ path, options }); }
   catch { enqueue({ path, options }); }
 }
@@ -1516,10 +1568,10 @@ function applyTheme() {
   document.documentElement.setAttribute('data-theme', S.prefs.theme || 'auto');
 }
 function exportCsv() {
-  const rows = [['data','tipo','importo','categoria','descrizione']];
+  const rows = [['data','tipo','importo','categoria','descrizione','autore']];
   S.tx.slice().sort((a,b) => a.data.localeCompare(b.data)).forEach(t => {
     const c = catById(t.categoria_id);
-    rows.push([t.data, t.tipo, String(t.importo).replace('.', ','), c ? c.nome : '', t.descrizione || '']);
+    rows.push([t.data, t.tipo, String(t.importo).replace('.', ','), c ? c.nome : '', t.descrizione || '', t.autore || '']);
   });
   const csv = rows.map(r => r.map(x => '"' + String(x).replace(/"/g, '""') + '"').join(',')).join('\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
