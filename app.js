@@ -71,6 +71,9 @@ const S = {
   listFilter: 'all',
   listSearch: '',
   donutFilter: null,   // categoria_id se filtrato
+  listPeriod: 'current', // current | last | custom
+  listFrom: null,       // YYYY-MM-DD (per custom)
+  listTo: null,         // YYYY-MM-DD (per custom)
   // editing
   editTxId: null,
   editCatId: null,
@@ -102,6 +105,7 @@ function cacheDOM() {
    'anMeseTrendPrev','anMeseTrendNext','anMeseTrendLabel','anMeseTrendChart','anMeseTrendDetail',
    'anCmpPrev','anCmpNext','anCmpLabel','anCmpWrap','anCmpDetail','anCmpDiffChart',
    'searchInput','listFilters','txList',
+   'listPeriodChips','listPeriodCustom','listPeriodFrom','listPeriodTo','listPeriodSummary',
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
    // modals
@@ -1097,9 +1101,88 @@ function bindTxRows(container) {
 }
 
 // ─── LISTA TRANSAZIONI ──────────────────────────────────────
-function renderList() {
+function getListPeriodRange() {
+  // Restituisce { fromStr, toStr, label } in base allo stato del filtro periodo.
+  if (S.listPeriod === 'last') {
+    const { anno, mese } = S.currentMonth;
+    let y = anno, m = mese - 1;
+    if (m < 1) { m = 12; y--; }
+    const last = new Date(y, m, 0).getDate();
+    return {
+      fromStr: y + '-' + String(m).padStart(2,'0') + '-01',
+      toStr:   y + '-' + String(m).padStart(2,'0') + '-' + String(last).padStart(2,'0'),
+      label:   MESI_FULL[m - 1] + ' ' + y
+    };
+  }
+  if (S.listPeriod === 'custom') {
+    return {
+      fromStr: S.listFrom || '',
+      toStr:   S.listTo || '',
+      label:   (S.listFrom ? fmtData(S.listFrom) : '?') + ' → ' + (S.listTo ? fmtData(S.listTo) : '?')
+    };
+  }
+  // default 'current': segue il currentMonth dell'header
   const { anno, mese } = S.currentMonth;
-  let arr = S.tx.filter(t => inMonth(t.data, anno, mese));
+  const last = new Date(anno, mese, 0).getDate();
+  return {
+    fromStr: anno + '-' + String(mese).padStart(2,'0') + '-01',
+    toStr:   anno + '-' + String(mese).padStart(2,'0') + '-' + String(last).padStart(2,'0'),
+    label:   MESI_FULL[mese - 1] + ' ' + anno
+  };
+}
+
+async function ensurePeriodLoaded(fromStr, toStr) {
+  if (!fromStr || !toStr) return;
+  // Determina elenco mesi (YYYY-MM) coperti dal range
+  const start = new Date(fromStr + 'T00:00:00');
+  const end   = new Date(toStr + 'T00:00:00');
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  const months = [];
+  while (cursor <= end) {
+    months.push({ y: cursor.getFullYear(), m: cursor.getMonth() + 1 });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  // Per ogni mese non in cache, fetcha
+  const toLoad = months.filter(({ y, m }) => !S.tx.some(t => inMonth(t.data, y, m)));
+  if (!toLoad.length) return;
+  const promises = toLoad.map(({ y, m }) => {
+    const s = y + '-' + String(m).padStart(2,'0') + '-01';
+    const ld = new Date(y, m, 0).getDate();
+    const e = y + '-' + String(m).padStart(2,'0') + '-' + String(ld).padStart(2,'0');
+    return supaFetch(T.TX + '?select=*&data=gte.' + s + '&data=lte.' + e + '&order=data.desc,id.desc').catch(() => []);
+  });
+  const results = await Promise.all(promises);
+  const ids = new Set(S.tx.map(t => t.id));
+  results.forEach(rows => {
+    (rows || []).forEach(r => { if (!ids.has(r.id)) S.tx.push(r); });
+  });
+  saveLocalCache();
+}
+
+function renderList() {
+  const range = getListPeriodRange();
+  // Aggiorna chip attiva
+  if (D.listPeriodChips) $$('.chip', D.listPeriodChips).forEach(c => c.classList.toggle('active', c.getAttribute('data-period') === S.listPeriod));
+  if (D.listPeriodCustom) D.listPeriodCustom.style.display = (S.listPeriod === 'custom') ? 'flex' : 'none';
+
+  // Validazione custom: se manca uno dei due estremi, mostra messaggio
+  if (S.listPeriod === 'custom' && (!S.listFrom || !S.listTo)) {
+    if (D.txList) D.txList.innerHTML = '<div class="empty"><div class="emoji">📅</div><div>Scegli le date "Da" e "A" per filtrare.</div></div>';
+    if (D.listPeriodSummary) D.listPeriodSummary.innerHTML = '';
+    return;
+  }
+  if (S.listPeriod === 'custom' && S.listFrom > S.listTo) {
+    if (D.txList) D.txList.innerHTML = '<div class="empty"><div class="emoji">⚠️</div><div>La data "Da" deve precedere "A".</div></div>';
+    if (D.listPeriodSummary) D.listPeriodSummary.innerHTML = '';
+    return;
+  }
+
+  // Lazy load dei mesi se range è custom o "last" non in cache
+  ensurePeriodLoaded(range.fromStr, range.toStr).then(() => _drawList(range));
+}
+
+function _drawList(range) {
+  let arr = S.tx.filter(t => t.data >= range.fromStr && t.data <= range.toStr);
   if (S.listFilter !== 'all') arr = arr.filter(t => t.tipo === S.listFilter);
   if (S.donutFilter != null) {
     if (typeof S.donutFilter === 'object' && S.donutFilter.type === 'macro') {
@@ -1107,7 +1190,6 @@ function renderList() {
       const catIdsInMacro = new Set(S.cats.filter(c => (c.macro_categoria || 'altro') === macroId).map(c => c.id));
       arr = arr.filter(t => catIdsInMacro.has(t.categoria_id));
     } else {
-      // legacy: filter by categoria_id
       arr = arr.filter(t => t.categoria_id === S.donutFilter);
     }
   }
@@ -1122,8 +1204,20 @@ function renderList() {
     });
   }
 
+  // Aggiorna riepilogo periodo (entrate / uscite / saldo)
+  if (D.listPeriodSummary) {
+    const inSum  = arr.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
+    const outSum = arr.filter(t => t.tipo === 'uscita').reduce((s, t) => s + Number(t.importo), 0);
+    const saldo  = inSum - outSum;
+    D.listPeriodSummary.innerHTML =
+      '<div class="lps-block"><span class="lps-label">' + esc(range.label) + '</span><span class="lps-val">' + arr.length + ' tx</span></div>' +
+      '<div class="lps-block"><span class="lps-label">Entrate</span><span class="lps-val pos">' + Charts.fmtEur(inSum) + '</span></div>' +
+      '<div class="lps-block"><span class="lps-label">Uscite</span><span class="lps-val neg">' + Charts.fmtEur(outSum) + '</span></div>' +
+      '<div class="lps-block" style="grid-column: span 3;border-top:1px solid var(--border);margin-top:6px;padding-top:6px"><span class="lps-label">Saldo</span><span class="lps-val ' + (saldo >= 0 ? 'pos' : 'neg') + '">' + (saldo >= 0 ? '+' : '−') + Charts.fmtEur(Math.abs(saldo)) + '</span></div>';
+  }
+
   if (!arr.length) {
-    D.txList.innerHTML = '<div class="empty"><div class="emoji">📭</div><div>Nessuna transazione.</div></div>';
+    D.txList.innerHTML = '<div class="empty"><div class="emoji">📭</div><div>Nessuna transazione nel periodo.</div></div>';
     return;
   }
   // raggruppa per data
@@ -2708,6 +2802,30 @@ function bindEvents() {
     S.donutFilter = null;
     renderList();
   }));
+  // periodo chips (Mese corrente / Mese scorso / Personalizzato)
+  if (D.listPeriodChips) {
+    $$('.chip', D.listPeriodChips).forEach(c => c.addEventListener('click', () => {
+      S.listPeriod = c.getAttribute('data-period');
+      // Se passo a custom e non ho ancora valori, default = mese corrente
+      if (S.listPeriod === 'custom' && (!S.listFrom || !S.listTo)) {
+        const { anno, mese } = S.currentMonth;
+        const last = new Date(anno, mese, 0).getDate();
+        S.listFrom = anno + '-' + String(mese).padStart(2,'0') + '-01';
+        S.listTo   = anno + '-' + String(mese).padStart(2,'0') + '-' + String(last).padStart(2,'0');
+        if (D.listPeriodFrom) D.listPeriodFrom.value = S.listFrom;
+        if (D.listPeriodTo)   D.listPeriodTo.value   = S.listTo;
+      }
+      renderList();
+    }));
+  }
+  if (D.listPeriodFrom) D.listPeriodFrom.addEventListener('change', () => {
+    S.listFrom = D.listPeriodFrom.value || null;
+    renderList();
+  });
+  if (D.listPeriodTo) D.listPeriodTo.addEventListener('change', () => {
+    S.listTo = D.listPeriodTo.value || null;
+    renderList();
+  });
   D.searchInput.addEventListener('input', e => { S.listSearch = e.target.value; renderList(); });
   // qa
   $$('button', D.qaToggle).forEach(b => b.addEventListener('click', () => setQaTipo(b.getAttribute('data-tipo'))));

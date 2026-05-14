@@ -108,8 +108,19 @@
       </div>
     </section>
 
-    <!-- LISTA TRANSAZIONI -->
+    <!-- SALDO / LISTA TRANSAZIONI -->
     <section id="view-list" class="view">
+      <div class="list-period-chips" id="listPeriodChips">
+        <button class="chip active" data-period="current">Mese corrente</button>
+        <button class="chip" data-period="last">Mese scorso</button>
+        <button class="chip" data-period="custom">Personalizzato</button>
+      </div>
+      <div class="list-period-custom" id="listPeriodCustom" style="display:none">
+        <input type="date" id="listPeriodFrom" aria-label="Da">
+        <span class="lpc-sep">→</span>
+        <input type="date" id="listPeriodTo" aria-label="A">
+      </div>
+      <div id="listPeriodSummary" class="list-period-summary"></div>
       <input type="search" id="searchInput" class="search-input" placeholder="Cerca per descrizione, categoria, autore…">
       <div class="list-filters" id="listFilters">
         <button class="chip active" data-tipo="all">Tutto</button>
@@ -190,7 +201,7 @@
   <!-- BOTTOM NAV -->
   <nav class="bottom-nav">
     <button class="nav-btn active" data-view="home" aria-label="Home"><span class="ic">🏠</span><span>Home</span></button>
-    <button class="nav-btn" data-view="list" aria-label="Lista transazioni"><span class="ic">📋</span><span>Liste</span></button>
+    <button class="nav-btn" data-view="list" aria-label="Saldo e transazioni"><span class="ic">📋</span><span>Saldo</span></button>
     <div class="fab-wrap"><button id="fab" class="fab" aria-label="Aggiungi transazione">+</button></div>
     <button class="nav-btn" data-view="analisi" aria-label="Analisi dati"><span class="ic">📊</span><span>Analisi</span></button>
     <button class="nav-btn" data-view="cat" aria-label="Categorie"><span class="ic">📁</span><span>Categorie</span></button>
