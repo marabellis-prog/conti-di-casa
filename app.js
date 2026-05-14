@@ -61,7 +61,7 @@ const S = {
   cats: [],          // categorie complete
   tx: [],            // transazioni (cache locale: ultimi 3 mesi)
   budgets: [],       // budget anno corrente
-  prefs: { autori: ['Stefano', 'Partner'], autoreDefault: 'Stefano', theme: 'auto' },
+  prefs: { theme: 'auto' },
   ts: 0,
   queue: [],
   // navigation
@@ -96,12 +96,12 @@ function cacheDOM() {
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
    // modals
-   'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaMoreBtn','qaExtraRow','qaDesc','qaAutore',
+   'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaDesc',
    'qaDateBtn','qaDateLabel','qaDatePicker','qaSaveBtn','qaSaveLabel',
-   'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete',
+   'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditSave','txEditDelete',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
-   'modalSettings','setTheme','setAutoreDefault','setAutori','setSave','setExport','setClearCache','setVersion'
+   'modalSettings','setTheme','setSave','setExport','setClearCache','setVersion'
   ].forEach(id => D[id] = document.getElementById(id));
 }
 
@@ -554,7 +554,7 @@ function txRowHtml(t) {
   const macro = c && c.macro_categoria ? macroById(c.macro_categoria) : null;
   const macroPrefix = macro ? '<span class="tx-macro">' + macro.icon + ' ' + macroLabel(c.macro_categoria) + '</span> › ' : '';
   const pendingCls = S.pendingTxIds.has(t.id) ? ' pending' : '';
-  const meta = [fmtData(t.data), t.descrizione || '', t.autore || ''].filter(Boolean).join(' • ');
+  const meta = [fmtData(t.data), t.descrizione || ''].filter(Boolean).join(' • ');
   return '<div class="tx-row' + pendingCls + '" data-tx-id="' + t.id + '">' +
     '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
     '<div class="tx-body">' +
@@ -805,8 +805,6 @@ function openQuickAdd(tipo) {
     QA.amt = '';
     QA.desc = '';
     QA.data = today();
-    QA.autore = S.prefs.autoreDefault || (S.prefs.autori && S.prefs.autori[0]) || 'Stefano';
-    QA.extraOpen = false;
     QA.selectedCatId = undefined;
     qaPickerMacroId = null;
     setQaTipo(QA.tipo);
@@ -817,9 +815,6 @@ function openQuickAdd(tipo) {
       D.qaDatePicker.max = today();
     }
     renderQaDateLabel();
-    if (D.qaAutore) populateAutoreSelect(D.qaAutore, QA.autore);
-    if (D.qaExtraRow) D.qaExtraRow.style.display = 'none';
-    if (D.qaMoreBtn) D.qaMoreBtn.textContent = '+ Mostra altre opzioni';
     renderQaCats();
     updateQaSaveBtn();
     openModal('modalQa');
@@ -1022,16 +1017,14 @@ async function quickSave(categoria_id) {
     toast('Inserisci l\'importo', 'warn');
     return;
   }
-  const desc = D.qaDesc.value.trim();
+  const desc = D.qaDesc ? D.qaDesc.value.trim() : '';
   const dataStr = D.qaDatePicker.value || QA.data || today();
-  const autore = D.qaAutore.value || QA.autore;
   await saveTransaction({
     importo,
     tipo: QA.tipo,
     categoria_id,
     descrizione: desc || null,
-    data: dataStr,
-    autore
+    data: dataStr
   });
   closeModal('modalQa');
   vibrate(20);
@@ -1080,7 +1073,6 @@ function openTxEdit(idStr) {
   populateCatSelect(D.txEditCat, t.tipo, t.categoria_id);
   D.txEditData.value = t.data;
   D.txEditDesc.value = t.descrizione || '';
-  populateAutoreSelect(D.txEditAutore, t.autore || '');
   // cambia categorie quando cambia tipo
   D.txEditTipo.onchange = () => populateCatSelect(D.txEditCat, D.txEditTipo.value, null);
   openModal('modalTx');
@@ -1093,8 +1085,7 @@ async function saveTxEdit() {
     tipo: D.txEditTipo.value,
     categoria_id: D.txEditCat.value ? Number(D.txEditCat.value) : null,
     data: D.txEditData.value || today(),
-    descrizione: D.txEditDesc.value.trim() || null,
-    autore: D.txEditAutore.value || null
+    descrizione: D.txEditDesc.value.trim() || null
   };
   if (!payload.importo || payload.importo <= 0) { toast('Importo non valido', 'warn'); return; }
   // optimistic
@@ -1139,10 +1130,6 @@ function populateCatSelect(sel, tipo, currentId) {
   sel.innerHTML = '<option value="">(senza categoria)</option>' +
     cats.map(c => '<option value="' + c.id + '"' + (c.id === currentId ? ' selected' : '') + '>' +
       (c.icona ? c.icona + ' ' : '') + esc(c.nome) + '</option>').join('');
-}
-function populateAutoreSelect(sel, current) {
-  const list = (S.prefs.autori && S.prefs.autori.length) ? S.prefs.autori : ['Stefano','Partner'];
-  sel.innerHTML = list.map(a => '<option' + (a === current ? ' selected' : '') + '>' + esc(a) + '</option>').join('');
 }
 
 // ─── EDIT CATEGORIA ─────────────────────────────────────────
@@ -1450,23 +1437,16 @@ async function deleteBudgetEdit() {
 // ─── IMPOSTAZIONI ───────────────────────────────────────────
 function renderSettings() {
   D.setTheme.value = S.prefs.theme || 'auto';
-  D.setAutori.value = (S.prefs.autori || []).join(', ');
-  populateAutoreSelect(D.setAutoreDefault, S.prefs.autoreDefault || (S.prefs.autori && S.prefs.autori[0]) || 'Stefano');
 }
 async function saveSettings() {
   const themeNew = D.setTheme.value;
-  const autoriNew = D.setAutori.value.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4);
-  const autoreDefaultNew = D.setAutoreDefault.value || autoriNew[0] || 'Stefano';
   S.prefs.theme = themeNew;
-  S.prefs.autori = autoriNew.length ? autoriNew : ['Stefano', 'Partner'];
-  S.prefs.autoreDefault = autoreDefaultNew;
   applyTheme();
   saveLocalCache();
   closeModal('modalSettings');
   toast('Impostazioni salvate', 'success');
-  // sync prefs su Supabase
   const path = T.PREFS + '?id=eq.1';
-  const options = { method: 'PATCH', body: JSON.stringify({ dati: { autori: S.prefs.autori, autoreDefault: S.prefs.autoreDefault } }) };
+  const options = { method: 'PATCH', body: JSON.stringify({ dati: { theme: themeNew } }) };
   try { if (isOnline()) await supaFetch(path, options); else enqueue({ path, options }); }
   catch { enqueue({ path, options }); }
 }
@@ -1474,10 +1454,10 @@ function applyTheme() {
   document.documentElement.setAttribute('data-theme', S.prefs.theme || 'auto');
 }
 function exportCsv() {
-  const rows = [['data','tipo','importo','categoria','descrizione','autore']];
+  const rows = [['data','tipo','importo','categoria','descrizione']];
   S.tx.slice().sort((a,b) => a.data.localeCompare(b.data)).forEach(t => {
     const c = catById(t.categoria_id);
-    rows.push([t.data, t.tipo, String(t.importo).replace('.', ','), c ? c.nome : '', t.descrizione || '', t.autore || '']);
+    rows.push([t.data, t.tipo, String(t.importo).replace('.', ','), c ? c.nome : '', t.descrizione || '']);
   });
   const csv = rows.map(r => r.map(x => '"' + String(x).replace(/"/g, '""') + '"').join(',')).join('\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
@@ -1713,11 +1693,6 @@ function bindEvents() {
   // qa
   $$('button', D.qaToggle).forEach(b => b.addEventListener('click', () => setQaTipo(b.getAttribute('data-tipo'))));
   $$('button', D.numpad).forEach(b => b.addEventListener('click', () => numpadPress(b.getAttribute('data-k'))));
-  D.qaMoreBtn.addEventListener('click', () => {
-    QA.extraOpen = !QA.extraOpen;
-    D.qaExtraRow.style.display = QA.extraOpen ? 'grid' : 'none';
-    D.qaMoreBtn.textContent = QA.extraOpen ? '− Nascondi opzioni' : '+ Mostra altre opzioni';
-  });
   // Salva button (visibile solo quando importo + categoria scelti)
   if (D.qaSaveBtn) {
     D.qaSaveBtn.addEventListener('click', () => {

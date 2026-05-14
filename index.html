@@ -145,11 +145,9 @@
           </button>
         </div>
 
-        <button id="qaSaveBtn" class="qa-save-btn" type="button" style="display:none">
-          <span id="qaSaveLabel">Salva</span>
-        </button>
-
         <div id="qaAmt" class="qa-amt empty"><span class="euro">€</span><span id="qaAmtVal">0</span></div>
+
+        <input type="text" id="qaDesc" class="qa-desc-input" placeholder="Descrizione (opzionale)" autocomplete="off">
 
         <div class="numpad" id="numpad">
           <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
@@ -158,21 +156,12 @@
           <button data-k=",">,</button><button data-k="0">0</button><button class="bs" data-k="bs">⌫</button>
         </div>
 
-        <div class="qa-extra-row" id="qaExtraRow" style="display:none;">
-          <div class="col" style="grid-column: span 2;">
-            <label>Descrizione</label>
-            <input type="text" id="qaDesc" placeholder="opzionale">
-          </div>
-          <div class="col" style="grid-column: span 2;">
-            <label>Autore</label>
-            <select id="qaAutore"></select>
-          </div>
-        </div>
-
         <h3 class="card-title" style="margin: 8px 0 2px">Scegli categoria</h3>
         <div class="qa-cats" id="qaCats"></div>
 
-        <button id="qaMoreBtn" class="qa-more-btn">+ Mostra altre opzioni</button>
+        <button id="qaSaveBtn" class="qa-save-btn" type="button" style="display:none">
+          <span id="qaSaveLabel">Salva</span>
+        </button>
       </div>
     </div>
   </div>
@@ -208,10 +197,6 @@
         <div class="form-field">
           <label>Descrizione</label>
           <input type="text" id="txEditDesc">
-        </div>
-        <div class="form-field">
-          <label>Autore</label>
-          <select id="txEditAutore"></select>
         </div>
         <button id="txEditSave" class="btn-primary">Salva</button>
         <button id="txEditDelete" class="btn-danger">Elimina</button>
@@ -288,14 +273,6 @@
             <option value="dark">Scuro</option>
             <option value="light">Chiaro</option>
           </select>
-        </div>
-        <div class="form-field">
-          <label>Autore predefinito</label>
-          <select id="setAutoreDefault"></select>
-        </div>
-        <div class="form-field">
-          <label>Nomi autori (separati da virgola)</label>
-          <input type="text" id="setAutori" placeholder="Stefano, Partner">
         </div>
         <button id="setSave" class="btn-primary">Salva impostazioni</button>
         <button id="setExport" class="btn-secondary" style="margin-top:14px">Esporta CSV transazioni</button>

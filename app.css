@@ -573,6 +573,21 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   background: var(--ok);
 }
 
+/* Input descrizione (sotto importo, sopra numpad) */
+.qa-desc-input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--text);
+  margin: 4px 0 12px;
+  text-align: center;
+}
+.qa-desc-input::placeholder { color: var(--text-faint); font-style: italic; }
+.qa-desc-input:focus { border-color: var(--accent); outline: none; }
+
 /* Save button (visibile solo quando importo + categoria scelti) */
 .qa-save-btn {
   width: 100%;
@@ -583,7 +598,7 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   padding: 14px 16px;
   font-size: 15px;
   font-weight: 700;
-  margin-top: 12px;
+  margin-top: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
