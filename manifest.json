@@ -10,6 +10,8 @@
   "theme_color": "#0f1419",
   "lang": "it",
   "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ],
   "shortcuts": [
@@ -18,14 +20,14 @@
       "short_name": "Uscita",
       "description": "Inserisci una nuova spesa",
       "url": "./?action=add-uscita",
-      "icons": [{ "src": "icon.svg", "sizes": "any" }]
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Aggiungi entrata",
       "short_name": "Entrata",
       "description": "Inserisci una nuova entrata",
       "url": "./?action=add-entrata",
-      "icons": [{ "src": "icon.svg", "sizes": "any" }]
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

@@ -2,7 +2,7 @@
 // Strategia: stale-while-revalidate su risorse statiche + GET REST tabelle,
 // network-only su mutazioni (POST/PATCH/DELETE) e su update_cache (gating).
 
-const CACHE = 'conti-di-casa-v1';
+const CACHE = 'conti-di-casa-v2';
 const SUPA_HOST = 'lrvkchqvjzynfzevpqaj.supabase.co';
 const STATIC = [
   './',
@@ -11,7 +11,10 @@ const STATIC = [
   './app.js',
   './charts.js',
   './manifest.json',
-  './icon.svg'
+  './icon.svg',
+  './apple-touch-icon.png',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 self.addEventListener('install', e => {
