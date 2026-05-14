@@ -1383,8 +1383,6 @@ function renderAnalisi() {
   const arr = txInCurrentMonth();
   renderSubCatDonut(arr);
   renderTopSpese(arr);
-  renderRicorrenti();
-  renderAnalisiBudgetBars();
 }
 
 function renderAnalisiBudgetBars() {
