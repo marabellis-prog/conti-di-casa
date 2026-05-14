@@ -787,24 +787,91 @@ button.btn-danger {
   font-size: 14px;
 }
 
-/* Emoji picker grid */
-.emoji-grid {
+/* Emoji picker (tab strip + grid swipeabile) */
+#catEditEmojis {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 0;
+  overflow: hidden;
+}
+
+.ec-tabs-wrap {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0;
+}
+.ec-arrow {
+  flex-shrink: 0;
+  width: 36px;
+  height: 44px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 22px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+.ec-arrow:active { background: var(--surface-2); color: var(--text); }
+
+.ec-tabs-strip {
+  flex: 1;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+  padding: 4px 2px;
+}
+.ec-tabs-strip::-webkit-scrollbar { display: none; }
+
+.ec-tab {
+  flex-shrink: 0;
+  width: 40px;
+  height: 36px;
+  font-size: 18px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background .15s;
+}
+.ec-tab:active { background: var(--surface-2); }
+.ec-tab.active {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-2);
+}
+
+.ec-grid {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   gap: 4px;
-  max-height: 200px;
+  max-height: 230px;
   overflow-y: auto;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-  padding: 6px;
+  padding: 8px;
+  touch-action: pan-y;
 }
-.emoji-grid button {
-  height: 36px;
+.ec-grid button {
+  height: 38px;
   font-size: 20px;
-  border-radius: 4px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background .1s, transform .1s;
 }
-.emoji-grid button:hover { background: var(--surface); }
-.emoji-grid button.sel { background: var(--accent); }
+.ec-grid button:hover { background: var(--surface); }
+.ec-grid button:active { transform: scale(.88); }
+.ec-grid button.sel {
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-2);
+}
 
 .color-grid {
   display: grid;

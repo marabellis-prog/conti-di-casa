@@ -34,8 +34,27 @@ const LS = {
 // Tavolozza colori per categorie
 const COLORS = ['#e74c3c','#f39c12','#f1c40f','#2ecc71','#1abc9c','#3498db','#9b59b6','#e91e63',
                 '#ff5722','#795548','#607d8b','#d97757','#5ab885','#8b95a1','#a777e3','#34d399'];
-const EMOJIS = ['🛒','🏠','💡','🚗','🍽️','💊','🎮','👕','🎁','💰','💼','📦','🐶','✈️','📚','☕',
-                '🍷','💄','💻','🎬','🏋️','🎵','🚲','⛽','🌳','🎂','💍','🧴','📱','🎓','🛠️','🚂'];
+const EMOJI_CATS = [
+  { id: 'casa',          icon: '🏠', emojis: '🏠 🏡 🏢 🛋️ 🛏️ 🚿 🛁 🚽 🚪 🪟 🪜 🪑 📺 🖼️ 🧹 🧺 🧼 🪣 🧴 🪥 🧻 🛠️ 🔧 🔨 🔑 🗝️ 🪞 🛒'.split(' ') },
+  { id: 'cibo',          icon: '🍕', emojis: '🛒 🍕 🍔 🍟 🌭 🍿 🥗 🥙 🌮 🌯 🥘 🍝 🍜 🍱 🍣 🍤 🥟 🍙 🥪 🍞 🥐 🥖 🥨 🧀 🍳 🥞 🥩 🍗 🍖 🥑 🥒 🥦 🍅 🥕 🌽 🥔 🍠 🍎 🍏 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🍒 🥭 🍍 🥥 🥝 🍯 🎂 🧁 🍰 🍩 🍪 🍫 🍬 ☕ 🫖 🍵 🥤 🧋 🍷 🍺 🥃 🍶 🥂 🍸 🍹 🍾 🥛'.split(' ') },
+  { id: 'bollette',      icon: '💡', emojis: '💡 🔌 🔋 ⚡ 🔥 💧 📶 📡 📞 ☎️ 📱 💻 🖥️ 🖨️ 📺 📻 🌡️ 🛜 💸 🧾 📨'.split(' ') },
+  { id: 'trasporti',     icon: '🚗', emojis: '🚗 🚙 🚕 🏎️ 🚐 🛻 🚚 🛵 🏍️ 🛴 🚲 ⛽ 🚉 🚆 🚇 🚊 ✈️ 🛩️ 🚁 ⛵ 🚢 🅿️ 🚦 🚥 🛣️ 🚌 🚎 🛺 🚖 🚍'.split(' ') },
+  { id: 'salute',        icon: '💊', emojis: '💊 💉 🩺 🩹 🌡️ 🦷 🧬 🏥 🚑 🧠 🫀 🫁 👁️ 👂 🦴 ♿ 🆘 ⚕️ 🩻 😷 🤒 🤕 🤧 🧴 🧼 🪥 🥼'.split(' ') },
+  { id: 'svago',         icon: '🎮', emojis: '🎮 🕹️ 🎯 🎰 🎲 🧩 ♟️ 🎭 🎨 🎬 🎤 🎧 🎵 🎶 🎷 🎸 🎺 🎻 🥁 📚 📖 📰 📷 📸 🎥 🎞️ 🖼️ 🎪 🎢 🎡 🎠 🎟️ 🎫 🧸 🪅 🎳 🪩'.split(' ') },
+  { id: 'sport',         icon: '⚽', emojis: '⚽ 🏀 🏈 ⚾ 🥎 🎾 🏐 🏉 🥏 🎱 🏓 🏸 🥅 ⛳ 🥊 🥋 🛹 🛼 ⛸️ 🎿 ⛷️ 🏂 🪂 🏋️ 🤸 🧘 🏊 🏄 🧗 🚴 🚵 🏆 🥇 🥈 🥉 🏅 🎖️ 🏟️'.split(' ') },
+  { id: 'abbigliamento', icon: '👕', emojis: '👕 👔 👖 👗 👘 🥻 👙 🩱 🩳 🦺 🧥 🧣 🧤 🧦 👞 👟 👠 👡 👢 🥾 🥿 👒 🎩 🧢 👑 💍 👓 🕶️ 🌂 🧳 👜 👝 🎒 💄 💋 👛'.split(' ') },
+  { id: 'famiglia',      icon: '👶', emojis: '👶 🧒 👦 👧 🧑 👨 👩 🧓 👴 👵 🤱 🤰 🍼 🧸 🚼 👪 👫 👬 👭 💑 💏 🎓 💐 💌 💝 🤝 👨‍👩‍👧 👨‍👩‍👦'.split(' ') },
+  { id: 'animali',       icon: '🐶', emojis: '🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🐔 🐧 🐦 🐤 🦆 🦉 🦇 🐺 🐗 🐴 🦄 🐝 🐛 🦋 🐌 🐞 🕷️ 🐢 🐍 🦎 🐙 🦐 🦀 🐠 🐟 🐬 🐳 🦈 🐊 🐘 🦒 🐪 🐎 🐑 🐐 🦌 🐕 🐈 🐇 🐾'.split(' ') },
+  { id: 'tecnologia',    icon: '📱', emojis: '📱 💻 🖥️ 🖨️ ⌨️ 🖱️ 💾 💿 📀 📼 📷 📸 📹 🎥 📞 ☎️ 📺 📻 🎙️ 🧭 ⏱️ ⏰ 🕰️ ⌛ ⏳ 📡 🔋 🔌 💡 🔦 🪔 🛜 🔍 🔎'.split(' ') },
+  { id: 'regali',        icon: '🎁', emojis: '🎁 🎀 🎉 🎊 🎈 🪅 🪆 🎂 🥳 🎄 🎃 🎆 🎇 🧧 💝 💐 🌹 🌷 🌻 🌸 💮 🍾 🥂'.split(' ') },
+  { id: 'viaggi',        icon: '✈️', emojis: '✈️ 🗺️ 🧳 🎒 🏖️ 🏝️ 🏔️ ⛰️ 🌋 🏕️ ⛺ 🏞️ 🌅 🌄 🌠 🛤️ 🚂 🛳️ 🛥️ 🛩️ 🏨 🏰 🏯 🗼 🗽 ⛩️ ⛪ 🕌 🛕 🌍 🌎 🌏 📸 🗿'.split(' ') },
+  { id: 'lavoro',        icon: '💼', emojis: '💼 🗂️ 📁 📂 📋 📌 📍 📎 ✂️ 🖊️ 🖋️ ✒️ 📐 📏 📑 📕 📗 📘 📙 📰 ⏰ 🏢 🖥️ ⌨️ 📞 📧 ✉️ 🪧 📇 📒'.split(' ') },
+  { id: 'soldi',         icon: '💰', emojis: '💰 💵 💴 💶 💷 💸 💳 🪙 💎 🏦 🧾 📊 📈 📉 💹 🤑 🏧 🛒 🛍️ 🏪 🏬 💼'.split(' ') },
+  { id: 'natura',        icon: '🌳', emojis: '🌳 🌲 🌴 🌵 🌿 ☘️ 🍀 🪴 🌱 🌾 🌻 🌹 🌷 🌼 🌸 💐 🪷 🌺 🌞 ☀️ 🌝 🌚 🌛 🌜 🌙 ⭐ 🌟 ✨ ☁️ ⛅ 🌧️ ⛈️ 🌨️ ❄️ ☃️ ⛄ 🌪️ 🌫️ 🌊 ☔'.split(' ') },
+  { id: 'simboli',       icon: '⭐', emojis: '⭐ 🌟 ✨ 💫 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💯 💢 💥 ✅ ❌ ✔️ ➕ ➖ ➗ ⚠️ 🚫 ❗ ❓ 💬 💭 🔔 🔕 🎯 🚩 🏁'.split(' ') }
+];
+// flat list (per uso di default / fallback)
+const ALL_EMOJIS = EMOJI_CATS.flatMap(c => c.emojis);
 
 // ─── STATE ──────────────────────────────────────────────────
 const S = {
@@ -881,12 +900,12 @@ function populateAutoreSelect(sel, current) {
 }
 
 // ─── EDIT CATEGORIA ─────────────────────────────────────────
-let catEditState = { icona: '🛒', colore: COLORS[0], isNew: false };
+let catEditState = { icona: '🛒', colore: COLORS[0], isNew: false, emojiCatIdx: 0 };
 function openCatEdit(id) {
   S.editCatId = id;
   let c;
   if (id == null) {
-    c = { id: null, nome: '', tipo: activeCatTab, icona: EMOJIS[0], colore: COLORS[0], ordine: S.cats.length };
+    c = { id: null, nome: '', tipo: activeCatTab, icona: EMOJI_CATS[0].emojis[0], colore: COLORS[0], ordine: S.cats.length };
     catEditState.isNew = true;
     D.catEditTitle.textContent = 'Nuova categoria';
     D.catEditDelete.style.display = 'none';
@@ -897,23 +916,104 @@ function openCatEdit(id) {
     D.catEditTitle.textContent = 'Modifica categoria';
     D.catEditDelete.style.display = 'block';
   }
-  catEditState.icona = c.icona || EMOJIS[0];
+  catEditState.icona = c.icona || EMOJI_CATS[0].emojis[0];
   catEditState.colore = c.colore || COLORS[0];
+  // posiziona la tab emoji sulla categoria che contiene l'emoji corrente, se la trovo
+  const foundIdx = EMOJI_CATS.findIndex(cat => cat.emojis.includes(catEditState.icona));
+  catEditState.emojiCatIdx = foundIdx >= 0 ? foundIdx : 0;
   D.catEditName.value = c.nome || '';
   D.catEditTipo.value = c.tipo || 'uscita';
   renderEmojiPicker();
   renderColorPicker();
   openModal('modalCat');
 }
+
 function renderEmojiPicker() {
-  D.catEditEmojis.innerHTML = EMOJIS.map(e =>
-    '<button data-e="' + e + '" class="' + (e === catEditState.icona ? 'sel' : '') + '">' + e + '</button>'
-  ).join('');
-  $$('button', D.catEditEmojis).forEach(b => {
+  const wrap = D.catEditEmojis;
+  const idx = catEditState.emojiCatIdx;
+  const cur = EMOJI_CATS[idx];
+  // costruisco struttura: tab strip + grid
+  let html = '<div class="ec-tabs-wrap">';
+  html += '<button type="button" class="ec-arrow ec-prev" aria-label="Categoria precedente">‹</button>';
+  html += '<div class="ec-tabs-strip" id="ecTabsStrip">';
+  EMOJI_CATS.forEach((cat, i) => {
+    html += '<button type="button" class="ec-tab' + (i === idx ? ' active' : '') + '" data-ci="' + i + '" title="' + cat.id + '">' + cat.icon + '</button>';
+  });
+  html += '</div>';
+  html += '<button type="button" class="ec-arrow ec-next" aria-label="Categoria successiva">›</button>';
+  html += '</div>';
+  html += '<div class="ec-grid" id="ecGrid">';
+  cur.emojis.forEach(e => {
+    html += '<button type="button" data-e="' + e + '" class="' + (e === catEditState.icona ? 'sel' : '') + '">' + e + '</button>';
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+
+  // tab clicks
+  $$('.ec-tab', wrap).forEach(b => {
+    b.addEventListener('click', () => {
+      catEditState.emojiCatIdx = Number(b.getAttribute('data-ci'));
+      renderEmojiPicker();
+      scrollActiveTabIntoView();
+    });
+  });
+  // emoji clicks
+  $$('.ec-grid button', wrap).forEach(b => {
     b.addEventListener('click', () => {
       catEditState.icona = b.getAttribute('data-e');
       renderEmojiPicker();
+      scrollActiveTabIntoView();
     });
+  });
+  // arrows
+  const prev = $('.ec-prev', wrap), next = $('.ec-next', wrap);
+  prev && prev.addEventListener('click', () => shiftEmojiCat(-1));
+  next && next.addEventListener('click', () => shiftEmojiCat(1));
+
+  // swipe sulla grid
+  bindEmojiGridSwipe();
+  scrollActiveTabIntoView();
+}
+
+function shiftEmojiCat(delta) {
+  const n = EMOJI_CATS.length;
+  catEditState.emojiCatIdx = ((catEditState.emojiCatIdx + delta) % n + n) % n;
+  renderEmojiPicker();
+}
+
+function scrollActiveTabIntoView() {
+  const strip = document.getElementById('ecTabsStrip');
+  const active = strip && strip.querySelector('.ec-tab.active');
+  if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+}
+
+function bindEmojiGridSwipe() {
+  const grid = document.getElementById('ecGrid');
+  if (!grid) return;
+  let sx = null, sy = null, moved = false;
+  grid.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    sx = e.touches[0].clientX;
+    sy = e.touches[0].clientY;
+    moved = false;
+  }, { passive: true });
+  grid.addEventListener('touchmove', e => {
+    if (sx == null) return;
+    const dx = e.touches[0].clientX - sx;
+    const dy = e.touches[0].clientY - sy;
+    if (!moved && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      moved = true;
+    }
+  }, { passive: true });
+  grid.addEventListener('touchend', e => {
+    if (sx == null) return;
+    if (moved) {
+      const dx = (e.changedTouches[0].clientX) - sx;
+      if (Math.abs(dx) > 50) {
+        shiftEmojiCat(dx < 0 ? 1 : -1);
+      }
+    }
+    sx = null; sy = null; moved = false;
   });
 }
 function renderColorPicker() {
