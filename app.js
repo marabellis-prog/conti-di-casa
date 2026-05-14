@@ -1325,6 +1325,79 @@ function bindEvents() {
   else if (action === 'add-entrata') setTimeout(() => openQuickAdd('entrata'), 300);
 }
 
+// ─── PULL TO REFRESH ────────────────────────────────────────
+function setupPullToRefresh() {
+  const PTR = document.getElementById('ptr');
+  if (!PTR) return;
+  const ic = PTR.querySelector('.ptr-ic');
+  const THRESHOLD = 80;
+  const MAX = 140;
+  let startY = null, dy = 0, active = false, refreshing = false;
+
+  function paint() {
+    const t = Math.max(0, Math.min(dy, MAX));
+    PTR.style.transform = 'translateY(' + (t - 60) + 'px)';
+    if (ic) ic.style.transform = 'rotate(' + (t * 2.6) + 'deg)';
+    PTR.classList.add('active');
+    PTR.classList.toggle('ready', t >= THRESHOLD);
+  }
+  function snapBack() {
+    PTR.classList.remove('active', 'ready');
+    PTR.style.transform = '';
+    if (ic) ic.style.transform = '';
+    startY = null; dy = 0; active = false;
+  }
+
+  document.addEventListener('touchstart', e => {
+    if (refreshing) return;
+    if (window.scrollY > 0) return;
+    if (document.querySelector('.modal.open')) return;
+    startY = e.touches[0].clientY;
+    dy = 0;
+    active = false;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (startY == null || refreshing) return;
+    if (window.scrollY > 0) { startY = null; return; }
+    dy = e.touches[0].clientY - startY;
+    if (dy > 6) {
+      active = true;
+      paint();
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', async () => {
+    if (refreshing) return;
+    if (!active) { snapBack(); return; }
+    if (dy >= THRESHOLD) {
+      refreshing = true;
+      PTR.classList.add('spinning', 'ready', 'active');
+      PTR.style.transform = 'translateY(20px)';
+      vibrate(15);
+      try {
+        S.trendCache = null;
+        await reloadAll();
+        renderAll();
+      } catch (err) {
+        console.warn('PTR reload failed', err);
+        toast('Aggiornamento non riuscito');
+      }
+      PTR.classList.remove('spinning');
+      setTimeout(() => {
+        snapBack();
+        refreshing = false;
+      }, 280);
+    } else {
+      snapBack();
+    }
+  });
+
+  document.addEventListener('touchcancel', () => {
+    if (!refreshing) snapBack();
+  });
+}
+
 // ─── PWA SW REGISTRATION ────────────────────────────────────
 function registerSW() {
   if (!('serviceWorker' in navigator)) return;
@@ -1367,6 +1440,8 @@ async function init() {
   } catch {}
   // realtime
   setupRealtime();
+  // pull-to-refresh
+  setupPullToRefresh();
   // drain queue se online
   if (isOnline()) drainQueue();
   // SW

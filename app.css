@@ -873,6 +873,43 @@ button.btn-danger {
 
 .sheet.dragging { transition: none; }
 
+/* ─── PULL TO REFRESH ─────────────────────────────────────── */
+
+.ptr {
+  position: fixed;
+  top: calc(var(--header-h) + var(--safe-t));
+  left: 50%;
+  width: 38px;
+  height: 38px;
+  margin-left: -19px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  z-index: 45;
+  transform: translateY(-60px);
+  transition: transform .25s cubic-bezier(.2,.8,.3,1), background .15s, color .15s;
+  pointer-events: none;
+  color: var(--text-dim);
+}
+.ptr.active { transition: none; }
+.ptr.ready {
+  background: var(--accent);
+  color: #0f1419;
+  border-color: var(--accent);
+}
+.ptr-ic {
+  display: block;
+  transition: transform .15s;
+}
+.ptr.spinning .ptr-ic {
+  animation: ptr-spin .9s linear infinite;
+}
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+
 /* ─── UTILITIES ───────────────────────────────────────────── */
 
 .txt-dim { color: var(--text-dim); }
