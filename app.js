@@ -912,15 +912,9 @@ function renderQaCats() {
 
     $$('.qa-cat[data-macro]', D.qaCats).forEach(el => {
       el.addEventListener('click', () => {
-        const mid = el.getAttribute('data-macro');
-        const g = groups.get(mid);
-        // se la macro ha 1 sola sotto-cat, salva direttamente (UX rapida)
-        if (g && g.subs.length === 1) {
-          quickSave(g.subs[0].id);
-        } else {
-          qaPickerMacroId = mid;
-          renderQaCats();
-        }
+        // sempre apri il sub-picker per mostrare la sotto-categoria (anche se unica)
+        qaPickerMacroId = el.getAttribute('data-macro');
+        renderQaCats();
       });
     });
     $$('.qa-cat[data-altro]', D.qaCats).forEach(el => {
