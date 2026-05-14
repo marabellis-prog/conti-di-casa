@@ -97,8 +97,10 @@ function cacheDOM() {
    'meseCmpPrev','meseCmpNext','meseCmpLabel',
    'donutCarousel','donutCarouselDots','donutCarouselTitle',
    'trendCarousel','trendCarouselDots','trendCarouselTitle',
-   'subDonutWrap','weekdayDonutWrap','inOutDonutWrap','heatmapWrap','saldoCumWrap','dailyBarsWrap',
-   'topSpeseWrap','ricorrentiWrap','budgetBarsAnalisi',
+   'anCatDonut','anCatDetail','anAutoreDonut','anAutoreDetail',
+   'anTrend12Chart','anTrend12Detail',
+   'anMeseTrendPrev','anMeseTrendNext','anMeseTrendLabel','anMeseTrendChart','anMeseTrendDetail',
+   'anCmpPrev','anCmpNext','anCmpLabel','anCmpWrap','anCmpDetail',
    'searchInput','listFilters','txList',
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
@@ -1381,8 +1383,364 @@ function switchView(name) {
 
 function renderAnalisi() {
   const arr = txInCurrentMonth();
-  renderSubCatDonut(arr);
-  renderTopSpese(arr);
+  _anCategorie(arr);
+  _anAutore(arr);
+  _anTrend12();
+  _anMeseTrend();
+  _anCompare();
+}
+
+// 1) Uscite per categoria (donut macro) + lista dettagliata
+function _anCategorie(arr) {
+  if (!D.anCatDonut) return;
+  const usc = arr.filter(t => t.tipo === 'uscita');
+  if (!usc.length) {
+    D.anCatDonut.innerHTML = '<div class="empty"><div class="emoji">📊</div><div>Nessuna uscita</div></div>';
+    if (D.anCatDetail) D.anCatDetail.innerHTML = '';
+    return;
+  }
+  const MACRO_COLORS = {
+    casa:'#3498db', cibo:'#e74c3c', bollette:'#f39c12', trasporti:'#9b59b6',
+    salute:'#1abc9c', svago:'#34d399', sport:'#16a34a', abbigliamento:'#a777e3',
+    famiglia:'#f472b6', animali:'#fb923c', tecnologia:'#0ea5e9', regali:'#ff5722',
+    viaggi:'#06b6d4', lavoro:'#64748b', soldi:'#2ecc71', natura:'#22c55e', altro:'#94a3b8'
+  };
+  const byMacro = {};
+  usc.forEach(t => {
+    const c = catById(t.categoria_id);
+    const mid = (c && c.macro_categoria) || 'altro';
+    if (!byMacro[mid]) byMacro[mid] = { total: 0, count: 0 };
+    byMacro[mid].total += Number(t.importo);
+    byMacro[mid].count++;
+  });
+  const total = Object.values(byMacro).reduce((s, x) => s + x.total, 0);
+  const sorted = Object.entries(byMacro).sort((a, b) => b[1].total - a[1].total);
+  const segs = sorted.map(([mid, info]) => {
+    const m = macroById(mid);
+    return {
+      label: (m ? m.icon : '?') + ' ' + macroLabel(mid),
+      value: info.total,
+      color: MACRO_COLORS[mid] || '#666'
+    };
+  });
+  Charts.renderDonut(D.anCatDonut, segs, { subLabel: 'uscite mese' });
+  // Dettaglio
+  if (D.anCatDetail) {
+    D.anCatDetail.innerHTML = sorted.map(([mid, info]) => {
+      const m = macroById(mid);
+      const color = MACRO_COLORS[mid] || '#666';
+      const pct = (info.total / total) * 100;
+      return '<div class="an-row">' +
+        '<span class="an-dot" style="background:' + color + '"></span>' +
+        '<span class="an-name">' + (m ? m.icon : '?') + ' ' + esc(macroLabel(mid)) + '</span>' +
+        '<span class="an-count">' + info.count + 'tx</span>' +
+        '<span class="an-pct">' + pct.toFixed(0) + '%</span>' +
+        '<span class="an-amt">' + Charts.fmtEur(info.total) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+}
+
+// 2) Uscite per autore (donut) + lista dettagliata
+function _anAutore(arr) {
+  if (!D.anAutoreDonut) return;
+  const usc = arr.filter(t => t.tipo === 'uscita');
+  if (!usc.length) {
+    D.anAutoreDonut.innerHTML = '<div class="empty"><div class="emoji">👥</div><div>Nessuna uscita</div></div>';
+    if (D.anAutoreDetail) D.anAutoreDetail.innerHTML = '';
+    return;
+  }
+  const byAut = {};
+  usc.forEach(t => {
+    const nome = t.autore || '(non attribuito)';
+    if (!byAut[nome]) byAut[nome] = { total: 0, count: 0 };
+    byAut[nome].total += Number(t.importo);
+    byAut[nome].count++;
+  });
+  const total = Object.values(byAut).reduce((s, x) => s + x.total, 0);
+  const sorted = Object.entries(byAut).sort((a, b) => b[1].total - a[1].total);
+  const segs = sorted.map(([nome, info]) => ({
+    label: nome,
+    value: info.total,
+    color: colorForAutore(nome === '(non attribuito)' ? null : nome)
+  }));
+  Charts.renderDonut(D.anAutoreDonut, segs, { subLabel: 'per persona' });
+  if (D.anAutoreDetail) {
+    D.anAutoreDetail.innerHTML = sorted.map(([nome, info]) => {
+      const color = colorForAutore(nome === '(non attribuito)' ? null : nome);
+      const pct = (info.total / total) * 100;
+      return '<div class="an-row">' +
+        '<span class="an-dot" style="background:' + color + '"></span>' +
+        '<span class="an-name">👤 ' + esc(nome) + '</span>' +
+        '<span class="an-count">' + info.count + 'tx</span>' +
+        '<span class="an-pct">' + pct.toFixed(0) + '%</span>' +
+        '<span class="an-amt">' + Charts.fmtEur(info.total) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+}
+
+// 3) Trend 12 mesi + tabella mese-per-mese
+async function _anTrend12() {
+  if (!D.anTrend12Chart) return;
+  const endY = S.currentMonth.anno, endM = S.currentMonth.mese;
+  let startY = endY, startM = endM - 11;
+  while (startM < 1) { startM += 12; startY--; }
+  const startStr = startY + '-' + String(startM).padStart(2,'0') + '-01';
+  const lastDay = new Date(endY, endM, 0).getDate();
+  const endStr = endY + '-' + String(endM).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0');
+  try {
+    const rows = await supaFetch(T.TX + '?select=data,importo,tipo&data=gte.' + startStr + '&data=lte.' + endStr);
+    const buckets = new Map();
+    const labels = [];
+    const monthKeys = [];
+    let y = startY, m = startM;
+    for (let i = 0; i < 12; i++) {
+      const k = monthKey(y, m);
+      buckets.set(k, { in: 0, out: 0 });
+      monthKeys.push({ k, y, m });
+      labels.push(MESI_SHORT[m - 1] + (m === 1 ? ' \'' + String(y).slice(-2) : ''));
+      m++; if (m > 12) { m = 1; y++; }
+    }
+    (rows || []).forEach(r => {
+      const [yy, mm] = r.data.split('-');
+      const k = monthKey(Number(yy), Number(mm));
+      const b = buckets.get(k);
+      if (!b) return;
+      if (r.tipo === 'entrata') b.in += Number(r.importo);
+      else b.out += Number(r.importo);
+    });
+    const inPts = [], outPts = [];
+    buckets.forEach(v => { inPts.push(v.in); outPts.push(v.out); });
+    Charts.renderLine(D.anTrend12Chart, [
+      { label: 'Entrate', color: 'var(--ok)',     points: inPts },
+      { label: 'Uscite',  color: 'var(--danger)', points: outPts }
+    ], labels);
+    if (D.anTrend12Detail) {
+      let html = '<table class="analisi-table"><thead><tr><th>Mese</th><th class="num">Entrate</th><th class="num">Uscite</th><th class="num">Saldo</th></tr></thead><tbody>';
+      monthKeys.forEach((mk, i) => {
+        const b = buckets.get(mk.k);
+        const saldo = b.in - b.out;
+        const cls = saldo >= 0 ? 'pos' : 'neg';
+        html += '<tr>' +
+          '<td>' + labels[i] + '</td>' +
+          '<td class="num pos">' + Charts.fmtEurShort(b.in) + '</td>' +
+          '<td class="num neg">' + Charts.fmtEurShort(b.out) + '</td>' +
+          '<td class="num ' + cls + '">' + (saldo >= 0 ? '+' : '−') + Charts.fmtEurShort(Math.abs(saldo)) + '</td>' +
+        '</tr>';
+      });
+      html += '</tbody></table>';
+      D.anTrend12Detail.innerHTML = html;
+    }
+  } catch (e) {
+    D.anTrend12Chart.innerHTML = '<div class="empty"><div class="emoji">📈</div><div>Non disponibile offline</div></div>';
+    if (D.anTrend12Detail) D.anTrend12Detail.innerHTML = '';
+  }
+}
+
+// 4) Trend del mese (selettore inline) + tabella giorno-per-giorno
+function _anMeseTrend() {
+  if (!D.anMeseTrendChart) return;
+  if (!S.anMeseTrend) S.anMeseTrend = Object.assign({}, S.currentMonth);
+  if (D.anMeseTrendLabel) D.anMeseTrendLabel.textContent = MESI_FULL[S.anMeseTrend.mese - 1] + ' ' + S.anMeseTrend.anno;
+  const { anno, mese } = S.anMeseTrend;
+  const has = S.tx.some(t => inMonth(t.data, anno, mese));
+  if (!has) {
+    const start = anno + '-' + String(mese).padStart(2,'0') + '-01';
+    const lastDay = new Date(anno, mese, 0).getDate();
+    const end = anno + '-' + String(mese).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0');
+    D.anMeseTrendChart.innerHTML = '<div class="empty"><div class="emoji">⏳</div><div>Caricamento…</div></div>';
+    if (D.anMeseTrendDetail) D.anMeseTrendDetail.innerHTML = '';
+    supaFetch(T.TX + '?select=*&data=gte.' + start + '&data=lte.' + end + '&order=data.desc,id.desc').then(rows => {
+      if (rows && rows.length) {
+        const ids = new Set(S.tx.map(t => t.id));
+        rows.forEach(r => { if (!ids.has(r.id)) S.tx.push(r); });
+        saveLocalCache();
+      }
+      _drawAnMeseTrend();
+    }).catch(() => _drawAnMeseTrend());
+  } else {
+    _drawAnMeseTrend();
+  }
+}
+function _drawAnMeseTrend() {
+  const { anno, mese } = S.anMeseTrend;
+  const daysInMonth = new Date(anno, mese, 0).getDate();
+  const arr = S.tx.filter(t => inMonth(t.data, anno, mese));
+  if (!arr.length) {
+    D.anMeseTrendChart.innerHTML = '<div class="empty"><div class="emoji">📅</div><div>Nessun movimento</div></div>';
+    if (D.anMeseTrendDetail) D.anMeseTrendDetail.innerHTML = '';
+    return;
+  }
+  const usc = new Array(daysInMonth).fill(0);
+  const ent = new Array(daysInMonth).fill(0);
+  arr.forEach(t => {
+    const d = Number(t.data.split('-')[2]);
+    if (d >= 1 && d <= daysInMonth) {
+      if (t.tipo === 'uscita') usc[d - 1] += Number(t.importo);
+      else ent[d - 1] += Number(t.importo);
+    }
+  });
+  const labels = [];
+  for (let i = 1; i <= daysInMonth; i++) labels.push(String(i));
+  Charts.renderLine(D.anMeseTrendChart, [
+    { label: 'Uscite',  color: 'var(--danger)', points: usc },
+    { label: 'Entrate', color: 'var(--ok)',     points: ent }
+  ], labels);
+  // Tabella: solo giorni con movimenti
+  if (D.anMeseTrendDetail) {
+    let html = '<table class="analisi-table"><thead><tr><th>Giorno</th><th class="num">Entrate</th><th class="num">Uscite</th><th class="num">Saldo</th></tr></thead><tbody>';
+    let nRows = 0;
+    for (let i = 0; i < daysInMonth; i++) {
+      if (ent[i] === 0 && usc[i] === 0) continue;
+      const saldo = ent[i] - usc[i];
+      const cls = saldo >= 0 ? 'pos' : 'neg';
+      const dataLabel = String(i + 1).padStart(2,'0') + '/' + String(mese).padStart(2,'0');
+      html += '<tr>' +
+        '<td>' + dataLabel + '</td>' +
+        '<td class="num pos">' + (ent[i] ? Charts.fmtEurShort(ent[i]) : '<span class="dim">—</span>') + '</td>' +
+        '<td class="num neg">' + (usc[i] ? Charts.fmtEurShort(usc[i]) : '<span class="dim">—</span>') + '</td>' +
+        '<td class="num ' + cls + '">' + (saldo >= 0 ? '+' : '−') + Charts.fmtEurShort(Math.abs(saldo)) + '</td>' +
+      '</tr>';
+      nRows++;
+    }
+    if (!nRows) html += '<tr><td colspan="4" class="dim">Nessun movimento</td></tr>';
+    html += '</tbody></table>';
+    D.anMeseTrendDetail.innerHTML = html;
+  }
+}
+function shiftAnMeseTrend(delta) {
+  if (!S.anMeseTrend) S.anMeseTrend = Object.assign({}, S.currentMonth);
+  let { anno, mese } = S.anMeseTrend;
+  mese += delta;
+  while (mese < 1) { mese += 12; anno--; }
+  while (mese > 12) { mese -= 12; anno++; }
+  S.anMeseTrend = { anno, mese };
+  _anMeseTrend();
+}
+
+// 5) Confronto col mese precedente (selettore inline) + tabella variazione %
+function _anCompare() {
+  if (!D.anCmpWrap) return;
+  if (!S.anMeseCmp) S.anMeseCmp = Object.assign({}, S.currentMonth);
+  if (D.anCmpLabel) D.anCmpLabel.textContent = MESI_FULL[S.anMeseCmp.mese - 1] + ' ' + S.anMeseCmp.anno;
+  const { anno, mese } = S.anMeseCmp;
+  let prevY = anno, prevM = mese - 1;
+  if (prevM < 1) { prevM = 12; prevY--; }
+  function loadIfMissing(y, m) {
+    const has = S.tx.some(t => inMonth(t.data, y, m));
+    if (has) return Promise.resolve();
+    const start = y + '-' + String(m).padStart(2,'0') + '-01';
+    const lastDay = new Date(y, m, 0).getDate();
+    const end = y + '-' + String(m).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0');
+    return supaFetch(T.TX + '?select=*&data=gte.' + start + '&data=lte.' + end).then(rows => {
+      if (rows && rows.length) {
+        const ids = new Set(S.tx.map(t => t.id));
+        rows.forEach(r => { if (!ids.has(r.id)) S.tx.push(r); });
+        saveLocalCache();
+      }
+    }).catch(() => {});
+  }
+  D.anCmpWrap.innerHTML = '<div class="empty"><div class="emoji">⏳</div><div>Caricamento…</div></div>';
+  if (D.anCmpDetail) D.anCmpDetail.innerHTML = '';
+  Promise.all([loadIfMissing(anno, mese), loadIfMissing(prevY, prevM)]).then(() => _drawAnCompare(anno, mese, prevY, prevM));
+}
+function _drawAnCompare(anno, mese, prevY, prevM) {
+  const curArr  = S.tx.filter(t => inMonth(t.data, anno, mese));
+  const prevArr = S.tx.filter(t => inMonth(t.data, prevY, prevM));
+  function sumByMacro(arr) {
+    const m = {};
+    arr.filter(t => t.tipo === 'uscita').forEach(t => {
+      const c = catById(t.categoria_id);
+      const macroId = (c && c.macro_categoria) || 'altro';
+      m[macroId] = (m[macroId] || 0) + Number(t.importo);
+    });
+    return m;
+  }
+  const curByMacro  = sumByMacro(curArr);
+  const prevByMacro = sumByMacro(prevArr);
+  const allMacros = new Set([...Object.keys(curByMacro), ...Object.keys(prevByMacro)]);
+  if (!allMacros.size) {
+    D.anCmpWrap.innerHTML = '<div class="empty"><div class="emoji">📊</div><div>Nessuna spesa nei 2 mesi</div></div>';
+    return;
+  }
+  const rows = Array.from(allMacros).map(id => ({
+    id,
+    cur: curByMacro[id] || 0,
+    prev: prevByMacro[id] || 0
+  })).sort((a, b) => Math.max(b.cur, b.prev) - Math.max(a.cur, a.prev));
+  const maxVal = Math.max(...rows.map(r => Math.max(r.cur, r.prev))) || 1;
+  let barsHtml = '';
+  rows.forEach(r => {
+    const m = macroById(r.id);
+    const icon = m ? m.icon : '📦';
+    let delta = 0, cls = 'same', txt = '—';
+    if (r.prev > 0) {
+      delta = ((r.cur - r.prev) / r.prev) * 100;
+      if (Math.abs(delta) < 1) { cls = 'same'; txt = '≈'; }
+      else if (delta > 0)      { cls = 'up';   txt = '+' + delta.toFixed(0) + '%'; }
+      else                     { cls = 'down'; txt = delta.toFixed(0) + '%'; }
+    } else if (r.cur > 0) { cls = 'up'; txt = 'NEW'; }
+    else if (r.prev > 0)  { cls = 'down'; txt = '−100%'; }
+    const curW  = (r.cur  / maxVal) * 100;
+    const prevW = (r.prev / maxVal) * 100;
+    barsHtml += '<div class="compare-row">' +
+      '<div class="compare-top">' +
+        '<span class="cmp-name">' + icon + ' ' + esc(macroLabel(r.id)) + '</span>' +
+        '<span class="cmp-delta ' + cls + '">' + txt + '</span>' +
+      '</div>' +
+      '<div class="compare-bars">' +
+        '<div class="compare-bar-row cur">' +
+          '<span class="cmp-bar-label">ora</span>' +
+          '<div class="cmp-bar"><div class="cmp-bar-fill" style="width:' + curW + '%"></div></div>' +
+          '<span class="cmp-val">' + Charts.fmtEurShort(r.cur) + '</span>' +
+        '</div>' +
+        '<div class="compare-bar-row prev">' +
+          '<span class="cmp-bar-label">prec</span>' +
+          '<div class="cmp-bar"><div class="cmp-bar-fill" style="width:' + prevW + '%"></div></div>' +
+          '<span class="cmp-val">' + Charts.fmtEurShort(r.prev) + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  });
+  D.anCmpWrap.innerHTML = barsHtml;
+  // Tabella di dettaglio
+  if (D.anCmpDetail) {
+    let total_cur = rows.reduce((s, r) => s + r.cur, 0);
+    let total_prev = rows.reduce((s, r) => s + r.prev, 0);
+    let html = '<table class="analisi-table"><thead><tr><th>Macro</th><th class="num">Ora</th><th class="num">Prec.</th><th class="num">Δ</th></tr></thead><tbody>';
+    rows.forEach(r => {
+      const m = macroById(r.id);
+      const icon = m ? m.icon : '📦';
+      const diff = r.cur - r.prev;
+      const cls = diff > 0 ? 'neg' : (diff < 0 ? 'pos' : 'dim');
+      html += '<tr>' +
+        '<td>' + icon + ' ' + esc(macroLabel(r.id)) + '</td>' +
+        '<td class="num">' + Charts.fmtEurShort(r.cur) + '</td>' +
+        '<td class="num dim">' + Charts.fmtEurShort(r.prev) + '</td>' +
+        '<td class="num ' + cls + '">' + (diff > 0 ? '+' : (diff < 0 ? '−' : '')) + Charts.fmtEurShort(Math.abs(diff)) + '</td>' +
+      '</tr>';
+    });
+    const tDiff = total_cur - total_prev;
+    const tCls = tDiff > 0 ? 'neg' : (tDiff < 0 ? 'pos' : 'dim');
+    html += '<tr style="font-weight:700;border-top:2px solid var(--border)">' +
+      '<td>Totale</td>' +
+      '<td class="num">' + Charts.fmtEurShort(total_cur) + '</td>' +
+      '<td class="num dim">' + Charts.fmtEurShort(total_prev) + '</td>' +
+      '<td class="num ' + tCls + '">' + (tDiff > 0 ? '+' : (tDiff < 0 ? '−' : '')) + Charts.fmtEurShort(Math.abs(tDiff)) + '</td>' +
+    '</tr>';
+    html += '</tbody></table>';
+    D.anCmpDetail.innerHTML = html;
+  }
+}
+function shiftAnMeseCmp(delta) {
+  if (!S.anMeseCmp) S.anMeseCmp = Object.assign({}, S.currentMonth);
+  let { anno, mese } = S.anMeseCmp;
+  mese += delta;
+  while (mese < 1) { mese += 12; anno--; }
+  while (mese > 12) { mese -= 12; anno++; }
+  S.anMeseCmp = { anno, mese };
+  _anCompare();
 }
 
 function renderAnalisiBudgetBars() {
@@ -2392,6 +2750,11 @@ function bindEvents() {
   if (D.meseTrendNext) D.meseTrendNext.addEventListener('click', () => shiftMeseTrend(1));
   if (D.meseCmpPrev)   D.meseCmpPrev.addEventListener('click', () => shiftMeseCmp(-1));
   if (D.meseCmpNext)   D.meseCmpNext.addEventListener('click', () => shiftMeseCmp(1));
+  // Analisi: selettori mese inline
+  if (D.anMeseTrendPrev) D.anMeseTrendPrev.addEventListener('click', () => shiftAnMeseTrend(-1));
+  if (D.anMeseTrendNext) D.anMeseTrendNext.addEventListener('click', () => shiftAnMeseTrend(1));
+  if (D.anCmpPrev)       D.anCmpPrev.addEventListener('click', () => shiftAnMeseCmp(-1));
+  if (D.anCmpNext)       D.anCmpNext.addEventListener('click', () => shiftAnMeseCmp(1));
   // online/offline
   window.addEventListener('online', () => { toast('Online — sincronizzo', 'success'); drainQueue(); });
   window.addEventListener('offline', () => toast('Modalità offline', 'warn'));

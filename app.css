@@ -1337,6 +1337,89 @@ button.btn-danger {
   font-weight: 700;
 }
 
+/* Liste e tabelle di dettaglio nella tab Analisi */
+.analisi-detail-list {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.an-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.an-row:last-child { border-bottom: none; }
+.an-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.an-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.an-pct {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: right;
+}
+.an-count {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.an-amt {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  min-width: 72px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.analisi-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  font-size: 12px;
+}
+.analisi-table th {
+  text-align: left;
+  font-weight: 700;
+  color: var(--text-dim);
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+.analisi-table td {
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.analisi-table tr:last-child td { border-bottom: none; }
+.analisi-table .num { text-align: right; }
+.analisi-table .pos { color: var(--ok); }
+.analisi-table .neg { color: var(--danger); }
+.analisi-table .dim { color: var(--text-dim); }
+
 /* Macro-prefix nelle righe transazione */
 .tx-macro {
   display: inline-block;

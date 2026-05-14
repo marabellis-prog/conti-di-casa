@@ -122,16 +122,54 @@
     <!-- ANALISI -->
     <section id="view-analisi" class="view">
       <h2>Analisi dati</h2>
-      <p class="txt-dim" style="font-size:13px;margin:0 4px 14px;">Tutte le statistiche del mese selezionato in alto.</p>
+      <p class="txt-dim" style="font-size:13px;margin:0 4px 14px;">Stessi grafici della Home con il dettaglio di ogni voce sotto.</p>
 
       <div class="card">
-        <h3 class="card-title">Uscite per sotto-categoria</h3>
-        <div id="subDonutWrap" class="donut-wrap"></div>
+        <h3 class="card-title">Uscite per categoria</h3>
+        <div id="anCatDonut" class="donut-wrap"></div>
+        <div id="anCatDetail" class="analisi-detail-list"></div>
       </div>
 
       <div class="card">
-        <h3 class="card-title">Top 5 spese del mese</h3>
-        <div id="topSpeseWrap"></div>
+        <h3 class="card-title">Uscite per autore</h3>
+        <div id="anAutoreDonut" class="donut-wrap"></div>
+        <div id="anAutoreDetail" class="analisi-detail-list"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Trend 12 mesi</h3>
+        <div id="anTrend12Chart" class="line-wrap"></div>
+        <div class="line-legend">
+          <span><span class="dot" style="background:var(--ok)"></span>Entrate</span>
+          <span><span class="dot" style="background:var(--danger)"></span>Uscite</span>
+        </div>
+        <div id="anTrend12Detail"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Trend del mese</h3>
+        <div class="slide-month-nav">
+          <button id="anMeseTrendPrev" class="slide-month-btn" aria-label="Mese precedente">‹</button>
+          <span id="anMeseTrendLabel" class="slide-month-label">—</span>
+          <button id="anMeseTrendNext" class="slide-month-btn" aria-label="Mese successivo">›</button>
+        </div>
+        <div id="anMeseTrendChart" class="line-wrap"></div>
+        <div class="line-legend">
+          <span><span class="dot" style="background:var(--danger)"></span>Uscite</span>
+          <span><span class="dot" style="background:var(--ok)"></span>Entrate</span>
+        </div>
+        <div id="anMeseTrendDetail"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Confronto col mese precedente</h3>
+        <div class="slide-month-nav">
+          <button id="anCmpPrev" class="slide-month-btn" aria-label="Mese precedente">‹</button>
+          <span id="anCmpLabel" class="slide-month-label">—</span>
+          <button id="anCmpNext" class="slide-month-btn" aria-label="Mese successivo">›</button>
+        </div>
+        <div id="anCmpWrap" class="compare-wrap"></div>
+        <div id="anCmpDetail"></div>
       </div>
     </section>
 
