@@ -1663,9 +1663,8 @@ function bindEvents() {
   // Date pill: tap apre il date picker nativo
   if (D.qaDateBtn && D.qaDatePicker) {
     D.qaDateBtn.addEventListener('click', e => {
-      // prevent default solo se il target è il button, non l'input
-      if (e.target === D.qaDatePicker) return;
       e.preventDefault();
+      // showPicker() richiede gesto utente sincrono — non await/setTimeout
       try {
         if (typeof D.qaDatePicker.showPicker === 'function') {
           D.qaDatePicker.showPicker();
@@ -1674,6 +1673,7 @@ function bindEvents() {
           D.qaDatePicker.click();
         }
       } catch (err) {
+        console.warn('showPicker failed, falling back to focus', err);
         D.qaDatePicker.focus();
       }
     });
