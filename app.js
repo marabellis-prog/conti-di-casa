@@ -92,10 +92,12 @@ function cacheDOM() {
   ['monthLabel','btnMonthPrev','btnMonthNext','btnSettings','btnUpdate',
    'view-home','view-list','view-budget','view-cat',
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap','lineWrap','budgetBars',
-   'subDonutWrap','weekdayDonutWrap','inOutDonutWrap','saldoCumWrap','dailyBarsWrap',
-   'compareWrap','heatmapWrap','topSpeseWrap','ricorrentiWrap',
+   'compareWrap',
+   'meseTrendPrev','meseTrendNext','meseTrendLabel','meseTrendChart',
+   'meseCmpPrev','meseCmpNext','meseCmpLabel',
    'donutCarousel','donutCarouselDots','donutCarouselTitle',
    'trendCarousel','trendCarouselDots','trendCarouselTitle',
+   'analisiContent',
    'searchInput','listFilters','txList',
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
@@ -385,11 +387,20 @@ function shiftMonth(delta) {
   S.currentMonth = { anno, mese };
   localStorage.setItem(LS.LAST_MONTH, monthKey(anno, mese));
   renderHeader();
-  // ricarica tx del mese se non in cache
   ensureMonthLoaded().then(() => {
     renderHome();
     renderList();
   });
+}
+
+function shiftMeseCmp(delta) {
+  if (!S.meseCmp) S.meseCmp = Object.assign({}, S.currentMonth);
+  let { anno, mese } = S.meseCmp;
+  mese += delta;
+  while (mese < 1) { mese += 12; anno--; }
+  while (mese > 12) { mese -= 12; anno++; }
+  S.meseCmp = { anno, mese };
+  renderCompareMonth();
 }
 
 async function ensureMonthLoaded() {
@@ -477,53 +488,112 @@ function renderHome() {
   // Donut uscite per AUTORE
   renderAutoreDonut(arr);
 
-  // Donut: per sotto-categoria (top 8 + altre)
-  renderSubCatDonut(arr);
-
-  // Donut: per giorno settimana
-  renderWeekdayDonut(arr);
-
-  // Donut: entrate vs uscite
-  renderInOutDonut(arr, inSum, outSum);
-
   // Trend 12 mesi (entrate vs uscite)
   renderTrend();
 
-  // Trend: saldo cumulativo 12 mesi
-  renderSaldoCumulativo();
+  // Trend del mese intero (selettore indipendente)
+  renderMeseTrend();
 
-  // Trend: spesa giornaliera del mese corrente
-  renderDailyBars(arr);
+  // Confronto col mese precedente (selettore indipendente)
+  renderCompareMonth();
 
-  // Trend: confronto mese precedente
-  renderCompareMonth(arr);
-
-  // Trend: heatmap calendario
-  renderHeatmap(arr);
-
-  // Top 5 spese del mese
-  renderTopSpese(arr);
-
-  // Spese ricorrenti rilevate
-  renderRicorrenti();
-
-  // Setup caroselli (idempotente: viene chiamato ad ogni render, ma listener attivati una volta)
+  // Setup caroselli (idempotente)
   setupCarousels();
-
-  // Budget vs reale
-  renderBudgetBars();
 }
 
-// ─── CONFRONTO COL MESE PRECEDENTE ──────────────────────────
-function renderCompareMonth(arrCurrentMonth) {
+// ─── TREND DEL MESE INTERO (selettore indipendente) ─────────
+function renderMeseTrend() {
+  if (!D.meseTrendChart) return;
+  if (!S.meseTrend) S.meseTrend = Object.assign({}, S.currentMonth);
+  if (D.meseTrendLabel) D.meseTrendLabel.textContent = MESI_FULL[S.meseTrend.mese - 1] + ' ' + S.meseTrend.anno;
+
+  // Assicuro che le tx del mese siano caricate
+  const { anno, mese } = S.meseTrend;
+  const has = S.tx.some(t => inMonth(t.data, anno, mese));
+  if (!has) {
+    // Lazy load del mese e poi re-render
+    const start = anno + '-' + String(mese).padStart(2,'0') + '-01';
+    const lastDay = new Date(anno, mese, 0).getDate();
+    const end = anno + '-' + String(mese).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0');
+    D.meseTrendChart.innerHTML = '<div class="empty"><div class="emoji">⏳</div><div>Caricamento…</div></div>';
+    supaFetch(T.TX + '?select=*&data=gte.' + start + '&data=lte.' + end + '&order=data.desc,id.desc').then(rows => {
+      if (rows && rows.length) {
+        const ids = new Set(S.tx.map(t => t.id));
+        rows.forEach(r => { if (!ids.has(r.id)) S.tx.push(r); });
+        saveLocalCache();
+      }
+      _drawMeseTrend();
+    }).catch(() => _drawMeseTrend());
+  } else {
+    _drawMeseTrend();
+  }
+}
+function _drawMeseTrend() {
+  const { anno, mese } = S.meseTrend;
+  const daysInMonth = new Date(anno, mese, 0).getDate();
+  const arr = S.tx.filter(t => inMonth(t.data, anno, mese));
+  if (!arr.length) {
+    D.meseTrendChart.innerHTML = '<div class="empty"><div class="emoji">📅</div><div>Nessun movimento in questo mese</div></div>';
+    return;
+  }
+  const usc = new Array(daysInMonth).fill(0);
+  const ent = new Array(daysInMonth).fill(0);
+  arr.forEach(t => {
+    const d = Number(t.data.split('-')[2]);
+    if (d >= 1 && d <= daysInMonth) {
+      if (t.tipo === 'uscita') usc[d - 1] += Number(t.importo);
+      else ent[d - 1] += Number(t.importo);
+    }
+  });
+  const labels = [];
+  for (let i = 1; i <= daysInMonth; i++) labels.push(String(i));
+  Charts.renderLine(D.meseTrendChart, [
+    { label: 'Uscite',  color: 'var(--danger)', points: usc },
+    { label: 'Entrate', color: 'var(--ok)',     points: ent }
+  ], labels);
+}
+function shiftMeseTrend(delta) {
+  if (!S.meseTrend) S.meseTrend = Object.assign({}, S.currentMonth);
+  let { anno, mese } = S.meseTrend;
+  mese += delta;
+  while (mese < 1) { mese += 12; anno--; }
+  while (mese > 12) { mese -= 12; anno++; }
+  S.meseTrend = { anno, mese };
+  renderMeseTrend();
+}
+
+// ─── CONFRONTO COL MESE PRECEDENTE (selettore indipendente) ─
+function renderCompareMonth() {
   if (!D.compareWrap) return;
-  const { anno, mese } = S.currentMonth;
-  // ricava mese precedente
+  if (!S.meseCmp) S.meseCmp = Object.assign({}, S.currentMonth);
+  if (D.meseCmpLabel) D.meseCmpLabel.textContent = MESI_FULL[S.meseCmp.mese - 1] + ' ' + S.meseCmp.anno;
+
+  const { anno, mese } = S.meseCmp;
   let prevY = anno, prevM = mese - 1;
   if (prevM < 1) { prevM = 12; prevY--; }
+
+  // Assicura tx caricate per entrambi i mesi
+  function loadIfMissing(y, m) {
+    const has = S.tx.some(t => inMonth(t.data, y, m));
+    if (has) return Promise.resolve();
+    const start = y + '-' + String(m).padStart(2,'0') + '-01';
+    const lastDay = new Date(y, m, 0).getDate();
+    const end = y + '-' + String(m).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0');
+    return supaFetch(T.TX + '?select=*&data=gte.' + start + '&data=lte.' + end).then(rows => {
+      if (rows && rows.length) {
+        const ids = new Set(S.tx.map(t => t.id));
+        rows.forEach(r => { if (!ids.has(r.id)) S.tx.push(r); });
+        saveLocalCache();
+      }
+    }).catch(() => {});
+  }
+  D.compareWrap.innerHTML = '<div class="empty"><div class="emoji">⏳</div><div>Caricamento…</div></div>';
+  Promise.all([loadIfMissing(anno, mese), loadIfMissing(prevY, prevM)]).then(() => _drawCompare(anno, mese, prevY, prevM));
+}
+function _drawCompare(anno, mese, prevY, prevM) {
+  const curArr  = S.tx.filter(t => inMonth(t.data, anno, mese));
   const prevArr = S.tx.filter(t => inMonth(t.data, prevY, prevM));
 
-  // somma per macro nei due mesi (solo uscite)
   function sumByMacro(arr) {
     const m = {};
     arr.filter(t => t.tipo === 'uscita').forEach(t => {
@@ -533,7 +603,7 @@ function renderCompareMonth(arrCurrentMonth) {
     });
     return m;
   }
-  const curByMacro  = sumByMacro(arrCurrentMonth);
+  const curByMacro  = sumByMacro(curArr);
   const prevByMacro = sumByMacro(prevArr);
   const allMacros = new Set([...Object.keys(curByMacro), ...Object.keys(prevByMacro)]);
 
@@ -866,8 +936,8 @@ function renderDailyBars(arrCurrentMonth) {
 }
 
 // ─── CAROUSEL setup ─────────────────────────────────────────
-const DONUT_TITLES = ['Uscite per categoria', 'Uscite per autore', 'Uscite per sotto-categoria', 'Uscite per giorno settimana', 'Entrate vs Uscite'];
-const TREND_TITLES = ['Trend 12 mesi', 'Saldo cumulativo 12 mesi', 'Uscite giornaliere del mese', 'Confronto col mese precedente', 'Heatmap calendario'];
+const DONUT_TITLES = ['Uscite per categoria', 'Uscite per autore'];
+const TREND_TITLES = ['Trend 12 mesi', 'Trend del mese', 'Confronto col mese precedente'];
 let _carouselsInited = false;
 function setupCarousels() {
   if (_carouselsInited) return;
@@ -1294,7 +1364,7 @@ async function persistCatOrder() {
 // ─── SWITCH VIEW ────────────────────────────────────────────
 function switchView(name) {
   S.currentView = name;
-  ['home','list','budget','cat'].forEach(v => {
+  ['home','list','analisi','cat'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.classList.toggle('active', v === name);
   });
@@ -1303,9 +1373,20 @@ function switchView(name) {
   });
   if (name === 'home') renderHome();
   else if (name === 'list') renderList();
-  else if (name === 'budget') renderBudgetView();
+  else if (name === 'analisi') renderAnalisi();
   else if (name === 'cat') renderCatView();
   window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+function renderAnalisi() {
+  if (!D.analisiContent) return;
+  // Placeholder per ora — la sezione sarà popolata in prossime iterazioni
+  D.analisiContent.innerHTML =
+    '<div class="empty" style="padding:40px 20px">' +
+      '<div class="emoji">📊</div>' +
+      '<div style="font-size:14px;margin-top:8px">Analisi dati dettagliate</div>' +
+      '<div class="txt-faint" style="font-size:12px;margin-top:6px">Sezione in costruzione</div>' +
+    '</div>';
 }
 
 // ─── QUICK ADD ──────────────────────────────────────────────
@@ -2273,9 +2354,14 @@ function bindEvents() {
     $$('button', D.catTabs).forEach(x => x.classList.toggle('active', x === b));
     renderCatView();
   }));
-  // budget edit
-  D.budgetEditSave.addEventListener('click', saveBudgetEdit);
-  D.budgetEditDelete.addEventListener('click', deleteBudgetEdit);
+  // budget edit (modal ancora presente, ma non più accessibile dall'UI principale)
+  if (D.budgetEditSave)   D.budgetEditSave.addEventListener('click', saveBudgetEdit);
+  if (D.budgetEditDelete) D.budgetEditDelete.addEventListener('click', deleteBudgetEdit);
+  // selettori mese inline (trend mese + confronto)
+  if (D.meseTrendPrev) D.meseTrendPrev.addEventListener('click', () => shiftMeseTrend(-1));
+  if (D.meseTrendNext) D.meseTrendNext.addEventListener('click', () => shiftMeseTrend(1));
+  if (D.meseCmpPrev)   D.meseCmpPrev.addEventListener('click', () => shiftMeseCmp(-1));
+  if (D.meseCmpNext)   D.meseCmpNext.addEventListener('click', () => shiftMeseCmp(1));
   // online/offline
   window.addEventListener('online', () => { toast('Online — sincronizzo', 'success'); drainQueue(); });
   window.addEventListener('offline', () => toast('Modalità offline', 'warn'));
@@ -2372,7 +2458,7 @@ function registerSW() {
 // ─── INIT ───────────────────────────────────────────────────
 // elementi critici che devono esistere — se mancano, HTML e JS sono in
 // versioni incoerenti (caso classico: SW serve vecchio app.js con nuovo HTML).
-const CRITICAL_DOM_IDS = ['fab','modalQa','qaDatePicker','qaCats','toast'];
+const CRITICAL_DOM_IDS = ['fab','modalQa','qaDatePicker','qaCats','toast','view-analisi'];
 function checkDomIntegrity() {
   const missing = CRITICAL_DOM_IDS.filter(id => !document.getElementById(id));
   if (missing.length) {

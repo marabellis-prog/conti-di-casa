@@ -68,9 +68,6 @@
         <div class="carousel-track" id="donutCarousel">
           <div class="carousel-slide" data-slide="0"><div id="donutWrap" class="donut-wrap"></div></div>
           <div class="carousel-slide" data-slide="1"><div id="autoreDonutWrap" class="donut-wrap"></div></div>
-          <div class="carousel-slide" data-slide="2"><div id="subDonutWrap" class="donut-wrap"></div></div>
-          <div class="carousel-slide" data-slide="3"><div id="weekdayDonutWrap" class="donut-wrap"></div></div>
-          <div class="carousel-slide" data-slide="4"><div id="inOutDonutWrap" class="donut-wrap"></div></div>
         </div>
       </div>
 
@@ -88,39 +85,26 @@
             </div>
           </div>
           <div class="carousel-slide" data-slide="1">
-            <div id="saldoCumWrap" class="line-wrap"></div>
+            <div class="slide-month-nav">
+              <button id="meseTrendPrev" class="slide-month-btn" aria-label="Mese precedente">‹</button>
+              <span id="meseTrendLabel" class="slide-month-label">—</span>
+              <button id="meseTrendNext" class="slide-month-btn" aria-label="Mese successivo">›</button>
+            </div>
+            <div id="meseTrendChart" class="line-wrap"></div>
             <div class="line-legend">
-              <span><span class="dot" style="background:var(--accent)"></span>Saldo cumulativo</span>
+              <span><span class="dot" style="background:var(--danger)"></span>Uscite</span>
+              <span><span class="dot" style="background:var(--ok)"></span>Entrate</span>
             </div>
           </div>
           <div class="carousel-slide" data-slide="2">
-            <div id="dailyBarsWrap" class="line-wrap"></div>
-            <div class="line-legend">
-              <span><span class="dot" style="background:var(--danger)"></span>Uscite giornaliere</span>
+            <div class="slide-month-nav">
+              <button id="meseCmpPrev" class="slide-month-btn" aria-label="Mese precedente">‹</button>
+              <span id="meseCmpLabel" class="slide-month-label">—</span>
+              <button id="meseCmpNext" class="slide-month-btn" aria-label="Mese successivo">›</button>
             </div>
-          </div>
-          <div class="carousel-slide" data-slide="3">
             <div id="compareWrap" class="compare-wrap"></div>
           </div>
-          <div class="carousel-slide" data-slide="4">
-            <div id="heatmapWrap" class="heatmap-wrap"></div>
-          </div>
         </div>
-      </div>
-
-      <div class="card">
-        <h3 class="card-title">Top 5 spese del mese</h3>
-        <div id="topSpeseWrap"></div>
-      </div>
-
-      <div class="card">
-        <h3 class="card-title">Spese ricorrenti rilevate</h3>
-        <div id="ricorrentiWrap"></div>
-      </div>
-
-      <div class="card">
-        <h3 class="card-title">Budget vs reale</h3>
-        <div id="budgetBars"></div>
       </div>
     </section>
 
@@ -135,11 +119,11 @@
       <div id="txList"></div>
     </section>
 
-    <!-- BUDGET -->
-    <section id="view-budget" class="view">
-      <h2>Budget mensili</h2>
-      <p class="txt-dim" style="font-size:13px;margin:0 4px 10px;">Tocca un budget per modificarlo o per impostarne uno nuovo.</p>
-      <div id="budgetList"></div>
+    <!-- ANALISI -->
+    <section id="view-analisi" class="view">
+      <h2>Analisi dati</h2>
+      <p class="txt-dim" style="font-size:13px;margin:0 4px 14px;">Sezione di analisi approfondite — in arrivo nei prossimi step.</p>
+      <div id="analisiContent"></div>
     </section>
 
     <!-- CATEGORIE -->
@@ -159,7 +143,7 @@
     <button class="nav-btn active" data-view="home" aria-label="Home"><span class="ic">🏠</span><span>Home</span></button>
     <button class="nav-btn" data-view="list" aria-label="Lista transazioni"><span class="ic">📋</span><span>Liste</span></button>
     <div class="fab-wrap"><button id="fab" class="fab" aria-label="Aggiungi transazione">+</button></div>
-    <button class="nav-btn" data-view="budget" aria-label="Budget"><span class="ic">🎯</span><span>Budget</span></button>
+    <button class="nav-btn" data-view="analisi" aria-label="Analisi dati"><span class="ic">📊</span><span>Analisi</span></button>
     <button class="nav-btn" data-view="cat" aria-label="Categorie"><span class="ic">📁</span><span>Categorie</span></button>
   </nav>
 
