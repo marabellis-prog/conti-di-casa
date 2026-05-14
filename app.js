@@ -895,7 +895,7 @@ function renderQaCats() {
     D.qaCats.innerHTML = sorted.map(([mid, g]) => {
       const m = macroById(mid);
       const label = macroLabel(mid);
-      const badge = g.count > 1 ? '<span class="qa-cat-badge">' + g.count + '</span>' : '';
+      const badge = '<span class="qa-cat-badge">' + g.count + '</span>';
       return '<button class="qa-cat qa-macro" data-macro="' + mid + '">' +
         '<div class="qa-cat-icon">' + (m ? m.icon : '?') + '</div>' +
         '<div class="qa-cat-name">' + esc(label) + '</div>' +
