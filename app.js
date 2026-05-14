@@ -96,7 +96,8 @@ function cacheDOM() {
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
    // modals
-   'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaMoreBtn','qaExtraRow','qaDesc','qaData','qaAutore',
+   'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaMoreBtn','qaExtraRow','qaDesc','qaAutore',
+   'qaDateBtn','qaDateLabel','qaDatePicker',
    'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
@@ -782,12 +783,37 @@ function openQuickAdd(tipo) {
   setQaTipo(QA.tipo);
   setQaAmt('');
   D.qaDesc.value = '';
-  D.qaData.value = QA.data;
+  D.qaDatePicker.value = QA.data;
+  D.qaDatePicker.max = today(); // niente date future di default (override possibile)
+  renderQaDateLabel();
   populateAutoreSelect(D.qaAutore, QA.autore);
   D.qaExtraRow.style.display = 'none';
   D.qaMoreBtn.textContent = '+ Mostra altre opzioni';
   renderQaCats();
   openModal('modalQa');
+}
+
+function renderQaDateLabel() {
+  if (!D.qaDateLabel) return;
+  const val = D.qaDatePicker.value || today();
+  QA.data = val;
+  const t = today();
+  // ieri
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const ystr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  let label;
+  if (val === t) label = 'Oggi';
+  else if (val === ystr) label = 'Ieri';
+  else {
+    const [yy, mm, dd] = val.split('-');
+    const curYear = String(new Date().getFullYear());
+    label = dd + ' ' + MESI_SHORT[Number(mm)-1] + (yy === curYear ? '' : ' ' + yy);
+  }
+  D.qaDateLabel.textContent = label;
+  // warning visivo se data > 7gg fa
+  const diff = (Date.parse(t) - Date.parse(val)) / (1000 * 60 * 60 * 24);
+  D.qaDateBtn.classList.toggle('is-past', diff > 7);
 }
 function setQaTipo(t) {
   QA.tipo = t;
@@ -930,7 +956,7 @@ async function quickSave(categoria_id) {
     return;
   }
   const desc = D.qaDesc.value.trim();
-  const dataStr = D.qaData.value || today();
+  const dataStr = D.qaDatePicker.value || QA.data || today();
   const autore = D.qaAutore.value || QA.autore;
   await saveTransaction({
     importo,
@@ -1625,6 +1651,26 @@ function bindEvents() {
     D.qaExtraRow.style.display = QA.extraOpen ? 'grid' : 'none';
     D.qaMoreBtn.textContent = QA.extraOpen ? '− Nascondi opzioni' : '+ Mostra altre opzioni';
   });
+  // Date pill: tap apre il date picker nativo
+  if (D.qaDateBtn && D.qaDatePicker) {
+    D.qaDateBtn.addEventListener('click', e => {
+      // prevent default solo se il target è il button, non l'input
+      if (e.target === D.qaDatePicker) return;
+      e.preventDefault();
+      try {
+        if (typeof D.qaDatePicker.showPicker === 'function') {
+          D.qaDatePicker.showPicker();
+        } else {
+          D.qaDatePicker.focus();
+          D.qaDatePicker.click();
+        }
+      } catch (err) {
+        D.qaDatePicker.focus();
+      }
+    });
+    D.qaDatePicker.addEventListener('change', renderQaDateLabel);
+    D.qaDatePicker.addEventListener('input', renderQaDateLabel);
+  }
   // tx edit
   D.txEditSave.addEventListener('click', saveTxEdit);
   D.txEditDelete.addEventListener('click', deleteTxEdit);

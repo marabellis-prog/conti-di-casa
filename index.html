@@ -136,6 +136,15 @@
           <button data-tipo="entrata">Entrata</button>
         </div>
 
+        <div class="qa-date-row">
+          <button id="qaDateBtn" type="button" class="qa-date-pill" aria-label="Cambia data">
+            <span class="qa-date-ic">🗓</span>
+            <span id="qaDateLabel">Oggi</span>
+            <span class="qa-date-arrow">▾</span>
+            <input type="date" id="qaDatePicker" class="qa-date-hidden">
+          </button>
+        </div>
+
         <div id="qaAmt" class="qa-amt empty"><span class="euro">€</span><span id="qaAmtVal">0</span></div>
 
         <div class="numpad" id="numpad">
@@ -146,13 +155,9 @@
         </div>
 
         <div class="qa-extra-row" id="qaExtraRow" style="display:none;">
-          <div class="col">
+          <div class="col" style="grid-column: span 2;">
             <label>Descrizione</label>
             <input type="text" id="qaDesc" placeholder="opzionale">
-          </div>
-          <div class="col">
-            <label>Data</label>
-            <input type="date" id="qaData">
           </div>
           <div class="col" style="grid-column: span 2;">
             <label>Autore</label>
