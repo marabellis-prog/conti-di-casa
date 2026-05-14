@@ -773,24 +773,33 @@ function switchView(name) {
 const QA = { tipo: 'uscita', amt: '', desc: '', data: '', autore: '', extraOpen: false };
 let qaPickerMacroId = null; // null = mostra elenco macro; "casa"/"cibo"/... = mostra sotto-cat di quella macro
 function openQuickAdd(tipo) {
-  QA.tipo = tipo || localStorage.getItem(LS.LAST_TIPO) || 'uscita';
-  QA.amt = '';
-  QA.desc = '';
-  QA.data = today();
-  QA.autore = S.prefs.autoreDefault || (S.prefs.autori && S.prefs.autori[0]) || 'Stefano';
-  QA.extraOpen = false;
-  qaPickerMacroId = null;
-  setQaTipo(QA.tipo);
-  setQaAmt('');
-  D.qaDesc.value = '';
-  D.qaDatePicker.value = QA.data;
-  D.qaDatePicker.max = today(); // niente date future di default (override possibile)
-  renderQaDateLabel();
-  populateAutoreSelect(D.qaAutore, QA.autore);
-  D.qaExtraRow.style.display = 'none';
-  D.qaMoreBtn.textContent = '+ Mostra altre opzioni';
-  renderQaCats();
-  openModal('modalQa');
+  try {
+    QA.tipo = tipo || localStorage.getItem(LS.LAST_TIPO) || 'uscita';
+    QA.amt = '';
+    QA.desc = '';
+    QA.data = today();
+    QA.autore = S.prefs.autoreDefault || (S.prefs.autori && S.prefs.autori[0]) || 'Stefano';
+    QA.extraOpen = false;
+    qaPickerMacroId = null;
+    setQaTipo(QA.tipo);
+    setQaAmt('');
+    if (D.qaDesc) D.qaDesc.value = '';
+    if (D.qaDatePicker) {
+      D.qaDatePicker.value = QA.data;
+      D.qaDatePicker.max = today();
+    }
+    renderQaDateLabel();
+    if (D.qaAutore) populateAutoreSelect(D.qaAutore, QA.autore);
+    if (D.qaExtraRow) D.qaExtraRow.style.display = 'none';
+    if (D.qaMoreBtn) D.qaMoreBtn.textContent = '+ Mostra altre opzioni';
+    renderQaCats();
+    openModal('modalQa');
+  } catch (err) {
+    console.error('openQuickAdd failed:', err);
+    toast('Errore: ricaricamento app in corso…', 'error', 3000);
+    // versione HTML/JS incoerenti — forza cache wipe + reload
+    setTimeout(() => { try { applyUpdate(); } catch(_) { location.reload(); } }, 400);
+  }
 }
 
 function renderQaDateLabel() {
@@ -1780,8 +1789,29 @@ function registerSW() {
 }
 
 // ─── INIT ───────────────────────────────────────────────────
+// elementi critici che devono esistere — se mancano, HTML e JS sono in
+// versioni incoerenti (caso classico: SW serve vecchio app.js con nuovo HTML).
+const CRITICAL_DOM_IDS = ['fab','modalQa','qaDatePicker','qaCats','toast'];
+function checkDomIntegrity() {
+  const missing = CRITICAL_DOM_IDS.filter(id => !document.getElementById(id));
+  if (missing.length) {
+    console.error('[cdc] HTML/JS mismatch — missing IDs:', missing, '— forcing hard reload');
+    // ultima visita ricarico: se sono passati < 30s dall'ultimo auto-reload, evita loop
+    const last = Number(sessionStorage.getItem('cdc-auto-reload') || 0);
+    if (Date.now() - last < 30000) return;
+    sessionStorage.setItem('cdc-auto-reload', String(Date.now()));
+    try {
+      caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k))))
+        .then(() => navigator.serviceWorker.getRegistrations())
+        .then(rs => Promise.all((rs || []).map(r => r.unregister())))
+        .then(() => location.replace(location.pathname + '?_r=' + Date.now()));
+    } catch (_) { location.reload(); }
+  }
+}
+
 async function init() {
   cacheDOM();
+  checkDomIntegrity();
   loadLocalCache();
   loadQueue();
   applyTheme();
