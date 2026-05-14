@@ -1381,13 +1381,7 @@ function switchView(name) {
 
 function renderAnalisi() {
   const arr = txInCurrentMonth();
-  const inSum  = arr.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
-  const outSum = arr.filter(t => t.tipo === 'uscita').reduce((s, t) => s + Number(t.importo), 0);
   renderSubCatDonut(arr);
-  renderInOutDonut(arr, inSum, outSum);
-  renderHeatmap(arr);
-  renderSaldoCumulativo();
-  renderDailyBars(arr);
   renderTopSpese(arr);
   renderRicorrenti();
   renderAnalisiBudgetBars();
