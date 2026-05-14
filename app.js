@@ -770,6 +770,7 @@ function switchView(name) {
 
 // ─── QUICK ADD ──────────────────────────────────────────────
 const QA = { tipo: 'uscita', amt: '', desc: '', data: '', autore: '', extraOpen: false };
+let qaPickerMacroId = null; // null = mostra elenco macro; "casa"/"cibo"/... = mostra sotto-cat di quella macro
 function openQuickAdd(tipo) {
   QA.tipo = tipo || localStorage.getItem(LS.LAST_TIPO) || 'uscita';
   QA.amt = '';
@@ -777,6 +778,7 @@ function openQuickAdd(tipo) {
   QA.data = today();
   QA.autore = S.prefs.autoreDefault || (S.prefs.autori && S.prefs.autori[0]) || 'Stefano';
   QA.extraOpen = false;
+  qaPickerMacroId = null;
   setQaTipo(QA.tipo);
   setQaAmt('');
   D.qaDesc.value = '';
@@ -793,6 +795,7 @@ function setQaTipo(t) {
   $$('button', D.qaToggle).forEach(b => b.classList.toggle('active', b.getAttribute('data-tipo') === t));
   D.qaTitle.textContent = (t === 'entrata' ? 'Nuova entrata' : 'Nuova uscita');
   localStorage.setItem(LS.LAST_TIPO, t);
+  qaPickerMacroId = null; // reset al cambio tipo
   renderQaCats();
 }
 function setQaAmt(v) {
@@ -825,44 +828,87 @@ function numpadPress(k) {
   vibrate(8);
 }
 function renderQaCats() {
-  // Top 8 categorie più usate degli ultimi 90 giorni del tipo corrente
+  const allCats = S.cats.filter(c => c.tipo === QA.tipo);
+  // se non ci sono categorie del tipo, messaggio guida
+  if (!allCats.length) {
+    D.qaCats.innerHTML = '<div class="empty" style="padding:20px 8px;font-size:13px">Crea prima una categoria nella sezione Categorie.</div>';
+    return;
+  }
+
+  // recency per ranking
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
   const cutoffStr = cutoff.getFullYear() + '-' + String(cutoff.getMonth()+1).padStart(2,'0') + '-' + String(cutoff.getDate()).padStart(2,'0');
   const recent = S.tx.filter(t => t.tipo === QA.tipo && t.data >= cutoffStr);
-  const count = {};
-  recent.forEach(t => { if (t.categoria_id != null) count[t.categoria_id] = (count[t.categoria_id] || 0) + 1; });
-  const all = S.cats.filter(c => c.tipo === QA.tipo);
-  all.sort((a, b) => (count[b.id] || 0) - (count[a.id] || 0) || a.ordine - b.ordine);
-  const top = all.slice(0, 8);
-  const others = all.length > 8;
-  D.qaCats.innerHTML = top.map(c =>
-    '<button class="qa-cat" data-cat-id="' + c.id + '">' +
-      '<div class="qa-cat-icon" style="color:' + (c.colore || '#666') + '">' + (c.icona || '?') + '</div>' +
-      '<div class="qa-cat-name">' + esc(c.nome) + '</div>' +
-    '</button>').join('') +
-    (others ? '<button class="qa-cat more" id="qaMoreCats"><div class="qa-cat-icon">…</div><div class="qa-cat-name">Altre</div></button>' : '');
-  $$('.qa-cat[data-cat-id]', D.qaCats).forEach(el => {
-    el.addEventListener('click', () => {
-      const cid = Number(el.getAttribute('data-cat-id'));
-      quickSave(cid);
+  const useByCat = {};
+  recent.forEach(t => { if (t.categoria_id != null) useByCat[t.categoria_id] = (useByCat[t.categoria_id] || 0) + 1; });
+
+  if (qaPickerMacroId == null) {
+    // ─── LIVELLO 1: macro-categorie ──────────────────────────────
+    // raggruppa categorie utente per macro_categoria, mostra solo macro con >=1 sotto-cat
+    const groups = new Map(); // macroId -> { count, useTotal, subs: [] }
+    allCats.forEach(c => {
+      const mid = c.macro_categoria || 'simboli';
+      if (!groups.has(mid)) groups.set(mid, { count: 0, useTotal: 0, subs: [] });
+      const g = groups.get(mid);
+      g.count++;
+      g.useTotal += (useByCat[c.id] || 0);
+      g.subs.push(c);
     });
-  });
-  const more = $('#qaMoreCats', D.qaCats);
-  if (more) more.addEventListener('click', showAllCats);
-}
-function showAllCats() {
-  const all = S.cats.filter(c => c.tipo === QA.tipo);
-  D.qaCats.innerHTML = all.map(c =>
-    '<button class="qa-cat" data-cat-id="' + c.id + '">' +
-      '<div class="qa-cat-icon" style="color:' + (c.colore || '#666') + '">' + (c.icona || '?') + '</div>' +
-      '<div class="qa-cat-name">' + esc(c.nome) + '</div>' +
-    '</button>').join('');
-  $$('.qa-cat', D.qaCats).forEach(el => {
-    el.addEventListener('click', () => {
-      const cid = Number(el.getAttribute('data-cat-id'));
-      quickSave(cid);
+    // ordina: macro con più uso recente prima, poi alfabetico per id
+    const sorted = Array.from(groups.entries()).sort((a, b) => (b[1].useTotal - a[1].useTotal) || a[0].localeCompare(b[0]));
+
+    D.qaCats.innerHTML = sorted.map(([mid, g]) => {
+      const m = macroById(mid);
+      const label = macroLabel(mid);
+      const badge = g.count > 1 ? '<span class="qa-cat-badge">' + g.count + '</span>' : '';
+      return '<button class="qa-cat qa-macro" data-macro="' + mid + '">' +
+        '<div class="qa-cat-icon">' + (m ? m.icon : '?') + '</div>' +
+        '<div class="qa-cat-name">' + esc(label) + '</div>' +
+        badge +
+      '</button>';
+    }).join('');
+
+    $$('.qa-cat[data-macro]', D.qaCats).forEach(el => {
+      el.addEventListener('click', () => {
+        const mid = el.getAttribute('data-macro');
+        const g = groups.get(mid);
+        // se la macro ha 1 sola sotto-cat, salva direttamente (UX rapida)
+        if (g && g.subs.length === 1) {
+          quickSave(g.subs[0].id);
+        } else {
+          qaPickerMacroId = mid;
+          renderQaCats();
+        }
+      });
     });
-  });
+  } else {
+    // ─── LIVELLO 2: sotto-categorie della macro selezionata ──────
+    const subs = allCats
+      .filter(c => (c.macro_categoria || 'simboli') === qaPickerMacroId)
+      .sort((a, b) => (useByCat[b.id] || 0) - (useByCat[a.id] || 0) || a.ordine - b.ordine);
+    const m = macroById(qaPickerMacroId);
+
+    let html = '<button class="qa-cat qa-back" id="qaBack" title="Indietro alle macro">' +
+      '<div class="qa-cat-icon">‹</div>' +
+      '<div class="qa-cat-name">' + (m ? m.icon : '?') + ' ' + esc(macroLabel(qaPickerMacroId)) + '</div>' +
+    '</button>';
+
+    html += subs.map(c =>
+      '<button class="qa-cat" data-cat-id="' + c.id + '">' +
+        '<div class="qa-cat-icon" style="color:' + (c.colore || '#666') + '">' + (c.icona || '?') + '</div>' +
+        '<div class="qa-cat-name">' + esc(c.nome) + '</div>' +
+      '</button>'
+    ).join('');
+
+    D.qaCats.innerHTML = html;
+    const back = $('#qaBack', D.qaCats);
+    if (back) back.addEventListener('click', () => { qaPickerMacroId = null; renderQaCats(); });
+    $$('.qa-cat[data-cat-id]', D.qaCats).forEach(el => {
+      el.addEventListener('click', () => {
+        quickSave(Number(el.getAttribute('data-cat-id')));
+      });
+    });
+  }
 }
 async function quickSave(categoria_id) {
   const importo = parseAmount(QA.amt);
