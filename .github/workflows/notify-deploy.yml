@@ -1,0 +1,25 @@
+name: Notify Supabase of deploy
+
+on:
+  page_build:
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Patch app_version
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SHA: ${{ github.sha }}
+        run: |
+          TS=$(date +%s%3N)
+          SHORT=${SHA:0:7}
+          curl -sf -X PATCH "${SUPABASE_URL}/rest/v1/cdc_app_version?id=eq.1" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"sha\":\"${SHA}\",\"deployed_at\":${TS},\"message\":\"deploy ${SHORT}\"}"
+          echo "Notified deploy ${SHORT}"

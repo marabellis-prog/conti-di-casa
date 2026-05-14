@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="auto">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#0f1419">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Conti">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./icon.svg">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <link rel="stylesheet" href="./app.css">
+  <title>Conti di Casa</title>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="app-header-inner">
+      <div class="month-nav">
+        <button id="btnMonthPrev" class="icon-btn" aria-label="Mese precedente">‹</button>
+        <span id="monthLabel" class="month-label">—</span>
+        <button id="btnMonthNext" class="icon-btn" aria-label="Mese successivo">›</button>
+      </div>
+      <button id="btnUpdate" title="Nuovo aggiornamento disponibile — clicca per ricaricare" aria-label="Aggiornamento disponibile">
+        <span>↻</span><span>Aggiorna</span>
+      </button>
+      <button id="btnSettings" class="icon-btn" aria-label="Impostazioni">⚙</button>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main>
+
+    <!-- HOME (dashboard) -->
+    <section id="view-home" class="view active">
+      <div class="card">
+        <h3 class="card-title">Saldo del mese</h3>
+        <div id="saldoNum" class="saldo-num">—</div>
+        <div class="saldo-sub">
+          <span class="in">Entrate <b id="saldoIn">€0</b></span>
+          <span class="out">Uscite <b id="saldoOut">€0</b></span>
+        </div>
+        <div id="ultime"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Uscite per categoria</h3>
+        <div id="donutWrap" class="donut-wrap"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Trend 12 mesi</h3>
+        <div id="lineWrap" class="line-wrap"></div>
+        <div class="line-legend">
+          <span><span class="dot" style="background:var(--ok)"></span>Entrate</span>
+          <span><span class="dot" style="background:var(--danger)"></span>Uscite</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Budget vs reale</h3>
+        <div id="budgetBars"></div>
+      </div>
+    </section>
+
+    <!-- LISTA TRANSAZIONI -->
+    <section id="view-list" class="view">
+      <input type="search" id="searchInput" class="search-input" placeholder="Cerca per descrizione, categoria, autore…">
+      <div class="list-filters" id="listFilters">
+        <button class="chip active" data-tipo="all">Tutto</button>
+        <button class="chip" data-tipo="uscita">Uscite</button>
+        <button class="chip" data-tipo="entrata">Entrate</button>
+      </div>
+      <div id="txList"></div>
+    </section>
+
+    <!-- BUDGET -->
+    <section id="view-budget" class="view">
+      <h2>Budget mensili</h2>
+      <p class="txt-dim" style="font-size:13px;margin:0 4px 10px;">Tocca un budget per modificarlo o per impostarne uno nuovo.</p>
+      <div id="budgetList"></div>
+    </section>
+
+    <!-- CATEGORIE -->
+    <section id="view-cat" class="view">
+      <div class="cat-tabs" id="catTabs">
+        <button class="active" data-tipo="uscita">Uscite</button>
+        <button data-tipo="entrata">Entrate</button>
+      </div>
+      <div id="catList"></div>
+      <button id="btnAddCat" class="add-cat-btn">+ Aggiungi categoria</button>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-view="home" aria-label="Home"><span class="ic">🏠</span><span>Home</span></button>
+    <button class="nav-btn" data-view="list" aria-label="Lista transazioni"><span class="ic">📋</span><span>Liste</span></button>
+    <div class="fab-wrap"><button id="fab" class="fab" aria-label="Aggiungi transazione">+</button></div>
+    <button class="nav-btn" data-view="budget" aria-label="Budget"><span class="ic">🎯</span><span>Budget</span></button>
+    <button class="nav-btn" data-view="cat" aria-label="Categorie"><span class="ic">📁</span><span>Categorie</span></button>
+  </nav>
+
+  <!-- ─────────── MODALS ─────────── -->
+
+  <!-- Quick Add -->
+  <div class="modal" id="modalQa">
+    <div class="sheet" id="sheetQa">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="qaTitle">Nuova uscita</h3>
+        <button class="sheet-close" data-close="modalQa">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="qa-toggle" id="qaToggle" data-tipo="uscita">
+          <div class="qa-toggle-bg"></div>
+          <button data-tipo="uscita" class="active">Uscita</button>
+          <button data-tipo="entrata">Entrata</button>
+        </div>
+
+        <div id="qaAmt" class="qa-amt empty"><span class="euro">€</span><span id="qaAmtVal">0</span></div>
+
+        <div class="numpad" id="numpad">
+          <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+          <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+          <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+          <button data-k=",">,</button><button data-k="0">0</button><button class="bs" data-k="bs">⌫</button>
+        </div>
+
+        <div class="qa-extra-row" id="qaExtraRow" style="display:none;">
+          <div class="col">
+            <label>Descrizione</label>
+            <input type="text" id="qaDesc" placeholder="opzionale">
+          </div>
+          <div class="col">
+            <label>Data</label>
+            <input type="date" id="qaData">
+          </div>
+          <div class="col" style="grid-column: span 2;">
+            <label>Autore</label>
+            <select id="qaAutore"></select>
+          </div>
+        </div>
+
+        <h3 class="card-title" style="margin: 8px 0 2px">Scegli categoria</h3>
+        <div class="qa-cats" id="qaCats"></div>
+
+        <button id="qaMoreBtn" class="qa-more-btn">+ Mostra altre opzioni</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dettaglio transazione (edit) -->
+  <div class="modal" id="modalTx">
+    <div class="sheet" id="sheetTx">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3>Modifica transazione</h3>
+        <button class="sheet-close" data-close="modalTx">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="form-field">
+          <label>Importo</label>
+          <input type="number" id="txEditAmt" step="0.01" min="0">
+        </div>
+        <div class="form-field">
+          <label>Tipo</label>
+          <select id="txEditTipo">
+            <option value="uscita">Uscita</option>
+            <option value="entrata">Entrata</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Categoria</label>
+          <select id="txEditCat"></select>
+        </div>
+        <div class="form-field">
+          <label>Data</label>
+          <input type="date" id="txEditData">
+        </div>
+        <div class="form-field">
+          <label>Descrizione</label>
+          <input type="text" id="txEditDesc">
+        </div>
+        <div class="form-field">
+          <label>Autore</label>
+          <select id="txEditAutore"></select>
+        </div>
+        <button id="txEditSave" class="btn-primary">Salva</button>
+        <button id="txEditDelete" class="btn-danger">Elimina</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Categoria edit -->
+  <div class="modal" id="modalCat">
+    <div class="sheet" id="sheetCat">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="catEditTitle">Modifica categoria</h3>
+        <button class="sheet-close" data-close="modalCat">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="form-field">
+          <label>Nome</label>
+          <input type="text" id="catEditName" placeholder="es. Spesa">
+        </div>
+        <div class="form-field">
+          <label>Tipo</label>
+          <select id="catEditTipo">
+            <option value="uscita">Uscita</option>
+            <option value="entrata">Entrata</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Icona</label>
+          <div class="emoji-grid" id="catEditEmojis"></div>
+        </div>
+        <div class="form-field">
+          <label>Colore</label>
+          <div class="color-grid" id="catEditColors"></div>
+        </div>
+        <button id="catEditSave" class="btn-primary">Salva</button>
+        <button id="catEditDelete" class="btn-danger">Elimina</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Budget edit -->
+  <div class="modal" id="modalBudget">
+    <div class="sheet" id="sheetBudget">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="budgetEditTitle">Budget</h3>
+        <button class="sheet-close" data-close="modalBudget">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="form-field">
+          <label>Limite mensile (€)</label>
+          <input type="number" id="budgetEditAmt" step="1" min="0" inputmode="decimal">
+        </div>
+        <button id="budgetEditSave" class="btn-primary">Salva</button>
+        <button id="budgetEditDelete" class="btn-danger">Rimuovi budget</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Impostazioni -->
+  <div class="modal" id="modalSettings">
+    <div class="sheet" id="sheetSettings">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3>Impostazioni</h3>
+        <button class="sheet-close" data-close="modalSettings">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="form-field">
+          <label>Tema</label>
+          <select id="setTheme">
+            <option value="auto">Automatico (sistema)</option>
+            <option value="dark">Scuro</option>
+            <option value="light">Chiaro</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Autore predefinito</label>
+          <select id="setAutoreDefault"></select>
+        </div>
+        <div class="form-field">
+          <label>Nomi autori (separati da virgola)</label>
+          <input type="text" id="setAutori" placeholder="Stefano, Partner">
+        </div>
+        <button id="setSave" class="btn-primary">Salva impostazioni</button>
+        <button id="setExport" class="btn-secondary" style="margin-top:14px">Esporta CSV transazioni</button>
+        <button id="setClearCache" class="btn-secondary" style="margin-top:8px">Pulisci cache locale</button>
+        <div class="txt-c txt-faint mt-16" style="font-size:11px">
+          Versione SHA: <span id="setVersion">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./charts.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

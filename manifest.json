@@ -1,0 +1,31 @@
+{
+  "name": "Conti di Casa",
+  "short_name": "Conti",
+  "description": "App finanze domestiche — entrate, uscite, budget, statistiche",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1419",
+  "theme_color": "#0f1419",
+  "lang": "it",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Aggiungi uscita",
+      "short_name": "Uscita",
+      "description": "Inserisci una nuova spesa",
+      "url": "./?action=add-uscita",
+      "icons": [{ "src": "icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Aggiungi entrata",
+      "short_name": "Entrata",
+      "description": "Inserisci una nuova entrata",
+      "url": "./?action=add-entrata",
+      "icons": [{ "src": "icon.svg", "sizes": "any" }]
+    }
+  ]
+}
