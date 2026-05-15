@@ -70,7 +70,6 @@ html, body {
   font-size: 15px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
-  overscroll-behavior-y: none;
 }
 
 body {
@@ -78,6 +77,8 @@ body {
   min-height: 100dvh;
   padding-top: calc(var(--header-h) + var(--safe-t));
   padding-bottom: calc(var(--nav-h) + var(--safe-b));
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y; /* permetti pan verticale, niente custom touch handler globali */
 }
 
 button, input, select, textarea {
@@ -1271,13 +1272,12 @@ button.btn-danger {
   text-transform: uppercase;
   letter-spacing: 0.6px;
   font-weight: 700;
-  cursor: grab;
   user-select: none;
   border-radius: 8px;
   transition: background .15s;
+  touch-action: pan-y;
 }
 .cat-group-header:hover { background: var(--surface-2); }
-.cat-group-header:active { cursor: grabbing; }
 .cat-group-header .cgh-handle {
   color: var(--text-faint);
   font-size: 14px;
@@ -1325,9 +1325,21 @@ button.btn-danger {
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   margin-bottom: 6px;
-  cursor: grab;
+  cursor: pointer;
   touch-action: pan-y;
 }
+.cat-handle {
+  cursor: grab;
+  touch-action: none; /* il handle gestisce il drag, no scroll */
+  padding: 4px;
+}
+.cat-handle:active { cursor: grabbing; }
+.cgh-handle {
+  cursor: grab;
+  touch-action: none;
+  padding: 4px;
+}
+.cgh-handle:active { cursor: grabbing; }
 .cat-row.sub {
   margin-left: 28px;
   position: relative;

@@ -1317,8 +1317,8 @@ function renderCatView() {
     const m = macroById(mid);
     const subs = groups[mid];
     html += '<div class="cat-group" data-macro="' + mid + '">';
-    html +=   '<div class="cat-group-header" draggable="true" data-macro="' + mid + '">';
-    html +=     '<span class="cgh-handle" title="Trascina per riordinare">⋮⋮</span>';
+    html +=   '<div class="cat-group-header" data-macro="' + mid + '">';
+    html +=     '<span class="cgh-handle" draggable="true" title="Trascina per riordinare">⋮⋮</span>';
     html +=     '<span class="cgh-ic">' + (m ? m.icon : '📦') + '</span>';
     html +=     '<span class="cgh-name">' + esc(macroLabel(mid)) + '</span>';
     html +=     '<span class="cgh-count">' + subs.length + '</span>';
@@ -1338,16 +1338,16 @@ function renderCatView() {
   bindCatDragAndClick();
 }
 function bindCatDragAndClick() {
-  // ── Drag&drop dei gruppi macro (sui cat-group-header) ──────────
+  // ── Drag dei gruppi macro: dragstart parte dal handle ⋮⋮ ──────
   let draggedGroup = null;
-  $$('.cat-group-header', D.catList).forEach(h => {
+  $$('.cgh-handle', D.catList).forEach(h => {
     h.addEventListener('dragstart', e => {
-      draggedGroup = h.closest('.cat-group');
-      if (!draggedGroup) return;
-      draggedGroup.classList.add('dragging-group');
+      const grp = h.closest('.cat-group');
+      if (!grp) return;
+      draggedGroup = grp;
+      grp.classList.add('dragging-group');
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', 'macro:' + h.getAttribute('data-macro'));
-      // stopPropagation in modo che dragstart non scateni anche su cat-row
+      e.dataTransfer.setData('text/plain', 'macro:' + grp.getAttribute('data-macro'));
       e.stopPropagation();
     });
     h.addEventListener('dragend', () => {
@@ -1356,6 +1356,9 @@ function bindCatDragAndClick() {
       const ref = draggedGroup;
       setTimeout(() => { if (ref === draggedGroup) draggedGroup = null; }, 50);
     });
+  });
+  // dragover/drop sull'header intero come target
+  $$('.cat-group-header', D.catList).forEach(h => {
     h.addEventListener('dragover', e => {
       if (!draggedGroup) return;
       const tg = h.closest('.cat-group');
@@ -1364,7 +1367,7 @@ function bindCatDragAndClick() {
       e.stopPropagation();
       tg.classList.add('drag-over-group');
     });
-    h.addEventListener('dragleave', e => {
+    h.addEventListener('dragleave', () => {
       const tg = h.closest('.cat-group');
       tg && tg.classList.remove('drag-over-group');
     });
@@ -1383,27 +1386,33 @@ function bindCatDragAndClick() {
     });
   });
 
-  // ── Drag&drop delle sotto-categorie (intra-macro) ──────────────
+  // ── Drag delle sotto-categorie: dragstart parte dal handle ⋮⋮ ──
   let draggedEl = null;
+  $$('.cat-handle', D.catList).forEach(h => {
+    h.addEventListener('dragstart', e => {
+      const row = h.closest('.cat-row');
+      if (!row) return;
+      draggedEl = row;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', row.getAttribute('data-cat-id'));
+      e.stopPropagation();
+    });
+    h.addEventListener('dragend', () => {
+      if (draggedEl) draggedEl.classList.remove('dragging');
+      $$('.drag-over', D.catList).forEach(x => x.classList.remove('drag-over'));
+      const ref = draggedEl;
+      setTimeout(() => { if (ref === draggedEl) draggedEl = null; }, 50);
+    });
+  });
+  // click + dragover/drop sull'intera row
   $$('.cat-row', D.catList).forEach(el => {
     el.addEventListener('click', () => {
       if (draggedEl) return;
       openCatEdit(Number(el.getAttribute('data-cat-id')));
     });
-    el.addEventListener('dragstart', e => {
-      draggedEl = el;
-      el.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', el.getAttribute('data-cat-id'));
-    });
-    el.addEventListener('dragend', () => {
-      el.classList.remove('dragging');
-      $$('.drag-over', D.catList).forEach(x => x.classList.remove('drag-over'));
-      setTimeout(() => { draggedEl = null; }, 50);
-    });
     el.addEventListener('dragover', e => {
       if (!draggedEl || draggedEl === el) return;
-      // riordino consentito solo intra-macro (la macro cambia dal modal di modifica)
       if (draggedEl.getAttribute('data-macro') !== el.getAttribute('data-macro')) return;
       e.preventDefault();
       el.classList.add('drag-over');
@@ -1414,7 +1423,6 @@ function bindCatDragAndClick() {
       el.classList.remove('drag-over');
       if (!draggedEl || draggedEl === el) return;
       if (draggedEl.getAttribute('data-macro') !== el.getAttribute('data-macro')) return;
-      // sposta dentro lo stesso .cat-group-subs
       const parent = el.parentNode;
       const allInGroup = Array.from(parent.querySelectorAll('.cat-row'));
       const srcIdx = allInGroup.indexOf(draggedEl);
@@ -2903,13 +2911,18 @@ function setupPullToRefresh() {
   const THRESHOLD = 80;
   const MAX = 140;
   let startY = null, dy = 0, active = false, refreshing = false;
+  let rafId = 0;
 
-  function paint() {
+  function paintNow() {
+    rafId = 0;
     const t = Math.max(0, Math.min(dy, MAX));
     PTR.style.transform = 'translateY(' + (t - 60) + 'px)';
     if (ic) ic.style.transform = 'rotate(' + (t * 2.6) + 'deg)';
-    PTR.classList.add('active');
     PTR.classList.toggle('ready', t >= THRESHOLD);
+  }
+  function paint() {
+    if (rafId) return;
+    rafId = requestAnimationFrame(paintNow);
   }
   function snapBack() {
     PTR.classList.remove('active', 'ready');
@@ -2932,7 +2945,7 @@ function setupPullToRefresh() {
     if (window.scrollY > 0) { startY = null; return; }
     dy = e.touches[0].clientY - startY;
     if (dy > 6) {
-      active = true;
+      if (!active) { active = true; PTR.classList.add('active'); }
       paint();
     }
   }, { passive: true });
