@@ -959,9 +959,9 @@ function setupCarousel(track, dotsEl, titleEl, titles) {
   if (!slides.length) return;
   // Build dots
   dotsEl.innerHTML = slides.map((_, i) => '<button class="carousel-dot' + (i===0?' active':'') + '" data-idx="' + i + '" aria-label="Vai a ' + (titles[i]||('slide '+(i+1))) + '"></button>').join('');
-  // Trova frecce nel parent header
-  const header = track.parentElement.querySelector('.carousel-header');
-  const arrows = header ? Array.from(header.querySelectorAll('.carousel-arrow')) : [];
+  // Trova frecce nel wrapper attorno al track (carousel-track-wrap)
+  const wrap = track.closest('.carousel-track-wrap') || track.parentElement;
+  const arrows = wrap ? Array.from(wrap.querySelectorAll('.carousel-arrow.side')) : [];
   const arrowPrev = arrows.find(a => a.getAttribute('data-dir') === '-1');
   const arrowNext = arrows.find(a => a.getAttribute('data-dir') === '1');
 
