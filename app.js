@@ -956,31 +956,33 @@ function setupCarousels() {
 function setupCarousel(track, dotsEl, titleEl, titles) {
   if (!track || !dotsEl) return;
   const slides = Array.from(track.querySelectorAll('.carousel-slide'));
+  if (!slides.length) return;
+  // Build dots
   dotsEl.innerHTML = slides.map((_, i) => '<button class="carousel-dot' + (i===0?' active':'') + '" data-idx="' + i + '" aria-label="Vai a ' + (titles[i]||('slide '+(i+1))) + '"></button>').join('');
-  const setActive = i => {
-    dotsEl.querySelectorAll('.carousel-dot').forEach((d, idx) => d.classList.toggle('active', idx === i));
-    if (titleEl && titles[i]) titleEl.textContent = titles[i];
-  };
-  dotsEl.querySelectorAll('.carousel-dot').forEach(d => {
-    d.addEventListener('click', () => {
-      const i = Number(d.getAttribute('data-idx'));
-      const slide = slides[i];
-      if (slide) track.scrollTo({ left: slide.offsetLeft - track.offsetLeft, behavior: 'smooth' });
-      setActive(i);
-    });
-  });
-  // detect slide visibile durante swipe
-  if (window.IntersectionObserver) {
-    const io = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting && e.intersectionRatio > 0.55) {
-          const idx = Number(e.target.getAttribute('data-slide'));
-          setActive(idx);
-        }
-      });
-    }, { root: track, threshold: [0.55, 0.9] });
-    slides.forEach(s => io.observe(s));
+  // Trova frecce nel parent header
+  const header = track.parentElement.querySelector('.carousel-header');
+  const arrows = header ? Array.from(header.querySelectorAll('.carousel-arrow')) : [];
+  const arrowPrev = arrows.find(a => a.getAttribute('data-dir') === '-1');
+  const arrowNext = arrows.find(a => a.getAttribute('data-dir') === '1');
+
+  let currentIdx = 0;
+  function goTo(i) {
+    currentIdx = Math.max(0, Math.min(slides.length - 1, i));
+    track.style.transform = 'translateX(-' + (currentIdx * 100) + '%)';
+    dotsEl.querySelectorAll('.carousel-dot').forEach((d, idx) => d.classList.toggle('active', idx === currentIdx));
+    if (titleEl && titles[currentIdx]) titleEl.textContent = titles[currentIdx];
+    if (arrowPrev) arrowPrev.disabled = (currentIdx === 0);
+    if (arrowNext) arrowNext.disabled = (currentIdx === slides.length - 1);
   }
+  // dot click
+  dotsEl.querySelectorAll('.carousel-dot').forEach(d => {
+    d.addEventListener('click', () => goTo(Number(d.getAttribute('data-idx'))));
+  });
+  // arrow click
+  if (arrowPrev) arrowPrev.addEventListener('click', () => goTo(currentIdx - 1));
+  if (arrowNext) arrowNext.addEventListener('click', () => goTo(currentIdx + 1));
+  // init
+  goTo(0);
 }
 
 function renderAutoreDonut(arrCurrentMonth) {
