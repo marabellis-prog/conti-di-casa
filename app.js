@@ -1325,8 +1325,8 @@ function renderCatView() {
     html +=   '</div>';
     html +=   '<div class="cat-group-subs">';
     subs.forEach(c => {
-      html += '<div class="cat-row sub" draggable="true" data-cat-id="' + c.id + '" data-macro="' + mid + '">' +
-        '<span class="cat-handle">⋮⋮</span>' +
+      html += '<div class="cat-row sub" data-cat-id="' + c.id + '" data-macro="' + mid + '">' +
+        '<span class="cat-handle" draggable="true">⋮⋮</span>' +
         '<div class="cat-icon" style="background:' + (c.colore || '#666') + '22;color:' + (c.colore || '#666') + '">' + (c.icona || '?') + '</div>' +
         '<div class="cat-name">' + esc(c.nome) + '</div>' +
       '</div>';
