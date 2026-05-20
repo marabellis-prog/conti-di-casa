@@ -1494,25 +1494,10 @@ function setupCarousel(track, dotsEl, titleEl, titles) {
   goTo(0);
 }
 
-function renderAutoreDonut(arrCurrentMonth) {
-  if (!D.autoreDonutWrap) return;
-  const usc = arrCurrentMonth.filter(t => t.tipo === 'uscita');
-  if (!usc.length) {
-    D.autoreDonutWrap.innerHTML = '<div class="empty"><div class="emoji">👥</div><div>Nessuna uscita nel mese</div></div>';
-    return;
-  }
-  const byAut = {};
-  usc.forEach(t => {
-    const nome = t.autore || '(non attribuito)';
-    byAut[nome] = (byAut[nome] || 0) + Number(t.importo);
-  });
-  const segs = Object.keys(byAut).map(nome => ({
-    label: nome,
-    value: byAut[nome],
-    color: colorForAutore(nome === '(non attribuito)' ? null : nome)
-  }));
-  Charts.renderDonut(D.autoreDonutWrap, segs, { subLabel: 'per persona' });
-}
+// (renderAutoreDonut legacy della view-analisi rimossa: collideva con la
+//  nuova async renderAutoreDonut() del carousel — il function hoisting JS
+//  prendeva l'ULTIMA dichiarazione e con arrCurrentMonth=undefined faceva
+//  crash su .filter(), bloccando renderConti, save/delete, realtime, ecc.)
 
 async function renderTrend() {
   // memo RAM per sessione (chiave: anno-mese corrente)
