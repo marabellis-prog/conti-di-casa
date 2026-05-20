@@ -4098,81 +4098,13 @@ function bindEvents() {
 }
 
 // ─── PULL TO REFRESH ────────────────────────────────────────
+// DISABILITATO (richiesta utente: troppi reload accidentali).
+// - Il PTR nativo del browser è spento da overscroll-behavior:contain in CSS
+// - Il PTR custom è stato rimosso: nessun touch handler globale per il drag
+// - L'elemento #ptr viene nascosto definitivamente
 function setupPullToRefresh() {
   const PTR = document.getElementById('ptr');
-  if (!PTR) return;
-  const ic = PTR.querySelector('.ptr-ic');
-  const THRESHOLD = 80;
-  const MAX = 140;
-  let startY = null, dy = 0, active = false, refreshing = false;
-  let rafId = 0;
-
-  function paintNow() {
-    rafId = 0;
-    const t = Math.max(0, Math.min(dy, MAX));
-    PTR.style.transform = 'translateY(' + (t - 60) + 'px)';
-    if (ic) ic.style.transform = 'rotate(' + (t * 2.6) + 'deg)';
-    PTR.classList.toggle('ready', t >= THRESHOLD);
-  }
-  function paint() {
-    if (rafId) return;
-    rafId = requestAnimationFrame(paintNow);
-  }
-  function snapBack() {
-    PTR.classList.remove('active', 'ready');
-    PTR.style.transform = '';
-    if (ic) ic.style.transform = '';
-    startY = null; dy = 0; active = false;
-  }
-
-  document.addEventListener('touchstart', e => {
-    if (refreshing) return;
-    if (window.scrollY > 0) return;
-    if (document.querySelector('.modal.open')) return;
-    startY = e.touches[0].clientY;
-    dy = 0;
-    active = false;
-  }, { passive: true });
-
-  document.addEventListener('touchmove', e => {
-    if (startY == null || refreshing) return;
-    if (window.scrollY > 0) { startY = null; return; }
-    dy = e.touches[0].clientY - startY;
-    if (dy > 6) {
-      if (!active) { active = true; PTR.classList.add('active'); }
-      paint();
-    }
-  }, { passive: true });
-
-  document.addEventListener('touchend', async () => {
-    if (refreshing) return;
-    if (!active) { snapBack(); return; }
-    if (dy >= THRESHOLD) {
-      refreshing = true;
-      PTR.classList.add('spinning', 'ready', 'active');
-      PTR.style.transform = 'translateY(20px)';
-      vibrate(15);
-      try {
-        S.trendCache = null;
-        await reloadAll();
-        renderAll();
-      } catch (err) {
-        console.warn('PTR reload failed', err);
-        toast('Aggiornamento non riuscito', 'error');
-      }
-      PTR.classList.remove('spinning');
-      setTimeout(() => {
-        snapBack();
-        refreshing = false;
-      }, 280);
-    } else {
-      snapBack();
-    }
-  });
-
-  document.addEventListener('touchcancel', () => {
-    if (!refreshing) snapBack();
-  });
+  if (PTR) PTR.style.display = 'none';
 }
 
 // ─── PWA SW REGISTRATION ────────────────────────────────────
