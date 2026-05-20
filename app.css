@@ -2168,6 +2168,47 @@ button.btn-danger {
 }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
 
+/* ─── Twemoji (icone flat/cartoon Twitter) ────────────────── */
+img.emoji {
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: -0.2em;
+  display: inline-block;
+}
+/* Icone più grandi nelle pill */
+.nav-pill .np-ic img.emoji,
+.action-pill img.emoji {
+  width: 24px;
+  height: 24px;
+  vertical-align: middle;
+}
+.action-pill.action-add img.emoji {
+  display: none; /* il + è testo, non emoji */
+}
+.mc-icon img.emoji {
+  width: 26px;
+  height: 26px;
+  vertical-align: middle;
+}
+.app-title img.emoji {
+  width: 18px;
+  height: 18px;
+  vertical-align: -0.18em;
+}
+.tx-icon img.emoji,
+.cat-icon img.emoji,
+.qa-cat-icon img.emoji {
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+}
+.emoji-grid img.emoji,
+.ec-tab img.emoji {
+  width: 22px;
+  height: 22px;
+  vertical-align: middle;
+}
+
 /* ─── UTILITIES ───────────────────────────────────────────── */
 
 .txt-dim { color: var(--text-dim); }

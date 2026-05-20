@@ -158,6 +158,15 @@ function inMonth(dateStr, anno, mese) {
 }
 function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
 
+// Twemoji helper: sostituisce emoji native con immagini SVG cartoon (Twitter style)
+function twemojify(el) {
+  if (typeof twemoji === 'undefined') return;
+  if (!el) el = document.body;
+  try {
+    twemoji.parse(el, { folder: 'svg', ext: '.svg', base: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/' });
+  } catch (e) { console.warn('twemoji parse failed', e); }
+}
+
 const TOAST_ICONS = { success: '✓', error: '✕', warn: '!', info: 'i' };
 function toast(msg, type, ms) {
   if (!type) type = 'info';
@@ -455,6 +464,7 @@ function renderConti() {
   } else {
     D.ultime.innerHTML = '<div class="mt-16"></div>' + ultime.map(txRowHtml).join('');
     bindTxRows(D.ultime);
+  twemojify(D.ultime);
   }
 
   // Donut uscite RAGGRUPPATO PER MACRO-CATEGORIA
@@ -502,13 +512,12 @@ function applyModuliOrder() {
   const cards = Array.from(grid.querySelectorAll('.module-card'));
   const byMod = {};
   cards.forEach(c => { byMod[c.getAttribute('data-mod')] = c; });
-  // ricolloca secondo l'ordine
   order.forEach(mod => { if (byMod[mod]) grid.appendChild(byMod[mod]); });
-  // aggiungi in coda eventuali moduli non in order (nuovi)
   cards.forEach(c => {
     const m = c.getAttribute('data-mod');
     if (!order.includes(m)) grid.appendChild(c);
   });
+  twemojify(grid);
 }
 
 let _moduliDragBound = false;
@@ -1409,6 +1418,7 @@ function _drawList(range) {
   }
   D.txList.innerHTML = html;
   bindTxRows(D.txList);
+  twemojify(D.txList);
   const clr = $('#clearDonut');
   if (clr) clr.addEventListener('click', () => { S.donutFilter = null; renderList(); });
 }
@@ -1502,6 +1512,7 @@ function renderCatView() {
   });
   D.catList.innerHTML = html;
   bindCatDragAndClick();
+  twemojify(D.catList);
 }
 function bindCatDragAndClick() {
   // ── Drag dei gruppi macro: dragstart parte dal handle ⋮⋮ ──────
@@ -1659,6 +1670,8 @@ function switchView(name) {
     const el = document.getElementById('view-' + v);
     if (el) el.classList.toggle('active', v === name);
   });
+  // ri-applica twemoji al subtitle (può cambiare)
+  setTimeout(() => twemojify(document.querySelector('.app-header')), 0);
   // bottom-nav: la pill attiva è il MODULO, non la sub-view
   const mod = moduloOf(name) || 'home';
   $$('.nav-pill').forEach(b => {
@@ -1701,6 +1714,7 @@ function renderModuleActionPills(moduloMeta, currentView) {
     html += '<button class="' + cls.join(' ') + '"' + id + go + ' aria-label="' + (a.aria || '') + '" type="button">' + a.label + '</button>';
   });
   D.moduleActionPills.innerHTML = html;
+  twemojify(D.moduleActionPills);
   // bind onClick / data-go
   $$('.action-pill', D.moduleActionPills).forEach((el, idx) => {
     const a = actions[idx];
@@ -3505,6 +3519,8 @@ async function init() {
   loadQueue();
   applyTheme();
   bindLoginButton();
+  // Twemoji: prima conversione dell'HTML statico (titolo, nav-pill icons, ecc.)
+  twemojify(document.body);
   // ── AUTH: se l'utente non è autenticato/autorizzato, l'overlay blocca l'app
   const authed = await initAuth();
   if (!authed) {
