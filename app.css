@@ -161,7 +161,7 @@ button { cursor: pointer; touch-action: manipulation; }
 
 .app-title {
   flex: 1;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.2px;
   white-space: nowrap;
@@ -172,6 +172,49 @@ button { cursor: pointer; touch-action: manipulation; }
   color: var(--text-dim);
   font-weight: 500;
 }
+
+/* ─── BREADCRUMB ──────────────────────────────────────────── */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+.breadcrumb .bc-link {
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  margin: 0;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: -.2px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border-radius: 6px;
+  transition: background .15s, color .15s, opacity .15s;
+}
+.breadcrumb .bc-link:active { opacity: .55; }
+.breadcrumb .bc-link.bc-module { color: var(--accent); }
+.breadcrumb .bc-sep {
+  color: var(--text-faint);
+  font-weight: 400;
+  flex-shrink: 0;
+  user-select: none;
+}
+.breadcrumb .bc-leaf {
+  color: var(--text-dim);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.breadcrumb [hidden] { display: none !important; }
+/* L'icona Twemoji nel breadcrumb deve essere allineata */
+.breadcrumb img.emoji { height: 14px; width: 14px; vertical-align: -2px; margin-right: 2px; }
 
 .month-nav {
   flex: 1;
@@ -1180,7 +1223,7 @@ html[data-theme="light"] .carousel-arrow.side {
 
 /* Mese-nav del modulo (sotto le pill se serve) */
 .module-actions-bar {
-  margin-top: 38px; /* lascia spazio per le pill che sporgono dall'header */
+  margin-top: 54px; /* lascia spazio per le pill (con caption) che sporgono dall'header */
   padding: 0 12px 8px;
   display: flex;
   flex-direction: column;
@@ -1192,14 +1235,36 @@ html[data-theme="light"] .carousel-arrow.side {
 /* Pill action: figlie di .app-header, posizionate assolute, sporgono fuori dal bordo inferiore */
 .ma-pills {
   position: absolute;
-  bottom: -26px; /* la metà inferiore della pill esce dall'header */
+  bottom: -38px; /* spazio extra per la caption sotto le pill laterali */
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 14px;
+  gap: 18px;
+  align-items: flex-start;
   z-index: 60; /* sopra tutto il content sotto */
   pointer-events: auto;
 }
+.ma-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.ma-item .ma-caption {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px var(--bg), 0 1px 4px var(--bg);
+  pointer-events: none;
+  line-height: 1;
+  margin-top: 1px;
+}
+/* l'item centrale (+) non ha caption: allinealo verticalmente all'altezza
+   degli altri pill (le caption laterali aggiungono ~14px sotto) */
+.ma-item.ma-item-center { padding-bottom: 14px; }
 
 .ma-month {
   display: flex;

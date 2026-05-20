@@ -54,9 +54,13 @@
   <!-- HEADER -->
   <header class="app-header">
     <div class="app-header-inner">
-      <span class="app-title">
-        <span id="appTitle">🏠 Gestione Casa</span><span id="appSubtitle" class="app-subtitle"></span>
-      </span>
+      <nav class="app-title breadcrumb" id="appBreadcrumb" aria-label="Percorso">
+        <button class="bc-link bc-root" id="bcRoot" type="button">🏠 Gestione Casa</button>
+        <span class="bc-sep" id="bcSep1" hidden>›</span>
+        <button class="bc-link bc-module" id="bcModule" type="button" hidden></button>
+        <span class="bc-sep" id="bcSep2" hidden>›</span>
+        <span class="bc-leaf" id="bcLeaf" hidden></span>
+      </nav>
       <button id="btnUpdate" title="Nuovo aggiornamento disponibile — clicca per ricaricare" aria-label="Aggiornamento disponibile">
         <span>↻</span><span>Aggiorna</span>
       </button>

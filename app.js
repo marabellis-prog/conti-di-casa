@@ -97,6 +97,7 @@ const S = {
 const D = {};
 function cacheDOM() {
   ['appTitle','appSubtitle','monthLabel','btnMonthPrev','btnMonthNext','btnUpdate','themeToggle',
+   'bcRoot','bcModule','bcLeaf',
    'moduleActions','moduleMonth','moduleActionPills',
    'view-home','view-conti','view-list','view-cat',
    'homeContiDonut','homeContiSaldo','homeContiSubtle','goToList','goToCategorie',
@@ -1644,18 +1645,29 @@ async function persistCatOrder() {
 }
 
 // ─── SWITCH VIEW ────────────────────────────────────────────
-// Mappa moduli noti: id → { label, hasMonthNav, getActions(currentView) }
+// Mappa moduli noti.
+// `home` = sub-view che è la home del modulo (click su "Conti di Casa" nel breadcrumb la apre).
+// `viewLabels` = mappa view-id → etichetta breadcrumb leaf.
+// `getActions(cv)` = elenco di azioni per le action-pill; l'ordine determina la posizione visiva.
+//   Il "+" (cls: 'action-add') deve stare al CENTRO dell'array per essere visualmente centrato.
+//   `caption` (opzionale) = testo mostrato sotto l'iconcina (solo pill laterali).
 const MODULI = {
   conti: {
     label: '💰 Conti di Casa',
+    home: 'conti',
     hasMonthNav: true,
+    viewLabels: {
+      conti: 'Riepilogo',
+      list:  'Transazioni',
+      cat:   'Categorie'
+    },
     getActions: (cv) => [
-      { id: 'actAddTx',  cls: 'action-add', label: '+',  aria: 'Nuova transazione', onClick: openQuickAdd },
-      { go: 'list', label: '📋', aria: 'Lista transazioni', active: cv === 'list' },
-      { go: 'cat',  label: '📁', aria: 'Categorie',         active: cv === 'cat'  }
+      { go: 'list', label: '📋', caption: 'Transazioni', aria: 'Lista transazioni', active: cv === 'list' },
+      { id: 'actAddTx', cls: 'action-add', label: '+', aria: 'Nuova transazione', onClick: openQuickAdd },
+      { go: 'cat',  label: '📁', caption: 'Categorie',  aria: 'Categorie',         active: cv === 'cat'  }
     ]
   }
-  // futuri moduli (todo, spesa, scadenze) → si aggiungono qui
+  // futuri moduli (todo, spesa, scadenze) → si aggiungono qui con la stessa shape
 };
 
 function moduloOf(viewName) {
@@ -1677,11 +1689,9 @@ function switchView(name) {
   $$('.nav-pill').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-view') === mod);
   });
-  // header subtitle + module-actions-bar
+  // header breadcrumb + module-actions-bar
   const moduloMeta = MODULI[mod];
-  if (D.appSubtitle) {
-    D.appSubtitle.textContent = moduloMeta ? ' — ' + moduloMeta.label : '';
-  }
+  renderBreadcrumb(mod, name, moduloMeta);
   if (D.moduleActions && D.moduleActionPills) {
     if (mod === 'home') {
       D.moduleActions.style.display = 'none';
@@ -1708,17 +1718,25 @@ function renderModuleActionPills(moduloMeta, currentView) {
   if (!D.moduleActionPills || !moduloMeta) return;
   const actions = moduloMeta.getActions(currentView) || [];
   let html = '';
-  actions.forEach((a, i) => {
+  actions.forEach(a => {
     const cls = ['action-pill'];
     if (a.cls) cls.push(a.cls);
     if (a.active) cls.push('active');
     const id = a.id ? (' id="' + a.id + '"') : '';
     const go = a.go ? (' data-go="' + a.go + '"') : '';
+    const isCenter = !!(a.cls && a.cls.indexOf('action-add') !== -1);
+    const itemCls = ['ma-item'];
+    if (isCenter) itemCls.push('ma-item-center');
+    html += '<div class="' + itemCls.join(' ') + '">';
     html += '<button class="' + cls.join(' ') + '"' + id + go + ' aria-label="' + (a.aria || '') + '" type="button">' + a.label + '</button>';
+    if (a.caption) {
+      html += '<span class="ma-caption">' + a.caption + '</span>';
+    }
+    html += '</div>';
   });
   D.moduleActionPills.innerHTML = html;
   twemojify(D.moduleActionPills);
-  // bind onClick / data-go
+  // bind onClick / data-go sui pill (non sui wrapper)
   $$('.action-pill', D.moduleActionPills).forEach((el, idx) => {
     const a = actions[idx];
     if (!a) return;
@@ -1727,6 +1745,41 @@ function renderModuleActionPills(moduloMeta, currentView) {
       else if (a.go) switchView(a.go);
     });
   });
+}
+
+// ─── BREADCRUMB ─────────────────────────────────────────────
+// Renderizza il percorso: Gestione Casa › <Modulo> › <View>
+// - bcRoot   sempre visibile, click → home globale
+// - bcModule visibile se siamo in un modulo, click → home del modulo (es. 'conti' → 'Riepilogo')
+// - bcLeaf   visibile se siamo in un modulo, mostra il nome della view corrente
+function renderBreadcrumb(mod, viewName, moduloMeta) {
+  if (!D.bcRoot) return;
+  const sep1 = document.getElementById('bcSep1');
+  const sep2 = document.getElementById('bcSep2');
+  if (mod === 'home' || !moduloMeta) {
+    if (sep1) sep1.hidden = true;
+    if (sep2) sep2.hidden = true;
+    if (D.bcModule) { D.bcModule.hidden = true; D.bcModule.dataset.target = ''; }
+    if (D.bcLeaf)   { D.bcLeaf.hidden = true; D.bcLeaf.textContent = ''; }
+    return;
+  }
+  // mostra modulo
+  if (sep1) sep1.hidden = false;
+  if (D.bcModule) {
+    D.bcModule.hidden = false;
+    D.bcModule.textContent = moduloMeta.label;
+    D.bcModule.dataset.target = moduloMeta.home || '';
+    twemojify(D.bcModule);
+  }
+  // mostra leaf
+  const leafLabel = (moduloMeta.viewLabels && moduloMeta.viewLabels[viewName]) || '';
+  if (leafLabel) {
+    if (sep2) sep2.hidden = false;
+    if (D.bcLeaf) { D.bcLeaf.hidden = false; D.bcLeaf.textContent = leafLabel; }
+  } else {
+    if (sep2) sep2.hidden = true;
+    if (D.bcLeaf) { D.bcLeaf.hidden = true; D.bcLeaf.textContent = ''; }
+  }
 }
 
 function renderAnalisi() {
@@ -3286,6 +3339,12 @@ function bindEvents() {
   // FAB legacy non più presente nell'HTML — il + è in module-actions-bar di Conti
   // theme toggle in header
   if (D.themeToggle) D.themeToggle.addEventListener('click', cycleTheme);
+  // breadcrumb navigazione
+  if (D.bcRoot)   D.bcRoot.addEventListener('click', () => switchView('home'));
+  if (D.bcModule) D.bcModule.addEventListener('click', () => {
+    const target = D.bcModule.dataset.target;
+    if (target) switchView(target);
+  });
   D.setSave.addEventListener('click', saveSettings);
   D.setExport.addEventListener('click', exportCsv);
   D.setClearCache.addEventListener('click', clearCache);
@@ -3543,8 +3602,8 @@ async function init() {
   bindEvents();
   initMonth();
   renderHeader();
-  // header iniziale: siamo in home → niente subtitle, niente module-actions
-  if (D.appSubtitle) D.appSubtitle.textContent = '';
+  // header iniziale: siamo in home → breadcrumb solo root, niente module-actions
+  renderBreadcrumb('home', 'home', null);
   if (D.moduleActions) D.moduleActions.style.display = 'none';
   S.currentView = 'home';
   // render iniziale da cache
