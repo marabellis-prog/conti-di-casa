@@ -1455,7 +1455,7 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 
 /* Mese-nav del modulo (sotto le pill se serve) */
 .module-actions-bar {
-  margin-top: 54px; /* lascia spazio per le pill (con caption) che sporgono dall'header */
+  margin-top: 72px; /* lascia spazio per le pill (con caption) che sporgono dall'header */
   padding: 0 12px 8px;
   display: flex;
   flex-direction: column;
@@ -1467,7 +1467,7 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 /* Pill action: figlie di .app-header, posizionate assolute, sporgono fuori dal bordo inferiore */
 .ma-pills {
   position: absolute;
-  bottom: -38px; /* spazio extra per la caption sotto le pill laterali */
+  bottom: -56px; /* abbassate sotto l'header per non sovrapporre il breadcrumb */
   left: 50%;
   transform: translateX(-50%);
   display: flex;
