@@ -3576,29 +3576,64 @@ function checkDomIntegrity() {
 
 function hideBootSplash() {
   const el = document.getElementById('bootSplash');
-  if (!el || el.classList.contains('hide')) return;
-  el.classList.add('hide');
-  setTimeout(() => { el.remove(); }, 300);
+  if (!el) return;
+  if (!el.classList.contains('hide')) el.classList.add('hide');
+  setTimeout(() => { try { el.remove(); } catch(_){} }, 300);
 }
-// fallback: nasconde lo splash dopo 4s qualsiasi cosa succeda
-setTimeout(hideBootSplash, 4000);
+// fallback aggressivo: splash forzato a sparire dopo 2.5s qualunque cosa succeda
+setTimeout(hideBootSplash, 2500);
+// ultimo paracadute: dopo 6s lo rimuoviamo direttamente dal DOM
+setTimeout(() => { try { document.getElementById('bootSplash')?.remove(); } catch(_){} }, 6000);
+// se l'utente arriva con cache-buster ?_r=... e qualcosa si blocca, dopo 12s ricarica pulito
+if (typeof location !== 'undefined' && /[?&]_r=/.test(location.search)) {
+  setTimeout(() => {
+    if (document.getElementById('bootSplash')) {
+      console.warn('[boot] splash ancora presente dopo 12s con ?_r=..., reload pulito');
+      try { location.replace(location.pathname + location.hash); } catch(_) { location.reload(); }
+    }
+  }, 12000);
+}
 
 async function init() {
-  cacheDOM();
-  checkDomIntegrity();
-  loadLocalCache();
-  loadQueue();
-  applyTheme();
-  bindLoginButton();
-  // Twemoji: prima conversione dell'HTML statico (titolo, nav-pill icons, ecc.)
-  twemojify(document.body);
+  console.log('[init] start');
+  try {
+    cacheDOM();
+    console.log('[init] cacheDOM ok, D.bcRoot=', !!D.bcRoot, 'D.themeToggle=', !!D.themeToggle);
+    checkDomIntegrity();
+    loadLocalCache();
+    loadQueue();
+    applyTheme();
+    bindLoginButton();
+    // Pulisci eventuale cache-buster ?_r=... dall'URL una volta che siamo arrivati al bootstrap
+    if (/[?&]_r=/.test(location.search)) {
+      try { history.replaceState({}, '', location.pathname + location.hash); } catch(_) {}
+    }
+    // Twemoji: prima conversione dell'HTML statico (titolo, nav-pill icons, ecc.)
+    twemojify(document.body);
+    console.log('[init] twemojify ok');
+  } catch (e) {
+    console.error('[init] errore pre-auth', e);
+    hideBootSplash();
+    return;
+  }
   // ── AUTH: se l'utente non è autenticato/autorizzato, l'overlay blocca l'app
-  const authed = await initAuth();
+  // Timeout di sicurezza: se initAuth non risponde in 8s, mostriamo errore
+  let authed = false;
+  try {
+    authed = await Promise.race([
+      initAuth(),
+      new Promise(res => setTimeout(() => { console.warn('[init] initAuth timeout'); res(false); }, 8000))
+    ]);
+    console.log('[init] initAuth =', authed);
+  } catch (e) {
+    console.error('[init] initAuth errore', e);
+  }
   if (!authed) {
     // Mantieni l'overlay visibile; non procedere con il resto dell'init
     hideBootSplash();
     return;
   }
+  try {
   bindEvents();
   initMonth();
   renderHeader();
@@ -3653,6 +3688,11 @@ async function init() {
   if (isOnline()) drainQueue();
   // SW
   registerSW();
+  } catch (e) {
+    console.error('[init] errore post-auth', e);
+    hideBootSplash();
+  }
+  console.log('[init] done');
 }
 
 document.addEventListener('DOMContentLoaded', init);
