@@ -89,6 +89,10 @@ const S = {
   localSha: localStorage.getItem(LS.SHA) || '',
   // trend cache (RAM)
   trendCache: null,
+  // carousel "Uscite per categoria / Trend mesi" in pagina Riepilogo
+  carouselSlide: 0,          // 0=donut, 1=trend mesi
+  trendRange: null,          // {from:{anno,mese}, to:{anno,mese}} (default: ultimi 3 mesi)
+  trend3mCache: null,        // {key, data}
   // pending tx tmp ids
   pendingTxIds: new Set()
 };
@@ -102,6 +106,8 @@ function cacheDOM() {
    'view-home','view-conti','view-list','view-cat',
    'homeContiDonut','homeContiSaldo','homeContiSubtle','goToList','goToCategorie',
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap',
+   'carouselTrack','carouselPrev','carouselNext','carouselTitle','carouselDots',
+   'trendFrom','trendTo','trend3mWrap',
    'searchInput','listFilters','txList',
    'listPeriodChips','listPeriodCustom','listPeriodFrom','listPeriodTo','listPeriodSummary',
    'budgetList','catTabs','catList','btnAddCat',
@@ -502,6 +508,153 @@ function renderConti() {
   });
   Charts.renderDonut(D.donutWrap, segs, { subLabel: 'uscite mese' });
 
+  // Carousel: aggiorna anche il trend (se è la slide attiva o se ha già stato)
+  ensureTrendRangeDefault();
+  populateTrendSelects();
+  renderTrend3m();
+  updateCarouselTitle();
+}
+
+// ─── CAROUSEL: donut ↔ trend mesi ───────────────────────────
+function ensureTrendRangeDefault() {
+  if (S.trendRange && S.trendRange.from && S.trendRange.to) return;
+  // default: ultimi 3 mesi rispetto al currentMonth
+  const cm = S.currentMonth || { anno: new Date().getFullYear(), mese: new Date().getMonth() + 1 };
+  let fromY = cm.anno, fromM = cm.mese - 2;
+  while (fromM < 1) { fromM += 12; fromY--; }
+  S.trendRange = { from: { anno: fromY, mese: fromM }, to: { anno: cm.anno, mese: cm.mese } };
+}
+
+function monthKeyYM(y, m) { return y + '-' + String(m).padStart(2, '0'); }
+function parseYM(s) { const [y, m] = s.split('-').map(Number); return { anno: y, mese: m }; }
+function cmpYM(a, b) { return (a.anno - b.anno) * 12 + (a.mese - b.mese); }
+
+// Genera elenco mesi disponibili nei select: 36 mesi all'indietro dal current
+function trendMonthOptions() {
+  const cm = S.currentMonth || { anno: new Date().getFullYear(), mese: new Date().getMonth() + 1 };
+  const out = [];
+  let y = cm.anno, m = cm.mese;
+  for (let i = 0; i < 36; i++) {
+    out.push({ y, m, label: (MESI_FULL[m - 1] || '') + ' ' + y });
+    m--; if (m < 1) { m = 12; y--; }
+  }
+  return out;
+}
+
+function populateTrendSelects() {
+  if (!D.trendFrom || !D.trendTo) return;
+  const opts = trendMonthOptions();
+  const fromKey = monthKeyYM(S.trendRange.from.anno, S.trendRange.from.mese);
+  const toKey   = monthKeyYM(S.trendRange.to.anno,   S.trendRange.to.mese);
+  const buildOpts = sel => opts.map(o => {
+    const k = monthKeyYM(o.y, o.m);
+    const selected = k === sel ? ' selected' : '';
+    return '<option value="' + k + '"' + selected + '>' + o.label + '</option>';
+  }).join('');
+  D.trendFrom.innerHTML = buildOpts(fromKey);
+  D.trendTo.innerHTML   = buildOpts(toKey);
+}
+
+async function renderTrend3m() {
+  if (!D.trend3mWrap) return;
+  ensureTrendRangeDefault();
+  const r = S.trendRange;
+  // assicura from <= to
+  if (cmpYM(r.from, r.to) > 0) { const tmp = r.from; r.from = r.to; r.to = tmp; }
+  // calcola lista mesi nel range (incluso to)
+  const months = [];
+  let y = r.from.anno, m = r.from.mese;
+  const end = r.to;
+  while (cmpYM({ anno: y, mese: m }, end) <= 0) {
+    months.push({ y, m });
+    m++; if (m > 12) { m = 1; y++; }
+    if (months.length > 36) break; // safety
+  }
+  const labels = months.map(o => MESI_SHORT[o.m - 1] + (o.m === 1 ? ' \'' + String(o.y).slice(-2) : ''));
+
+  // chiave cache: range + ts
+  const key = monthKeyYM(r.from.anno, r.from.mese) + '..' + monthKeyYM(r.to.anno, r.to.mese) + '@' + (S.ts || 0);
+  let data = S.trend3mCache && S.trend3mCache.key === key ? S.trend3mCache.data : null;
+  if (!data) {
+    const startStr = r.from.anno + '-' + String(r.from.mese).padStart(2, '0') + '-01';
+    const lastDay  = new Date(r.to.anno, r.to.mese, 0).getDate();
+    const endStr   = r.to.anno + '-' + String(r.to.mese).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
+    try {
+      const rows = await supaFetch(T.TX + '?select=data,importo,tipo&data=gte.' + startStr + '&data=lte.' + endStr);
+      const buckets = new Map();
+      months.forEach(o => buckets.set(monthKeyYM(o.y, o.m), { in: 0, out: 0 }));
+      (rows || []).forEach(rec => {
+        const [yy, mm] = rec.data.split('-');
+        const k = monthKeyYM(Number(yy), Number(mm));
+        const b = buckets.get(k); if (!b) return;
+        if (rec.tipo === 'entrata') b.in += Number(rec.importo);
+        else b.out += Number(rec.importo);
+      });
+      const inPts = [], outPts = [];
+      buckets.forEach(v => { inPts.push(v.in); outPts.push(v.out); });
+      data = { inPts, outPts, labels };
+      S.trend3mCache = { key, data };
+    } catch (e) {
+      console.warn('trend3m fetch failed', e);
+      D.trend3mWrap.innerHTML = '<div class="empty"><div class="emoji">📈</div><div>Trend non disponibile</div></div>';
+      return;
+    }
+  }
+  Charts.renderLine(D.trend3mWrap, [
+    { label: 'Entrate', color: 'var(--ok)',     points: data.inPts  },
+    { label: 'Uscite',  color: 'var(--danger)', points: data.outPts }
+  ], data.labels);
+}
+
+function updateCarouselTitle() {
+  if (!D.carouselTitle) return;
+  D.carouselTitle.textContent = S.carouselSlide === 0 ? 'Uscite per categoria' : 'Andamento mesi';
+}
+
+function setCarouselSlide(n) {
+  if (!D.carouselTrack) return;
+  S.carouselSlide = Math.max(0, Math.min(1, n));
+  D.carouselTrack.style.transform = 'translateX(' + (-100 * S.carouselSlide) + '%)';
+  $$('.carousel-dot', D.carouselDots).forEach((d, i) => d.classList.toggle('active', i === S.carouselSlide));
+  updateCarouselTitle();
+  if (S.carouselSlide === 1) renderTrend3m();
+}
+
+function bindCarousel() {
+  if (D.carouselPrev) D.carouselPrev.addEventListener('click', () => setCarouselSlide(S.carouselSlide === 0 ? 1 : 0));
+  if (D.carouselNext) D.carouselNext.addEventListener('click', () => setCarouselSlide(S.carouselSlide === 1 ? 0 : 1));
+  if (D.carouselDots) $$('.carousel-dot', D.carouselDots).forEach(d => {
+    d.addEventListener('click', () => setCarouselSlide(Number(d.getAttribute('data-go') || 0)));
+  });
+  if (D.trendFrom) D.trendFrom.addEventListener('change', () => {
+    S.trendRange.from = parseYM(D.trendFrom.value);
+    renderTrend3m();
+  });
+  if (D.trendTo) D.trendTo.addEventListener('change', () => {
+    S.trendRange.to = parseYM(D.trendTo.value);
+    renderTrend3m();
+  });
+  // swipe touch sulla viewport
+  const vp = D.carouselTrack && D.carouselTrack.parentElement;
+  if (vp) {
+    let startX = 0, dx = 0, swiping = false;
+    vp.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX; dx = 0; swiping = true;
+    }, { passive: true });
+    vp.addEventListener('touchmove', e => {
+      if (!swiping) return;
+      dx = e.touches[0].clientX - startX;
+    }, { passive: true });
+    vp.addEventListener('touchend', () => {
+      if (!swiping) return;
+      swiping = false;
+      if (Math.abs(dx) > 40) {
+        if (dx < 0) setCarouselSlide(S.carouselSlide + 1);
+        else setCarouselSlide(S.carouselSlide - 1);
+      }
+    });
+  }
 }
 
 // ─── HOME GESTIONE CASA (widget moduli) ─────────────────────
@@ -3345,6 +3498,8 @@ function bindEvents() {
     const target = D.bcModule.dataset.target;
     if (target) switchView(target);
   });
+  // carousel pagina Riepilogo (donut ↔ trend mesi)
+  bindCarousel();
   D.setSave.addEventListener('click', saveSettings);
   D.setExport.addEventListener('click', exportCsv);
   D.setClearCache.addEventListener('click', clearCache);
