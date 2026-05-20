@@ -111,6 +111,7 @@ function cacheDOM() {
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap',
    'carouselTrack','carouselPrev','carouselNext','carouselTitle','carouselDots',
    'trendFrom','trendTo','trend3mWrap',
+   'autoreFrom','autoreTo',
    'listFilters','txList','activeFiltersBar',
    'btnTogglePeriod','btnOpenFilters','filterBadge',
    'modalFilters','filterCats','filterAutori','btnApplyFilters','btnResetFilters',
@@ -678,7 +679,6 @@ function trendMonthOptions() {
 }
 
 function populateTrendSelects() {
-  if (!D.trendFrom || !D.trendTo) return;
   const opts = trendMonthOptions();
   const fromKey = monthKeyYM(S.trendRange.from.anno, S.trendRange.from.mese);
   const toKey   = monthKeyYM(S.trendRange.to.anno,   S.trendRange.to.mese);
@@ -687,8 +687,11 @@ function populateTrendSelects() {
     const selected = k === sel ? ' selected' : '';
     return '<option value="' + k + '"' + selected + '>' + o.label + '</option>';
   }).join('');
-  D.trendFrom.innerHTML = buildOpts(fromKey);
-  D.trendTo.innerHTML   = buildOpts(toKey);
+  // Stesso S.trendRange è condiviso tra slide 1 (Andamento mesi) e slide 2 (Uscite per autore)
+  if (D.trendFrom)  D.trendFrom.innerHTML  = buildOpts(fromKey);
+  if (D.trendTo)    D.trendTo.innerHTML    = buildOpts(toKey);
+  if (D.autoreFrom) D.autoreFrom.innerHTML = buildOpts(fromKey);
+  if (D.autoreTo)   D.autoreTo.innerHTML   = buildOpts(toKey);
 }
 
 async function renderTrend3m() {
@@ -804,18 +807,30 @@ function bindCarousel() {
   if (D.carouselDots) $$('.carousel-dot', D.carouselDots).forEach(d => {
     d.addEventListener('click', () => setCarouselSlide(Number(d.getAttribute('data-go') || 0)));
   });
-  if (D.trendFrom) D.trendFrom.addEventListener('change', () => {
-    S.trendRange.from = parseYM(D.trendFrom.value);
-    S.autoreDonutCache = null; // invalida la cache del donut autori
-    renderTrend3m();
-    renderAutoreDonut();
-  });
-  if (D.trendTo) D.trendTo.addEventListener('change', () => {
-    S.trendRange.to = parseYM(D.trendTo.value);
+  // Helper: setta from o to + sincronizza ENTRAMBI i set di select +
+  // invalida cache + ri-renderizza le due slide che usano il range condiviso
+  function setTrendFrom(value) {
+    S.trendRange.from = parseYM(value);
+    S.trend3mCache = null;
     S.autoreDonutCache = null;
+    if (D.trendFrom)  D.trendFrom.value  = value;
+    if (D.autoreFrom) D.autoreFrom.value = value;
     renderTrend3m();
     renderAutoreDonut();
-  });
+  }
+  function setTrendTo(value) {
+    S.trendRange.to = parseYM(value);
+    S.trend3mCache = null;
+    S.autoreDonutCache = null;
+    if (D.trendTo)  D.trendTo.value  = value;
+    if (D.autoreTo) D.autoreTo.value = value;
+    renderTrend3m();
+    renderAutoreDonut();
+  }
+  if (D.trendFrom)  D.trendFrom.addEventListener('change',  () => setTrendFrom(D.trendFrom.value));
+  if (D.trendTo)    D.trendTo.addEventListener('change',    () => setTrendTo(D.trendTo.value));
+  if (D.autoreFrom) D.autoreFrom.addEventListener('change', () => setTrendFrom(D.autoreFrom.value));
+  if (D.autoreTo)   D.autoreTo.addEventListener('change',   () => setTrendTo(D.autoreTo.value));
   // swipe touch sulla viewport
   const vp = D.carouselTrack && D.carouselTrack.parentElement;
   if (vp) {
