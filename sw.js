@@ -2,8 +2,9 @@
 // Strategia: stale-while-revalidate su risorse statiche + GET REST tabelle,
 // network-only su mutazioni (POST/PATCH/DELETE) e su update_cache (gating).
 
-const CACHE = 'conti-di-casa-v51';
+const CACHE = 'conti-di-casa-v52';
 const SUPA_HOST = 'lrvkchqvjzynfzevpqaj.supabase.co';
+const CDN_HOST = 'cdn.jsdelivr.net'; // supabase-js + twemoji
 const STATIC = [
   './',
   './index.html',
@@ -90,5 +91,22 @@ self.addEventListener('fetch', e => {
     })());
     return;
   }
-  // 4) Cross-origin (es. Realtime ws): lascia passare
+
+  // 4) CDN (jsdelivr: supabase-js, twemoji): stale-while-revalidate
+  //    Velocizza enormemente il caricamento dopo la prima visita.
+  if (url.host === CDN_HOST) {
+    e.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      const cached = await cache.match(req);
+      const networkPromise = fetch(req).then(res => {
+        if (res && (res.ok || res.type === 'opaque')) {
+          cache.put(req, res.clone()).catch(() => {});
+        }
+        return res;
+      }).catch(() => cached);
+      return cached || networkPromise;
+    })());
+    return;
+  }
+  // 5) Altri cross-origin (es. Realtime ws): lascia passare
 });

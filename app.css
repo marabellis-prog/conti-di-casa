@@ -71,6 +71,9 @@ html, body {
   font-size: 15px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
+  /* Disabilita PTR nativo del browser: usiamo quello custom (più veloce, no full reload) */
+  overscroll-behavior-y: contain;
+  overscroll-behavior-x: contain;
 }
 
 body {
@@ -80,7 +83,45 @@ body {
   padding-bottom: calc(var(--nav-h) + var(--safe-b));
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y; /* permetti pan verticale, niente custom touch handler globali */
+  overscroll-behavior-y: contain; /* impedisce reload nativo iOS quando si tira giù */
 }
+
+/* Splash veloce mostrato fino a quando l'app non è pronta */
+#bootSplash {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  z-index: 9999;
+  transition: opacity .25s ease;
+}
+#bootSplash.hide { opacity: 0; pointer-events: none; }
+#bootSplash .bs-logo {
+  font-size: 56px;
+  line-height: 1;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,.25));
+}
+#bootSplash .bs-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  color: var(--text);
+}
+#bootSplash .bs-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  animation: bs-spin .8s linear infinite;
+  margin-top: 4px;
+}
+@keyframes bs-spin { to { transform: rotate(360deg); } }
 
 button, input, select, textarea {
   font: inherit;

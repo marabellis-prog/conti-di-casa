@@ -8,6 +8,15 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Casa">
   <link rel="manifest" href="./manifest.json">
+  <!-- Preconnect ai CDN per accelerare il primo paint -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://lrvkchqvjzynfzevpqaj.supabase.co" crossorigin>
+  <link rel="dns-prefetch" href="https://lrvkchqvjzynfzevpqaj.supabase.co">
+  <!-- Preload degli asset locali critici -->
+  <link rel="preload" href="./app.css" as="style">
+  <link rel="preload" href="./app.js" as="script">
+  <link rel="preload" href="./charts.js" as="script">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=3" type="image/png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=3">
@@ -34,6 +43,13 @@
   <title>Gestione Casa</title>
 </head>
 <body>
+
+  <!-- Splash veloce — nascosto da app.js appena init è pronto -->
+  <div id="bootSplash" aria-hidden="true">
+    <div class="bs-logo">🏠</div>
+    <div class="bs-title">Gestione Casa</div>
+    <div class="bs-spinner"></div>
+  </div>
 
   <!-- HEADER -->
   <header class="app-header">

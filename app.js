@@ -3515,6 +3515,15 @@ function checkDomIntegrity() {
   }
 }
 
+function hideBootSplash() {
+  const el = document.getElementById('bootSplash');
+  if (!el || el.classList.contains('hide')) return;
+  el.classList.add('hide');
+  setTimeout(() => { el.remove(); }, 300);
+}
+// fallback: nasconde lo splash dopo 4s qualsiasi cosa succeda
+setTimeout(hideBootSplash, 4000);
+
 async function init() {
   cacheDOM();
   checkDomIntegrity();
@@ -3528,6 +3537,7 @@ async function init() {
   const authed = await initAuth();
   if (!authed) {
     // Mantieni l'overlay visibile; non procedere con il resto dell'init
+    hideBootSplash();
     return;
   }
   bindEvents();
@@ -3541,6 +3551,8 @@ async function init() {
   if (S.cats.length || S.tx.length) {
     renderAll();
   }
+  // UI di base pronta → nascondi splash subito (la sync da rete continua in background)
+  hideBootSplash();
   // sync da rete
   try {
     const changed = await syncIfStale();
