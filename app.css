@@ -26,36 +26,37 @@
 }
 
 html[data-theme="light"] {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --surface-2: #f0f2f5;
-  --border: #e0e3e8;
-  --text: #1a1a1a;
-  --text-dim: #5a6470;
-  --text-faint: #95a0ac;
-  --accent: #2ea66d;
-  --accent-2: #248555;
-  --danger: #d4434a;
-  --warn: #d99814;
-  --ok: #2ea66d;
-  --shadow: 0 2px 12px rgba(0,0,0,.08);
+  /* Palette crema — caldi, non bianco puro */
+  --bg: #f3ede0;
+  --surface: #faf5e8;
+  --surface-2: #ebe4d2;
+  --border: #d8cfb8;
+  --text: #2a241a;
+  --text-dim: #6b6354;
+  --text-faint: #a59c87;
+  --accent: #2f8b5a;
+  --accent-2: #226842;
+  --danger: #c54b3f;
+  --warn: #c98519;
+  --ok: #2f8b5a;
+  --shadow: 0 2px 12px rgba(120, 90, 50, .12);
 }
 
 @media (prefers-color-scheme: light) {
   html[data-theme="auto"] {
-    --bg: #f6f7f9;
-    --surface: #ffffff;
-    --surface-2: #f0f2f5;
-    --border: #e0e3e8;
-    --text: #1a1a1a;
-    --text-dim: #5a6470;
-    --text-faint: #95a0ac;
-    --accent: #2ea66d;
-    --accent-2: #248555;
-    --danger: #d4434a;
-    --warn: #d99814;
-    --ok: #2ea66d;
-    --shadow: 0 2px 12px rgba(0,0,0,.08);
+    --bg: #f3ede0;
+    --surface: #faf5e8;
+    --surface-2: #ebe4d2;
+    --border: #d8cfb8;
+    --text: #2a241a;
+    --text-dim: #6b6354;
+    --text-faint: #a59c87;
+    --accent: #2f8b5a;
+    --accent-2: #226842;
+    --danger: #c54b3f;
+    --warn: #c98519;
+    --ok: #2f8b5a;
+    --shadow: 0 2px 12px rgba(120, 90, 50, .12);
   }
 }
 
