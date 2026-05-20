@@ -4105,6 +4105,44 @@ function bindEvents() {
 function setupPullToRefresh() {
   const PTR = document.getElementById('ptr');
   if (PTR) PTR.style.display = 'none';
+  // Blocco aggressivo del pull-to-refresh nativo iOS (Safari in modalità PWA
+  // ignora overscroll-behavior:contain): se l'utente trascina verso il basso
+  // mentre la pagina è già scrollata al top, preveniamo l'evento di default
+  // che farebbe il reload. Restano comunque scrollabili tutti i container
+  // interni (modal sheets) perché controlliamo il target.
+  let startY = 0;
+  let startScrollY = 0;
+  document.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    startY = e.touches[0].clientY;
+    startScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (e.touches.length !== 1) return;
+    // Se siamo al top della pagina e l'utente trascina verso il basso → blocca
+    if (startScrollY <= 0) {
+      const dy = e.touches[0].clientY - startY;
+      if (dy > 0) {
+        // Verifica che il drag non sia dentro un elemento scrollabile interno
+        // (es. sheet-body di un modal): risali l'albero cercando container
+        // con overflow auto/scroll che NON sono al top del proprio scroll
+        let el = e.target;
+        let allowScroll = false;
+        while (el && el !== document.body && el !== document.documentElement) {
+          if (el.scrollHeight > el.clientHeight) {
+            const ov = getComputedStyle(el).overflowY;
+            if (ov === 'auto' || ov === 'scroll') {
+              if (el.scrollTop > 0) { allowScroll = true; break; }
+            }
+          }
+          el = el.parentElement;
+        }
+        if (!allowScroll) {
+          try { e.preventDefault(); } catch (_) {}
+        }
+      }
+    }
+  }, { passive: false });
 }
 
 // ─── PWA SW REGISTRATION ────────────────────────────────────
