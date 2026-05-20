@@ -102,8 +102,9 @@ body {
 }
 #bootSplash.hide { opacity: 0; pointer-events: none; }
 #bootSplash .bs-logo {
-  font-size: 56px;
-  line-height: 1;
+  width: 72px;
+  height: 72px;
+  display: block;
   filter: drop-shadow(0 4px 12px rgba(0,0,0,.25));
 }
 #bootSplash .bs-title {
