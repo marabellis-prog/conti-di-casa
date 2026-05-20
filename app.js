@@ -96,7 +96,8 @@ const S = {
 // ─── DOM CACHE ──────────────────────────────────────────────
 const D = {};
 function cacheDOM() {
-  ['appTitle','monthNav','monthLabel','btnMonthPrev','btnMonthNext','btnUpdate','themeToggle',
+  ['appTitle','appSubtitle','monthLabel','btnMonthPrev','btnMonthNext','btnUpdate','themeToggle',
+   'moduleActions','moduleMonth','moduleActionPills',
    'view-home','view-conti','view-list','view-cat',
    'homeContiDonut','homeContiSaldo','homeContiSubtle','goToList','goToCategorie',
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap',
@@ -1632,30 +1633,83 @@ async function persistCatOrder() {
 }
 
 // ─── SWITCH VIEW ────────────────────────────────────────────
+// Mappa moduli noti: id → { label, hasMonthNav, getActions(currentView) }
+const MODULI = {
+  conti: {
+    label: '💰 Conti di Casa',
+    hasMonthNav: true,
+    getActions: (cv) => [
+      { id: 'actAddTx',  cls: 'action-add', label: '+',  aria: 'Nuova transazione', onClick: openQuickAdd },
+      { go: 'list', label: '📋', aria: 'Lista transazioni', active: cv === 'list' },
+      { go: 'cat',  label: '📁', aria: 'Categorie',         active: cv === 'cat'  }
+    ]
+  }
+  // futuri moduli (todo, spesa, scadenze) → si aggiungono qui
+};
+
+function moduloOf(viewName) {
+  if (viewName === 'home') return null;
+  if (viewName === 'conti' || viewName === 'list' || viewName === 'cat') return 'conti';
+  return null;
+}
+
 function switchView(name) {
   S.currentView = name;
   ['home','conti','list','cat'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.classList.toggle('active', v === name);
   });
-  $$('.nav-btn').forEach(b => {
-    b.classList.toggle('active', b.getAttribute('data-view') === name);
+  // bottom-nav: la pill attiva è il MODULO, non la sub-view
+  const mod = moduloOf(name) || 'home';
+  $$('.nav-pill').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-view') === mod);
   });
-  // header: titolo "Gestione Casa" in home, mese-nav nelle altre view
-  if (D.appTitle && D.monthNav) {
-    if (name === 'home') {
-      D.appTitle.style.display = '';
-      D.monthNav.style.display = 'none';
+  // header subtitle + module-actions-bar
+  const moduloMeta = MODULI[mod];
+  if (D.appSubtitle) {
+    D.appSubtitle.textContent = moduloMeta ? ' — ' + moduloMeta.label : '';
+  }
+  if (D.moduleActions) {
+    if (mod === 'home') {
+      D.moduleActions.style.display = 'none';
+    } else if (moduloMeta) {
+      D.moduleActions.style.display = 'flex';
+      if (D.moduleMonth) D.moduleMonth.style.display = moduloMeta.hasMonthNav ? 'flex' : 'none';
+      renderModuleActionPills(moduloMeta, name);
     } else {
-      D.appTitle.style.display = 'none';
-      D.monthNav.style.display = 'flex';
+      D.moduleActions.style.display = 'none';
     }
   }
+  // render contenuto view
   if (name === 'home')      renderHomeGestione();
   else if (name === 'conti') renderConti();
   else if (name === 'list') renderList();
   else if (name === 'cat')  renderCatView();
   window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+function renderModuleActionPills(moduloMeta, currentView) {
+  if (!D.moduleActionPills || !moduloMeta) return;
+  const actions = moduloMeta.getActions(currentView) || [];
+  let html = '';
+  actions.forEach((a, i) => {
+    const cls = ['action-pill'];
+    if (a.cls) cls.push(a.cls);
+    if (a.active) cls.push('active');
+    const id = a.id ? (' id="' + a.id + '"') : '';
+    const go = a.go ? (' data-go="' + a.go + '"') : '';
+    html += '<button class="' + cls.join(' ') + '"' + id + go + ' aria-label="' + (a.aria || '') + '" type="button">' + a.label + '</button>';
+  });
+  D.moduleActionPills.innerHTML = html;
+  // bind onClick / data-go
+  $$('.action-pill', D.moduleActionPills).forEach((el, idx) => {
+    const a = actions[idx];
+    if (!a) return;
+    el.addEventListener('click', () => {
+      if (typeof a.onClick === 'function') a.onClick();
+      else if (a.go) switchView(a.go);
+    });
+  });
 }
 
 function renderAnalisi() {
@@ -3200,18 +3254,19 @@ async function applyUpdate() {
 
 // ─── EVENT BINDING ──────────────────────────────────────────
 function bindEvents() {
-  // nav: data-view per cambio vista, data-action="settings" per modal
-  $$('.nav-btn').forEach(b => b.addEventListener('click', () => {
+  // nav: 5 pill (data-view per modulo, data-mod-soon per placeholder, data-action="settings")
+  $$('.nav-pill').forEach(b => b.addEventListener('click', () => {
     const action = b.getAttribute('data-action');
     if (action === 'settings') { renderSettings(); openModal('modalSettings'); return; }
     const view = b.getAttribute('data-view');
-    if (view) switchView(view);
+    if (view) { switchView(view); return; }
+    const modSoon = b.getAttribute('data-mod-soon');
+    if (modSoon) { toast('Modulo in arrivo', 'info'); return; }
   }));
-  // month nav
-  D.btnMonthPrev.addEventListener('click', () => shiftMonth(-1));
-  D.btnMonthNext.addEventListener('click', () => shiftMonth(1));
-  // fab
-  D.fab.addEventListener('click', () => openQuickAdd());
+  // month nav (dentro module-actions-bar)
+  if (D.btnMonthPrev) D.btnMonthPrev.addEventListener('click', () => shiftMonth(-1));
+  if (D.btnMonthNext) D.btnMonthNext.addEventListener('click', () => shiftMonth(1));
+  // FAB legacy non più presente nell'HTML — il + è in module-actions-bar di Conti
   // theme toggle in header
   if (D.themeToggle) D.themeToggle.addEventListener('click', cycleTheme);
   D.setSave.addEventListener('click', saveSettings);
@@ -3425,7 +3480,7 @@ function registerSW() {
 // ─── INIT ───────────────────────────────────────────────────
 // elementi critici che devono esistere — se mancano, HTML e JS sono in
 // versioni incoerenti (caso classico: SW serve vecchio app.js con nuovo HTML).
-const CRITICAL_DOM_IDS = ['fab','modalQa','qaDatePicker','qaCats','toast','view-home','view-conti','loginOverlay','themeToggle'];
+const CRITICAL_DOM_IDS = ['modalQa','qaDatePicker','qaCats','toast','view-home','view-conti','loginOverlay','themeToggle','moduleActions'];
 function checkDomIntegrity() {
   const missing = CRITICAL_DOM_IDS.filter(id => !document.getElementById(id));
   if (missing.length) {
@@ -3459,9 +3514,9 @@ async function init() {
   bindEvents();
   initMonth();
   renderHeader();
-  // header iniziale: siamo in home → titolo "Gestione Casa" visibile, mese-nav nascosto
-  if (D.appTitle) D.appTitle.style.display = '';
-  if (D.monthNav) D.monthNav.style.display = 'none';
+  // header iniziale: siamo in home → niente subtitle, niente module-actions
+  if (D.appSubtitle) D.appSubtitle.textContent = '';
+  if (D.moduleActions) D.moduleActions.style.display = 'none';
   S.currentView = 'home';
   // render iniziale da cache
   if (S.cats.length || S.tx.length) {

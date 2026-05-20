@@ -117,12 +117,16 @@ button { cursor: pointer; touch-action: manipulation; }
 
 .app-title {
   flex: 1;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.app-subtitle {
+  color: var(--text-dim);
+  font-weight: 500;
 }
 
 .month-nav {
@@ -1079,6 +1083,117 @@ html[data-theme="light"] .carousel-arrow.side {
 .bottom-nav.nav-4 {
   grid-template-columns: 1fr 1fr 80px 1fr;
 }
+
+/* Bottom-nav stile "pill tonde sporgenti" (5 moduli) */
+.bottom-nav.nav-pills {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 4px 8px;
+  padding-bottom: var(--safe-b);
+  height: calc(var(--nav-h) + 4px + var(--safe-b));
+}
+.nav-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  margin-top: -16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.18);
+  transition: transform .15s, background .15s, color .15s, box-shadow .15s, border-color .15s;
+  padding: 0;
+  font-family: inherit;
+}
+.nav-pill .np-ic { font-size: 22px; line-height: 1; }
+.nav-pill .np-lbl { font-size: 9px; font-weight: 600; opacity: .8; margin-top: 1px; }
+.nav-pill:active { transform: scale(.92); }
+.nav-pill.active {
+  background: var(--accent);
+  color: #0f1419;
+  border-color: var(--accent-2);
+  box-shadow: 0 6px 18px rgba(125, 211, 168, .45);
+}
+.nav-pill.active .np-lbl { opacity: 1; }
+
+/* Module action bar (sotto header, dentro un modulo) */
+.module-actions-bar {
+  position: sticky;
+  top: calc(var(--header-h) + var(--safe-t));
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px 14px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.ma-month {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ma-month .icon-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  font-size: 16px;
+}
+.ma-month .month-label {
+  min-width: 120px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  user-select: none;
+}
+.ma-pills {
+  display: flex;
+  gap: 14px;
+  margin-top: 2px;
+}
+.action-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 22px;
+  cursor: pointer;
+  transition: transform .12s, background .15s, color .15s, box-shadow .15s, border-color .15s;
+  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  padding: 0;
+  font-family: inherit;
+}
+.action-pill:active { transform: scale(.92); }
+.action-pill.active {
+  background: var(--accent);
+  color: #0f1419;
+  border-color: var(--accent-2);
+}
+.action-pill.action-add {
+  background: var(--accent);
+  color: #0f1419;
+  border-color: var(--accent-2);
+  font-size: 30px;
+  font-weight: 300;
+  width: 62px;
+  height: 62px;
+  box-shadow: 0 4px 14px rgba(125, 211, 168, .45);
+}
+.action-pill.action-add:active { transform: scale(.92); }
 
 .nav-btn {
   display: flex;
