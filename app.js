@@ -397,7 +397,21 @@ function renderAll() {
 // ─── HEADER ─────────────────────────────────────────────────
 function renderHeader() {
   if (!S.currentMonth) initMonth();
-  D.monthLabel.textContent = MESI_FULL[S.currentMonth.mese - 1] + ' ' + S.currentMonth.anno;
+  // Default: nome del mese + frecce visibili
+  let label = MESI_FULL[S.currentMonth.mese - 1] + ' ' + S.currentMonth.anno;
+  let showArrows = true;
+  // Eccezione: in view 'list' con periodo custom selezionato, mostriamo il range
+  // (es. "01 MAG 2026 - 05 LUG 2026") e nascondiamo le frecce mese
+  if (S.currentView === 'list' && S.listPeriod === 'custom' && S.listFrom && S.listTo) {
+    label = fmtDataLong(S.listFrom) + ' – ' + fmtDataLong(S.listTo);
+    showArrows = false;
+  }
+  if (D.monthLabel) {
+    D.monthLabel.textContent = label;
+    D.monthLabel.classList.toggle('range-mode', !showArrows);
+  }
+  if (D.btnMonthPrev) D.btnMonthPrev.style.visibility = showArrows ? 'visible' : 'hidden';
+  if (D.btnMonthNext) D.btnMonthNext.style.visibility = showArrows ? 'visible' : 'hidden';
 }
 function initMonth() {
   const saved = localStorage.getItem(LS.LAST_MONTH);
@@ -525,11 +539,17 @@ function renderConti() {
 // Donut "Uscite per autore" del mese corrente — usato dalla slide 2 del carousel.
 // Mostra solo le percentuali: il centro è vuoto, le label nella legend sono in %.
 function renderAutoreDonut() {
-  if (!D.autoreDonutWrap) return;
+  // Fallback: se D non ha l'elemento (es. ordine init), prova lookup diretto
+  const wrap = D.autoreDonutWrap || document.getElementById('autoreDonutWrap');
+  if (!wrap) {
+    console.warn('[renderAutoreDonut] elemento #autoreDonutWrap mancante nel DOM');
+    return;
+  }
   const arr = txInCurrentMonth();
   const usc = arr.filter(t => t.tipo === 'uscita');
+  console.log('[renderAutoreDonut] uscite nel mese:', usc.length);
   if (!usc.length) {
-    D.autoreDonutWrap.innerHTML = '<div class="empty"><div class="emoji">👥</div><div>Nessuna uscita nel periodo</div></div>';
+    wrap.innerHTML = '<div class="empty"><div class="emoji">👥</div><div>Nessuna uscita nel periodo</div></div>';
     return;
   }
   const byAut = {};
@@ -538,6 +558,7 @@ function renderAutoreDonut() {
     if (!byAut[nome]) byAut[nome] = 0;
     byAut[nome] += Number(t.importo);
   });
+  console.log('[renderAutoreDonut] autori:', byAut);
   const segs = Object.entries(byAut)
     .sort((a, b) => b[1] - a[1])
     .map(([nome, total]) => ({
@@ -553,7 +574,7 @@ function renderAutoreDonut() {
         switchView('list');
       }
     }));
-  Charts.renderDonut(D.autoreDonutWrap, segs, { subLabel: 'uscite mese', noText: true });
+  Charts.renderDonut(wrap, segs, { noText: true });
 }
 
 // ─── CAROUSEL: donut ↔ trend mesi ───────────────────────────
@@ -1573,6 +1594,8 @@ async function ensurePeriodLoaded(fromStr, toStr) {
 
 function renderList() {
   const range = getListPeriodRange();
+  // Sincronizza l'header (range vs mese + visibilità frecce)
+  renderHeader();
   // Aggiorna stato del pulsante "Seleziona periodo" (active quando custom)
   if (D.btnTogglePeriod) D.btnTogglePeriod.classList.toggle('active', S.listPeriod === 'custom');
   if (D.listPeriodCustom) D.listPeriodCustom.style.display = (S.listPeriod === 'custom') ? 'flex' : 'none';
@@ -2052,6 +2075,8 @@ function switchView(name) {
   else if (name === 'conti') renderConti();
   else if (name === 'list') renderList();
   else if (name === 'cat')  renderCatView();
+  // Sincronizza monthLabel + visibilità frecce mese in base alla nuova view
+  renderHeader();
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
