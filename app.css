@@ -293,8 +293,16 @@ button { cursor: pointer; touch-action: manipulation; }
 #btnUpdate.show { display: inline-flex; }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: .75; transform: scale(.97); }
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 2px 6px rgba(217, 119, 87, .35);
+  }
+  50% {
+    opacity: .9;
+    transform: scale(1.05);
+    box-shadow: 0 4px 14px rgba(217, 119, 87, .65);
+  }
 }
 
 /* ─── MAIN VIEWS ──────────────────────────────────────────── */
