@@ -107,13 +107,16 @@
   // ─── LINE ─────────────────────────────────────────────────
   // series: [{label, color, points: [n,n,n,...]}]
   // xLabels: [string, ...]
-  function renderLine(container, series, xLabels) {
+  // opts (opzionali): { yTicks: 5 } numero di linee orizzontali + label numerici
+  function renderLine(container, series, xLabels, opts) {
+    opts = opts || {};
     container.innerHTML = '';
     if (!series.length || !series[0].points.length) {
       container.innerHTML = '<div class="empty"><div class="emoji">📈</div><div>Dati insufficienti</div></div>';
       return;
     }
-    const W = 360, H = 200, PAD_L = 4, PAD_R = 4, PAD_T = 14, PAD_B = 26;
+    // Padding L più ampio per fare spazio ai label Y (es. "€2,5k")
+    const W = 360, H = 200, PAD_L = 32, PAD_R = 6, PAD_T = 12, PAD_B = 26;
     const N = series[0].points.length;
     const allVals = series.flatMap(s => s.points);
     let maxV = Math.max.apply(null, allVals);
@@ -126,9 +129,10 @@
     svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
-    // grid orizzontale (4 linee)
-    for (let i = 0; i <= 4; i++) {
-      const y = PAD_T + ((H - PAD_T - PAD_B) * i / 4);
+    // grid orizzontale + label sull'asse Y per ogni tick
+    const yTicks = Math.max(2, opts.yTicks || 5);
+    for (let i = 0; i <= yTicks; i++) {
+      const y = PAD_T + ((H - PAD_T - PAD_B) * i / yTicks);
       const ln = document.createElementNS(NS, 'line');
       ln.setAttribute('x1', PAD_L);
       ln.setAttribute('x2', W - PAD_R);
@@ -136,17 +140,19 @@
       ln.setAttribute('y2', y);
       ln.setAttribute('stroke', 'var(--border)');
       ln.setAttribute('stroke-width', '1');
-      ln.setAttribute('opacity', i === 4 ? '1' : '.4');
+      ln.setAttribute('opacity', i === yTicks ? '1' : '.35');
       svg.appendChild(ln);
+      // label numerico: niceMax è in alto (i=0), 0 è in basso (i=yTicks)
+      const tickValue = niceMax * (yTicks - i) / yTicks;
+      const txt = document.createElementNS(NS, 'text');
+      txt.setAttribute('x', PAD_L - 4);
+      txt.setAttribute('y', y + 3);
+      txt.setAttribute('text-anchor', 'end');
+      txt.setAttribute('fill', 'var(--text-faint)');
+      txt.setAttribute('font-size', '9');
+      txt.textContent = i === yTicks ? '0' : fmtEurShort(tickValue);
+      svg.appendChild(txt);
     }
-    // label asse Y in alto a sinistra
-    const lblMax = document.createElementNS(NS, 'text');
-    lblMax.setAttribute('x', PAD_L + 4);
-    lblMax.setAttribute('y', PAD_T + 10);
-    lblMax.setAttribute('fill', 'var(--text-faint)');
-    lblMax.setAttribute('font-size', '10');
-    lblMax.textContent = fmtEurShort(niceMax);
-    svg.appendChild(lblMax);
 
     // linee per serie
     series.forEach(s => {
@@ -163,16 +169,24 @@
       p.setAttribute('stroke-width', '2');
       p.setAttribute('stroke-linecap', 'round');
       p.setAttribute('stroke-linejoin', 'round');
+      if (s.onClick) {
+        p.style.cursor = 'pointer';
+        p.addEventListener('click', () => s.onClick(s));
+      }
       svg.appendChild(p);
-      // puntini
+      // puntini cliccabili (se onClick definito)
       s.points.forEach((v, i) => {
         const x = PAD_L + i * stepX;
         const y = H - PAD_B - ((v / niceMax) * (H - PAD_T - PAD_B));
         const c = document.createElementNS(NS, 'circle');
         c.setAttribute('cx', x);
         c.setAttribute('cy', y);
-        c.setAttribute('r', 2.5);
+        c.setAttribute('r', s.onClick ? 4 : 2.5);
         c.setAttribute('fill', s.color);
+        if (s.onClick) {
+          c.style.cursor = 'pointer';
+          c.addEventListener('click', () => s.onClick(s));
+        }
         svg.appendChild(c);
       });
     });
@@ -192,6 +206,25 @@
     });
 
     container.appendChild(svg);
+
+    // Legend (riusa stili .donut-legend / .legend-row / .legend-dot)
+    if (opts.legend) {
+      const total = allVals.reduce((s, v) => s + v, 0);
+      const legend = document.createElement('div');
+      legend.className = 'donut-legend line-legend';
+      series.forEach(s => {
+        const seriesTotal = s.points.reduce((a, b) => a + b, 0);
+        const pct = total > 0 ? (seriesTotal / total) * 100 : 0;
+        const row = document.createElement('div');
+        row.className = 'legend-row';
+        row.innerHTML = '<span class="legend-dot" style="background:' + (s.color || 'var(--accent)') + '"></span>' +
+                        '<span>' + (s.label || '?') + '</span>' +
+                        '<b>' + fmtEurShort(seriesTotal) + '</b>';
+        if (s.onClick) row.addEventListener('click', () => s.onClick(s));
+        legend.appendChild(row);
+      });
+      container.appendChild(legend);
+    }
   }
 
   function niceCeil(n) {

@@ -167,12 +167,13 @@
 
       <div class="card carousel-card">
         <div class="carousel-head">
-          <button class="carousel-arrow carousel-prev" id="carouselPrev" aria-label="Slide precedente" type="button">‹</button>
           <h3 class="card-title carousel-title" id="carouselTitle">Uscite per categoria</h3>
-          <button class="carousel-arrow carousel-next" id="carouselNext" aria-label="Slide successiva" type="button">›</button>
         </div>
-        <div class="carousel-viewport">
-          <div class="carousel-track" id="carouselTrack">
+        <div class="carousel-stage">
+          <button class="carousel-arrow carousel-prev" id="carouselPrev" aria-label="Slide precedente" type="button">‹</button>
+          <button class="carousel-arrow carousel-next" id="carouselNext" aria-label="Slide successiva" type="button">›</button>
+          <div class="carousel-viewport">
+            <div class="carousel-track" id="carouselTrack">
             <div class="carousel-slide" data-slide="0">
               <div id="donutWrap" class="donut-wrap"></div>
             </div>
@@ -184,6 +185,7 @@
               </div>
               <div id="trend3mWrap" class="line-wrap"></div>
             </div>
+          </div>
           </div>
         </div>
         <div class="carousel-dots" id="carouselDots">
@@ -398,14 +400,6 @@
             <option value="dark">Scuro</option>
             <option value="light">Chiaro</option>
           </select>
-        </div>
-        <div class="form-field">
-          <label>Nomi autori (separati da virgola)</label>
-          <input type="text" id="setAutori" placeholder="Stefano, Flavia">
-        </div>
-        <div class="form-field">
-          <label>Autore predefinito</label>
-          <select id="setAutoreDefault"></select>
         </div>
         <button id="setSave" class="btn-primary">Salva impostazioni</button>
 

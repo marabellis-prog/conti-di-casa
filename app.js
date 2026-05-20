@@ -63,7 +63,7 @@ const S = {
   cats: [],          // categorie complete
   tx: [],            // transazioni (cache locale: ultimi 3 mesi)
   budgets: [],       // budget anno corrente
-  prefs: { theme: 'auto', autori: ['Stefano', 'Flavia'], autoreDefault: 'Stefano' },
+  prefs: { theme: 'auto' },
   authorizedUsers: [],  // whitelist email per login Google
   currentUser: null,    // {email, nome} se loggato
   ts: 0,
@@ -118,7 +118,7 @@ function cacheDOM() {
    'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
-   'modalSettings','setTheme','setAutori','setAutoreDefault','setSave','setExport','setClearCache','setVersion',
+   'modalSettings','setTheme','setSave','setExport','setClearCache','setVersion',
    'setUsersList','setAddUser','setLogout',
    'modalUser','userEditTitle','userEditNome','userEditEmail','userEditSave',
    'autoreDonutWrap'
@@ -137,6 +137,15 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const MESI_FULL = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 const MESI_SHORT = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+
+// Colori per macrocategoria — usati sia nel donut che nel line trend
+const MACRO_COLORS = {
+  casa:'#3498db', cibo:'#e74c3c', bollette:'#f39c12', trasporti:'#9b59b6',
+  salute:'#1abc9c', svago:'#34d399', sport:'#16a34a', abbigliamento:'#a777e3',
+  famiglia:'#f472b6', animali:'#fb923c', tecnologia:'#0ea5e9', regali:'#ff5722',
+  viaggi:'#06b6d4', lavoro:'#64748b', soldi:'#2ecc71', natura:'#22c55e', altro:'#94a3b8',
+  simboli:'#7f8c8d'
+};
 
 function today() {
   const d = new Date();
@@ -484,14 +493,6 @@ function renderConti() {
     const cid = t.categoria_id || 0;
     uscByMacro[macroId].breakdown[cid] = (uscByMacro[macroId].breakdown[cid] || 0) + Number(t.importo);
   });
-  // colore macro: prende il colore della prima categoria utente sotto quella macro,
-  // oppure un colore stabile derivato dall'id macro
-  const MACRO_COLORS = {
-    casa:'#3498db', cibo:'#e74c3c', bollette:'#f39c12', trasporti:'#9b59b6',
-    salute:'#1abc9c', svago:'#34d399', sport:'#16a34a', abbigliamento:'#a777e3',
-    famiglia:'#f472b6', animali:'#fb923c', tecnologia:'#0ea5e9', regali:'#ff5722',
-    viaggi:'#06b6d4', lavoro:'#64748b', soldi:'#2ecc71', natura:'#22c55e', altro:'#94a3b8'
-  };
   const segs = Object.keys(uscByMacro).map(macroId => {
     const m = macroById(macroId);
     return {
@@ -580,19 +581,52 @@ async function renderTrend3m() {
     const lastDay  = new Date(r.to.anno, r.to.mese, 0).getDate();
     const endStr   = r.to.anno + '-' + String(r.to.mese).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
     try {
-      const rows = await supaFetch(T.TX + '?select=data,importo,tipo&data=gte.' + startStr + '&data=lte.' + endStr);
-      const buckets = new Map();
-      months.forEach(o => buckets.set(monthKeyYM(o.y, o.m), { in: 0, out: 0 }));
+      const rows = await supaFetch(T.TX + '?select=data,importo,tipo,categoria_id&data=gte.' + startStr + '&data=lte.' + endStr);
+      // buckets[macroId][monthKey] = somma uscite
+      const macroBuckets = {};
       (rows || []).forEach(rec => {
+        if (rec.tipo !== 'uscita') return;
+        const c = catById(rec.categoria_id);
+        const macroId = (c && c.macro_categoria) || 'simboli';
         const [yy, mm] = rec.data.split('-');
         const k = monthKeyYM(Number(yy), Number(mm));
-        const b = buckets.get(k); if (!b) return;
-        if (rec.tipo === 'entrata') b.in += Number(rec.importo);
-        else b.out += Number(rec.importo);
+        if (!macroBuckets[macroId]) {
+          macroBuckets[macroId] = {};
+          months.forEach(o => { macroBuckets[macroId][monthKeyYM(o.y, o.m)] = 0; });
+        }
+        macroBuckets[macroId][k] = (macroBuckets[macroId][k] || 0) + Number(rec.importo);
       });
-      const inPts = [], outPts = [];
-      buckets.forEach(v => { inPts.push(v.in); outPts.push(v.out); });
-      data = { inPts, outPts, labels };
+      // converti in serie ordinate per total desc; click → filtra lista per quella macro
+      const series = Object.keys(macroBuckets).map(macroId => {
+        const points = months.map(o => macroBuckets[macroId][monthKeyYM(o.y, o.m)] || 0);
+        const total = points.reduce((s, v) => s + v, 0);
+        const macro = macroById(macroId);
+        const label = (macro ? macro.icon + ' ' : '') + (macro ? (macroLabel(macroId)) : 'Senza categoria');
+        return {
+          macroId,
+          label,
+          color: MACRO_COLORS[macroId] || '#666',
+          points,
+          total,
+          onClick: function () {
+            S.donutFilter = { type: 'macro', value: macroId };
+            S.listFilter = 'uscita';
+            // Imposta il filtro periodo della lista al range del trend corrente
+            const tr = S.trendRange;
+            if (tr && tr.from && tr.to) {
+              S.listPeriod = 'custom';
+              const fy = tr.from.anno, fm = String(tr.from.mese).padStart(2, '0');
+              const ty = tr.to.anno, tm = String(tr.to.mese).padStart(2, '0');
+              const lastDay = new Date(ty, tr.to.mese, 0).getDate();
+              S.listFrom = fy + '-' + fm + '-01';
+              S.listTo   = ty + '-' + tm + '-' + String(lastDay).padStart(2, '0');
+            }
+            switchView('list');
+          }
+        };
+      }).filter(s => s.total > 0)
+        .sort((a, b) => b.total - a.total);
+      data = { series, labels };
       S.trend3mCache = { key, data };
     } catch (e) {
       console.warn('trend3m fetch failed', e);
@@ -600,10 +634,11 @@ async function renderTrend3m() {
       return;
     }
   }
-  Charts.renderLine(D.trend3mWrap, [
-    { label: 'Entrate', color: 'var(--ok)',     points: data.inPts  },
-    { label: 'Uscite',  color: 'var(--danger)', points: data.outPts }
-  ], data.labels);
+  if (!data.series.length) {
+    D.trend3mWrap.innerHTML = '<div class="empty"><div class="emoji">📈</div><div>Nessuna uscita nel periodo</div></div>';
+    return;
+  }
+  Charts.renderLine(D.trend3mWrap, data.series, data.labels, { yTicks: 5, legend: true });
 }
 
 function updateCarouselTitle() {
@@ -1493,6 +1528,11 @@ function renderList() {
   // Aggiorna chip attiva
   if (D.listPeriodChips) $$('.chip', D.listPeriodChips).forEach(c => c.classList.toggle('active', c.getAttribute('data-period') === S.listPeriod));
   if (D.listPeriodCustom) D.listPeriodCustom.style.display = (S.listPeriod === 'custom') ? 'flex' : 'none';
+  // Riflette eventuale custom range scelto da altre viste (es. trend click)
+  if (S.listPeriod === 'custom') {
+    if (D.listPeriodFrom && S.listFrom) D.listPeriodFrom.value = S.listFrom;
+    if (D.listPeriodTo   && S.listTo)   D.listPeriodTo.value   = S.listTo;
+  }
 
   // Validazione custom: se manca uno dei due estremi, mostra messaggio
   if (S.listPeriod === 'custom' && (!S.listFrom || !S.listTo)) {
@@ -2355,7 +2395,7 @@ function openQuickAdd(tipo) {
     setQaTipo(QA.tipo);
     setQaAmt('');
     if (D.qaDesc) D.qaDesc.value = '';
-    if (D.qaAutore) populateAutoreSelect(D.qaAutore, S.prefs.autoreDefault || (S.prefs.autori && S.prefs.autori[0]) || 'Stefano');
+    if (D.qaAutore) populateAutoreSelect(D.qaAutore, getDefaultAutore());
     if (D.qaDatePicker) {
       D.qaDatePicker.value = QA.data;
       D.qaDatePicker.max = today();
@@ -2565,7 +2605,7 @@ async function quickSave(categoria_id) {
   }
   const desc = D.qaDesc ? D.qaDesc.value.trim() : '';
   const dataStr = D.qaDatePicker.value || QA.data || today();
-  const autore = (D.qaAutore && D.qaAutore.value) || S.prefs.autoreDefault || null;
+  const autore = (D.qaAutore && D.qaAutore.value) || getDefaultAutore() || null;
   await saveTransaction({
     importo,
     tipo: QA.tipo,
@@ -2621,7 +2661,7 @@ function openTxEdit(idStr) {
   populateCatSelect(D.txEditCat, t.tipo, t.categoria_id);
   D.txEditData.value = t.data;
   D.txEditDesc.value = t.descrizione || '';
-  if (D.txEditAutore) populateAutoreSelect(D.txEditAutore, t.autore || S.prefs.autoreDefault);
+  if (D.txEditAutore) populateAutoreSelect(D.txEditAutore, t.autore || getDefaultAutore());
   D.txEditTipo.onchange = () => populateCatSelect(D.txEditCat, D.txEditTipo.value, null);
   openModal('modalTx');
 }
@@ -2680,18 +2720,41 @@ function populateCatSelect(sel, tipo, currentId) {
     cats.map(c => '<option value="' + c.id + '"' + (c.id === currentId ? ' selected' : '') + '>' +
       (c.icona ? c.icona + ' ' : '') + esc(c.nome) + '</option>').join('');
 }
-function populateAutoreSelect(sel, current) {
-  const list = (S.prefs.autori && S.prefs.autori.length) ? S.prefs.autori : ['Stefano','Flavia'];
-  sel.innerHTML = list.map(a => '<option' + (a === current ? ' selected' : '') + '>' + esc(a) + '</option>').join('');
+// ─── AUTORI: derivati da cdc_authorized_users (NON da prefs) ─
+// La lista degli autori è esattamente la lista degli utenti autorizzati.
+// Il default per le nuove transazioni è il nome dell'utente loggato.
+function getAutoriList() {
+  const users = S.authorizedUsers || [];
+  const names = users.map(u => u && u.nome).filter(Boolean);
+  if (names.length) return names;
+  return ['Stefano Marabelli', 'Flavia Spina']; // fallback se whitelist non ancora caricata
 }
+function getDefaultAutore() {
+  if (S.currentUser && S.currentUser.nome) return S.currentUser.nome;
+  const list = getAutoriList();
+  return list[0] || 'Stefano Marabelli';
+}
+
+function populateAutoreSelect(sel, current) {
+  const list = getAutoriList();
+  // Se 'current' non è nella lista (es. autore storico mai aggiornato), lo aggiungiamo
+  // come opzione disabilitata per non perdere il dato esistente nelle edit.
+  const inList = list.indexOf(current) !== -1;
+  let html = list.map(a => '<option' + (a === current ? ' selected' : '') + '>' + esc(a) + '</option>').join('');
+  if (current && !inList) {
+    html += '<option selected>' + esc(current) + '</option>';
+  }
+  sel.innerHTML = html;
+}
+
 // Colore stabile per autore (per donut autori)
 const AUTORE_COLORS = ['#3498db', '#e91e63', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
 function colorForAutore(nome) {
   if (!nome) return '#94a3b8';
-  const list = (S.prefs.autori && S.prefs.autori.length) ? S.prefs.autori : ['Stefano','Flavia'];
+  const list = getAutoriList();
   const idx = list.indexOf(nome);
   if (idx >= 0) return AUTORE_COLORS[idx % AUTORE_COLORS.length];
-  // fallback: hash semplice
+  // fallback: hash semplice (per autori storici non più nella whitelist)
   let h = 0;
   for (let i = 0; i < nome.length; i++) h = (h * 31 + nome.charCodeAt(i)) & 0xffffffff;
   return AUTORE_COLORS[Math.abs(h) % AUTORE_COLORS.length];
@@ -3002,8 +3065,6 @@ async function deleteBudgetEdit() {
 // ─── IMPOSTAZIONI ───────────────────────────────────────────
 function renderSettings() {
   D.setTheme.value = S.prefs.theme || 'auto';
-  if (D.setAutori) D.setAutori.value = (S.prefs.autori || ['Stefano', 'Flavia']).join(', ');
-  if (D.setAutoreDefault) populateAutoreSelect(D.setAutoreDefault, S.prefs.autoreDefault || (S.prefs.autori && S.prefs.autori[0]) || 'Stefano');
   renderUsersList();
   // Logout button visibile solo se loggato
   if (D.setLogout) D.setLogout.style.display = (S.currentUser ? 'block' : 'none');
@@ -3103,13 +3164,8 @@ async function deleteAuthorizedUser(email) {
 }
 async function saveSettings() {
   const themeNew = D.setTheme.value;
-  const autoriNew = D.setAutori
-    ? D.setAutori.value.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4)
-    : (S.prefs.autori || ['Stefano', 'Flavia']);
-  const autoreDefaultNew = (D.setAutoreDefault && D.setAutoreDefault.value) || autoriNew[0] || 'Stefano';
   S.prefs.theme = themeNew;
-  S.prefs.autori = autoriNew.length ? autoriNew : ['Stefano', 'Flavia'];
-  S.prefs.autoreDefault = autoreDefaultNew;
+  // Gli autori sono presi solo da cdc_authorized_users — nessun campo prefs da salvare
   applyTheme();
   saveLocalCache();
   closeModal('modalSettings');
@@ -3440,9 +3496,9 @@ function onBudgetChange(p) {
 }
 function onPrefsChange(p) {
   if (p && p.new && p.new.dati) {
-    const remote = p.new.dati;
-    if (remote.autori) S.prefs.autori = remote.autori;
-    if (remote.autoreDefault) S.prefs.autoreDefault = remote.autoreDefault;
+    // Solo le prefs UI-only (theme, ordini, ecc.) vengono sincronizzate.
+    // autori/autoreDefault sono deprecati: la lista autori è derivata da
+    // cdc_authorized_users — ignoriamo eventuali valori legacy.
     saveLocalCache();
     renderSettings();
   }
