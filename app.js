@@ -1682,15 +1682,18 @@ function switchView(name) {
   if (D.appSubtitle) {
     D.appSubtitle.textContent = moduloMeta ? ' — ' + moduloMeta.label : '';
   }
-  if (D.moduleActions) {
+  if (D.moduleActions && D.moduleActionPills) {
     if (mod === 'home') {
       D.moduleActions.style.display = 'none';
+      D.moduleActionPills.style.display = 'none';
     } else if (moduloMeta) {
       D.moduleActions.style.display = 'flex';
+      D.moduleActionPills.style.display = 'flex';
       if (D.moduleMonth) D.moduleMonth.style.display = moduloMeta.hasMonthNav ? 'flex' : 'none';
       renderModuleActionPills(moduloMeta, name);
     } else {
       D.moduleActions.style.display = 'none';
+      D.moduleActionPills.style.display = 'none';
     }
   }
   // render contenuto view

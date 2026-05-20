@@ -105,6 +105,8 @@ button { cursor: pointer; touch-action: manipulation; }
   display: flex;
   align-items: center;
   z-index: 50;
+  /* Permettiamo alle pill child di uscire dal bordo inferiore */
+  overflow: visible;
 }
 
 .app-header-inner {
@@ -1135,28 +1137,27 @@ html[data-theme="light"] .carousel-arrow.side {
 }
 .nav-pill.active .np-lbl { opacity: 1; }
 
-/* Module action bar: pill agganciate al bordo inferiore dell'header (sporgenti verso il basso) */
+/* Mese-nav del modulo (sotto le pill se serve) */
 .module-actions-bar {
-  position: sticky;
-  top: calc(var(--header-h) + var(--safe-t));
-  background: var(--bg);
-  /* z-index più alto dell'app-header (50) così l'intero stacking context delle pill sale */
-  z-index: 60;
-  padding: 0 12px 10px;
+  margin-top: 38px; /* lascia spazio per le pill che sporgono dall'header */
+  padding: 0 12px 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  pointer-events: none;
+  background: var(--bg);
 }
-.module-actions-bar > * { pointer-events: auto; }
 
+/* Pill action: figlie di .app-header, posizionate assolute, sporgono fuori dal bordo inferiore */
 .ma-pills {
+  position: absolute;
+  bottom: -26px; /* la metà inferiore della pill esce dall'header */
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   gap: 14px;
-  margin-top: -26px; /* circa metà della pill sporge sopra l'header */
-  position: relative;
-  z-index: 1; /* relativo al parent — il parent gestisce lo stacking globale */
+  z-index: 60; /* sopra tutto il content sotto */
+  pointer-events: auto;
 }
 
 .ma-month {
