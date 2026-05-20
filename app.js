@@ -73,11 +73,13 @@ const S = {
   currentMonth: null,  // {anno, mese}
   // filters
   listFilter: 'all',
-  listSearch: '',
   donutFilter: null,   // categoria_id se filtrato
-  listPeriod: 'current', // current | last | custom
+  listPeriod: 'current', // current (segue header) | custom (range scelto)
   listFrom: null,       // YYYY-MM-DD (per custom)
   listTo: null,         // YYYY-MM-DD (per custom)
+  // Filtri avanzati lista (modal "Seleziona filtri")
+  filtersCats: [],      // categorie selezionate (array di id)
+  filtersAutori: [],    // autori selezionati (array di stringhe)
   // editing
   editTxId: null,
   editCatId: null,
@@ -108,8 +110,10 @@ function cacheDOM() {
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap',
    'carouselTrack','carouselPrev','carouselNext','carouselTitle','carouselDots',
    'trendFrom','trendTo','trend3mWrap',
-   'searchInput','listFilters','txList',
-   'listPeriodChips','listPeriodCustom','listPeriodFrom','listPeriodTo','listPeriodSummary',
+   'listFilters','txList',
+   'btnTogglePeriod','btnOpenFilters','filterBadge',
+   'modalFilters','filterCats','filterAutori','btnApplyFilters','btnResetFilters',
+   'listPeriodCustom','listPeriodFrom','listPeriodTo','listPeriodSummary',
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
    // modals
@@ -1525,14 +1529,16 @@ async function ensurePeriodLoaded(fromStr, toStr) {
 
 function renderList() {
   const range = getListPeriodRange();
-  // Aggiorna chip attiva
-  if (D.listPeriodChips) $$('.chip', D.listPeriodChips).forEach(c => c.classList.toggle('active', c.getAttribute('data-period') === S.listPeriod));
+  // Aggiorna stato del pulsante "Seleziona periodo" (active quando custom)
+  if (D.btnTogglePeriod) D.btnTogglePeriod.classList.toggle('active', S.listPeriod === 'custom');
   if (D.listPeriodCustom) D.listPeriodCustom.style.display = (S.listPeriod === 'custom') ? 'flex' : 'none';
   // Riflette eventuale custom range scelto da altre viste (es. trend click)
   if (S.listPeriod === 'custom') {
     if (D.listPeriodFrom && S.listFrom) D.listPeriodFrom.value = S.listFrom;
     if (D.listPeriodTo   && S.listTo)   D.listPeriodTo.value   = S.listTo;
   }
+  // Badge sul pulsante "Seleziona filtri": numero filtri attivi
+  updateFilterBadge();
 
   // Validazione custom: se manca uno dei due estremi, mostra messaggio
   if (S.listPeriod === 'custom' && (!S.listFrom || !S.listTo)) {
@@ -1562,15 +1568,15 @@ function _drawList(range) {
       arr = arr.filter(t => t.categoria_id === S.donutFilter);
     }
   }
-  if (S.listSearch) {
-    const q = S.listSearch.toLowerCase();
-    arr = arr.filter(t => {
-      const c = catById(t.categoria_id);
-      const name = c ? c.nome.toLowerCase() : '';
-      return (t.descrizione || '').toLowerCase().includes(q) ||
-             name.includes(q) ||
-             (t.autore || '').toLowerCase().includes(q);
-    });
+  // Filtri modal: categorie selezionate (multipla, OR)
+  if (S.filtersCats && S.filtersCats.length) {
+    const set = new Set(S.filtersCats);
+    arr = arr.filter(t => set.has(t.categoria_id));
+  }
+  // Filtri modal: autori selezionati (multipla, OR)
+  if (S.filtersAutori && S.filtersAutori.length) {
+    const set = new Set(S.filtersAutori);
+    arr = arr.filter(t => set.has(t.autore));
   }
 
   // Aggiorna riepilogo periodo (entrate / uscite / saldo)
@@ -1615,6 +1621,104 @@ function _drawList(range) {
   twemojify(D.txList);
   const clr = $('#clearDonut');
   if (clr) clr.addEventListener('click', () => { S.donutFilter = null; renderList(); });
+}
+
+// ─── MODAL FILTRI (categorie + autori, multi-select) ────────
+function updateFilterBadge() {
+  if (!D.filterBadge) return;
+  const n = (S.filtersCats ? S.filtersCats.length : 0) + (S.filtersAutori ? S.filtersAutori.length : 0);
+  if (n > 0) {
+    D.filterBadge.style.display = 'grid';
+    D.filterBadge.textContent = String(n);
+    if (D.btnOpenFilters) D.btnOpenFilters.classList.add('active');
+  } else {
+    D.filterBadge.style.display = 'none';
+    if (D.btnOpenFilters) D.btnOpenFilters.classList.remove('active');
+  }
+}
+
+// stato draft per il modal (non commitato finché l'utente non preme Filtra)
+let _filtersDraft = null;
+
+function openFiltersModal() {
+  _filtersDraft = {
+    cats:   (S.filtersCats   || []).slice(),
+    autori: (S.filtersAutori || []).slice()
+  };
+  renderFiltersModalCats();
+  renderFiltersModalAutori();
+  openModal('modalFilters');
+}
+
+function renderFiltersModalCats() {
+  if (!D.filterCats) return;
+  if (!S.cats || !S.cats.length) {
+    D.filterCats.innerHTML = '<div class="filter-empty">Nessuna categoria configurata</div>';
+    return;
+  }
+  // Raggruppa per macro per leggibilità
+  const sorted = S.cats.slice().sort((a, b) => {
+    const ma = (a.macro_categoria || 'zzz'), mb = (b.macro_categoria || 'zzz');
+    if (ma !== mb) return ma.localeCompare(mb);
+    return (a.ordine || 0) - (b.ordine || 0);
+  });
+  const html = sorted.map(c => {
+    const selected = _filtersDraft.cats.indexOf(c.id) !== -1;
+    return '<button type="button" class="filter-chip' + (selected ? ' selected' : '') + '" data-cat-id="' + c.id + '">' +
+           (c.icona ? c.icona + ' ' : '') + esc(c.nome) + '</button>';
+  }).join('');
+  D.filterCats.innerHTML = html;
+  twemojify(D.filterCats);
+  $$('.filter-chip', D.filterCats).forEach(el => {
+    el.addEventListener('click', () => {
+      const id = Number(el.getAttribute('data-cat-id'));
+      const i = _filtersDraft.cats.indexOf(id);
+      if (i >= 0) _filtersDraft.cats.splice(i, 1);
+      else _filtersDraft.cats.push(id);
+      el.classList.toggle('selected');
+    });
+  });
+}
+
+function renderFiltersModalAutori() {
+  if (!D.filterAutori) return;
+  const list = getAutoriList();
+  if (!list.length) {
+    D.filterAutori.innerHTML = '<div class="filter-empty">Nessun autore configurato</div>';
+    return;
+  }
+  const html = list.map(nome => {
+    const selected = _filtersDraft.autori.indexOf(nome) !== -1;
+    return '<button type="button" class="filter-chip' + (selected ? ' selected' : '') + '" data-autore="' + esc(nome) + '">' +
+           esc(nome) + '</button>';
+  }).join('');
+  D.filterAutori.innerHTML = html;
+  $$('.filter-chip', D.filterAutori).forEach(el => {
+    el.addEventListener('click', () => {
+      const nome = el.getAttribute('data-autore');
+      const i = _filtersDraft.autori.indexOf(nome);
+      if (i >= 0) _filtersDraft.autori.splice(i, 1);
+      else _filtersDraft.autori.push(nome);
+      el.classList.toggle('selected');
+    });
+  });
+}
+
+function applyFiltersFromModal() {
+  if (!_filtersDraft) return;
+  S.filtersCats   = _filtersDraft.cats.slice();
+  S.filtersAutori = _filtersDraft.autori.slice();
+  closeModal('modalFilters');
+  renderList();
+}
+
+function resetFiltersFromModal() {
+  _filtersDraft = { cats: [], autori: [] };
+  S.filtersCats = [];
+  S.filtersAutori = [];
+  renderFiltersModalCats();
+  renderFiltersModalAutori();
+  // non chiudo il modal, così l'utente vede la pulizia e può rifiltrare
 }
 
 // ─── BUDGET VIEW ────────────────────────────────────────────
@@ -3572,22 +3676,25 @@ function bindEvents() {
     S.donutFilter = null;
     renderList();
   }));
-  // periodo chips (Mese corrente / Mese scorso / Personalizzato)
-  if (D.listPeriodChips) {
-    $$('.chip', D.listPeriodChips).forEach(c => c.addEventListener('click', () => {
-      S.listPeriod = c.getAttribute('data-period');
-      // Se passo a custom e non ho ancora valori, default = mese corrente
-      if (S.listPeriod === 'custom' && (!S.listFrom || !S.listTo)) {
+  // Toggle "Seleziona Periodo" → entra/esce dalla modalità custom range
+  if (D.btnTogglePeriod) D.btnTogglePeriod.addEventListener('click', () => {
+    if (S.listPeriod !== 'custom') {
+      S.listPeriod = 'custom';
+      // Default range = mese corrente se non già impostato
+      if (!S.listFrom || !S.listTo) {
         const { anno, mese } = S.currentMonth;
         const last = new Date(anno, mese, 0).getDate();
         S.listFrom = anno + '-' + String(mese).padStart(2,'0') + '-01';
         S.listTo   = anno + '-' + String(mese).padStart(2,'0') + '-' + String(last).padStart(2,'0');
-        if (D.listPeriodFrom) D.listPeriodFrom.value = S.listFrom;
-        if (D.listPeriodTo)   D.listPeriodTo.value   = S.listTo;
       }
-      renderList();
-    }));
-  }
+      if (D.listPeriodFrom) D.listPeriodFrom.value = S.listFrom;
+      if (D.listPeriodTo)   D.listPeriodTo.value   = S.listTo;
+    } else {
+      // torna a "current" (segue header)
+      S.listPeriod = 'current';
+    }
+    renderList();
+  });
   if (D.listPeriodFrom) D.listPeriodFrom.addEventListener('change', () => {
     S.listFrom = D.listPeriodFrom.value || null;
     renderList();
@@ -3596,7 +3703,10 @@ function bindEvents() {
     S.listTo = D.listPeriodTo.value || null;
     renderList();
   });
-  D.searchInput.addEventListener('input', e => { S.listSearch = e.target.value; renderList(); });
+  // Pulsante "Seleziona Filtri" → apre modal
+  if (D.btnOpenFilters)   D.btnOpenFilters.addEventListener('click', openFiltersModal);
+  if (D.btnApplyFilters)  D.btnApplyFilters.addEventListener('click', applyFiltersFromModal);
+  if (D.btnResetFilters)  D.btnResetFilters.addEventListener('click', resetFiltersFromModal);
   // qa
   $$('button', D.qaToggle).forEach(b => b.addEventListener('click', () => setQaTipo(b.getAttribute('data-tipo'))));
   $$('button', D.numpad).forEach(b => b.addEventListener('click', () => numpadPress(b.getAttribute('data-k'))));
