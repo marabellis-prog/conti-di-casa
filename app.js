@@ -670,11 +670,13 @@ function ensureTrendRangeDefault() {
 function monthKeyYM(y, m) { return y + '-' + String(m).padStart(2, '0'); }
 
 function syncTrendDateInputs() {
+  if (!S.trendRange) ensureTrendRangeDefault();
   const f = S.trendRange.from, t = S.trendRange.to;
-  if (D.trendFrom)  D.trendFrom.value  = f;
-  if (D.trendTo)    D.trendTo.value    = t;
-  if (D.autoreFrom) D.autoreFrom.value = f;
-  if (D.autoreTo)   D.autoreTo.value   = t;
+  console.log('[syncTrendDateInputs] f=', f, 't=', t, 'inputs:', !!D.trendFrom, !!D.trendTo, !!D.autoreFrom, !!D.autoreTo);
+  if (D.trendFrom)  { D.trendFrom.value  = f; D.trendFrom.defaultValue  = f; }
+  if (D.trendTo)    { D.trendTo.value    = t; D.trendTo.defaultValue    = t; }
+  if (D.autoreFrom) { D.autoreFrom.value = f; D.autoreFrom.defaultValue = f; }
+  if (D.autoreTo)   { D.autoreTo.value   = t; D.autoreTo.defaultValue   = t; }
 }
 // Compat: il nome vecchio è ancora referenziato altrove (renderConti) — lo aliaso
 const populateTrendSelects = syncTrendDateInputs;
