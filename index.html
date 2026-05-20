@@ -39,11 +39,27 @@
       <button id="btnUpdate" title="Nuovo aggiornamento disponibile — clicca per ricaricare" aria-label="Aggiornamento disponibile">
         <span>↻</span><span>Aggiorna</span>
       </button>
+      <button id="themeToggle" class="icon-btn" aria-label="Cambia tema">🌓</button>
     </div>
   </header>
 
   <!-- Pull-to-refresh indicator -->
   <div id="ptr" class="ptr" aria-hidden="true"><span class="ptr-ic">↓</span></div>
+
+  <!-- Login overlay (mostrato se non loggato) -->
+  <div id="loginOverlay" class="login-overlay" style="display:none">
+    <div class="login-card">
+      <div class="login-logo">🏠</div>
+      <h1 class="login-title">Gestione Casa</h1>
+      <p class="login-sub">Accedi con il tuo account Google.<br>Solo gli utenti autorizzati possono entrare.</p>
+      <button id="loginGoogleBtn" class="login-google">
+        <svg width="20" height="20" viewBox="0 0 48 48" style="margin-right:8px;vertical-align:-4px"><path fill="#FFC107" d="M43.6 20.5h-1.6V20H24v8h11.3c-1.6 4.7-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 5.1 29.3 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.2-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 5.1 29.3 3 24 3 16.3 3 9.6 7.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.5-4.5 2.4-7.2 2.4-5.3 0-9.7-3.4-11.3-8.1l-6.5 5C9.5 40.6 16.2 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.2-.1-2.4-.4-3.5z"/></svg>
+        Accedi con Google
+      </button>
+      <p id="loginError" class="login-err" style="display:none"></p>
+      <p class="login-foot">v.<span id="loginVer">—</span></p>
+    </div>
+  </div>
 
   <!-- MAIN -->
   <main>
@@ -52,7 +68,8 @@
     <section id="view-home" class="view active">
       <div class="module-grid">
 
-        <button class="module-card module-conti" data-mod="conti" type="button">
+        <div class="module-card module-conti" data-mod="conti">
+          <span class="mc-drag" draggable="true" title="Trascina per riordinare">⋮⋮</span>
           <div class="mc-header">
             <span class="mc-icon">💰</span>
             <span class="mc-title">Conti di Casa</span>
@@ -65,34 +82,37 @@
               <div class="mc-subtle" id="homeContiSubtle">saldo del mese</div>
             </div>
           </div>
-        </button>
+        </div>
 
-        <button class="module-card module-soon" data-mod="spesa" type="button">
+        <div class="module-card module-soon" data-mod="spesa">
+          <span class="mc-drag" draggable="true" title="Trascina per riordinare">⋮⋮</span>
           <div class="mc-header">
             <span class="mc-icon">🛒</span>
             <span class="mc-title">Lista della spesa</span>
             <span class="mc-soon">presto</span>
           </div>
           <div class="mc-body soon">Cosa manca a casa, condiviso in tempo reale</div>
-        </button>
+        </div>
 
-        <button class="module-card module-soon" data-mod="todo" type="button">
+        <div class="module-card module-soon" data-mod="todo">
+          <span class="mc-drag" draggable="true" title="Trascina per riordinare">⋮⋮</span>
           <div class="mc-header">
             <span class="mc-icon">✅</span>
             <span class="mc-title">ToDo</span>
             <span class="mc-soon">presto</span>
           </div>
           <div class="mc-body soon">Cose da fare in casa</div>
-        </button>
+        </div>
 
-        <button class="module-card module-soon" data-mod="scadenze" type="button">
+        <div class="module-card module-soon" data-mod="scadenze">
+          <span class="mc-drag" draggable="true" title="Trascina per riordinare">⋮⋮</span>
           <div class="mc-header">
             <span class="mc-icon">📅</span>
             <span class="mc-title">Scadenze</span>
             <span class="mc-soon">presto</span>
           </div>
           <div class="mc-body soon">Bollette, abbonamenti, compleanni</div>
-        </button>
+        </div>
 
       </div>
     </section>
@@ -333,11 +353,40 @@
           <select id="setAutoreDefault"></select>
         </div>
         <button id="setSave" class="btn-primary">Salva impostazioni</button>
-        <button id="setExport" class="btn-secondary" style="margin-top:14px">Esporta CSV transazioni</button>
+
+        <h3 class="card-title" style="margin-top:22px;margin-bottom:8px">Utenti autorizzati</h3>
+        <p class="txt-dim" style="font-size:12px;margin:0 0 10px;line-height:1.4;">Solo gli account Gmail in questa lista potranno accedere all'app dopo il login con Google.</p>
+        <div id="setUsersList"></div>
+        <button id="setAddUser" class="btn-secondary" style="margin-top:8px">+ Aggiungi utente</button>
+
+        <button id="setExport" class="btn-secondary" style="margin-top:22px">Esporta CSV transazioni</button>
         <button id="setClearCache" class="btn-secondary" style="margin-top:8px">Pulisci cache locale</button>
+        <button id="setLogout" class="btn-secondary" style="margin-top:8px;display:none">Esci (logout)</button>
         <div class="txt-c txt-faint mt-16" style="font-size:11px">
           Versione SHA: <span id="setVersion">—</span>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aggiungi/Modifica utente autorizzato -->
+  <div class="modal" id="modalUser">
+    <div class="sheet" id="sheetUser">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="userEditTitle">Nuovo utente autorizzato</h3>
+        <button class="sheet-close" data-close="modalUser">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="form-field">
+          <label>Nome</label>
+          <input type="text" id="userEditNome" placeholder="es. Flavia Rossi" autocomplete="off">
+        </div>
+        <div class="form-field">
+          <label>Email Gmail</label>
+          <input type="email" id="userEditEmail" placeholder="esempio@gmail.com" autocomplete="off" inputmode="email">
+        </div>
+        <button id="userEditSave" class="btn-primary">Salva</button>
       </div>
     </div>
   </div>

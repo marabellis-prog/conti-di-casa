@@ -16,8 +16,10 @@ const T = {
   BUDGET: 'cdc_budget',
   PREFS: 'cdc_prefs',
   TS: 'cdc_update_cache',
-  VER: 'cdc_app_version'
+  VER: 'cdc_app_version',
+  USERS: 'cdc_authorized_users'
 };
+const OWNER_EMAIL = 'marabelli.s@gmail.com';
 
 const LS = {
   CATS: 'cdc-cats',
@@ -62,6 +64,8 @@ const S = {
   tx: [],            // transazioni (cache locale: ultimi 3 mesi)
   budgets: [],       // budget anno corrente
   prefs: { theme: 'auto', autori: ['Stefano', 'Flavia'], autoreDefault: 'Stefano' },
+  authorizedUsers: [],  // whitelist email per login Google
+  currentUser: null,    // {email, nome} se loggato
   ts: 0,
   queue: [],
   // navigation
@@ -92,7 +96,7 @@ const S = {
 // ─── DOM CACHE ──────────────────────────────────────────────
 const D = {};
 function cacheDOM() {
-  ['appTitle','monthNav','monthLabel','btnMonthPrev','btnMonthNext','btnUpdate',
+  ['appTitle','monthNav','monthLabel','btnMonthPrev','btnMonthNext','btnUpdate','themeToggle',
    'view-home','view-conti','view-list','view-cat',
    'homeContiDonut','homeContiSaldo','homeContiSubtle','goToList','goToCategorie',
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap',
@@ -107,6 +111,8 @@ function cacheDOM() {
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
    'modalSettings','setTheme','setAutori','setAutoreDefault','setSave','setExport','setClearCache','setVersion',
+   'setUsersList','setAddUser','setLogout',
+   'modalUser','userEditTitle','userEditNome','userEditEmail','userEditSave',
    'autoreDonutWrap'
 
   ].forEach(id => D[id] = document.getElementById(id));
@@ -487,7 +493,87 @@ function renderConti() {
 }
 
 // ─── HOME GESTIONE CASA (widget moduli) ─────────────────────
+const DEFAULT_MODULI_ORDER = ['conti', 'spesa', 'todo', 'scadenze'];
+function applyModuliOrder() {
+  const grid = document.querySelector('.module-grid');
+  if (!grid) return;
+  const order = (S.prefs.moduliOrder && S.prefs.moduliOrder.length) ? S.prefs.moduliOrder : DEFAULT_MODULI_ORDER;
+  const cards = Array.from(grid.querySelectorAll('.module-card'));
+  const byMod = {};
+  cards.forEach(c => { byMod[c.getAttribute('data-mod')] = c; });
+  // ricolloca secondo l'ordine
+  order.forEach(mod => { if (byMod[mod]) grid.appendChild(byMod[mod]); });
+  // aggiungi in coda eventuali moduli non in order (nuovi)
+  cards.forEach(c => {
+    const m = c.getAttribute('data-mod');
+    if (!order.includes(m)) grid.appendChild(c);
+  });
+}
+
+let _moduliDragBound = false;
+function bindModuliDrag() {
+  if (_moduliDragBound) return;
+  _moduliDragBound = true;
+  const grid = document.querySelector('.module-grid');
+  if (!grid) return;
+  let dragged = null;
+  // dragstart sui handle ⋮⋮
+  grid.querySelectorAll('.mc-drag').forEach(h => {
+    h.addEventListener('dragstart', e => {
+      const card = h.closest('.module-card');
+      if (!card) return;
+      dragged = card;
+      card.classList.add('dragging-mod');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', card.getAttribute('data-mod'));
+      e.stopPropagation();
+    });
+    h.addEventListener('dragend', () => {
+      if (dragged) dragged.classList.remove('dragging-mod');
+      grid.querySelectorAll('.drag-over-mod').forEach(x => x.classList.remove('drag-over-mod'));
+      const ref = dragged;
+      setTimeout(() => { if (ref === dragged) dragged = null; }, 50);
+    });
+  });
+  // dragover/drop sulle card
+  grid.querySelectorAll('.module-card').forEach(card => {
+    card.addEventListener('dragover', e => {
+      if (!dragged || dragged === card) return;
+      e.preventDefault();
+      card.classList.add('drag-over-mod');
+    });
+    card.addEventListener('dragleave', () => card.classList.remove('drag-over-mod'));
+    card.addEventListener('drop', async e => {
+      e.preventDefault();
+      card.classList.remove('drag-over-mod');
+      if (!dragged || dragged === card) return;
+      const allCards = Array.from(grid.querySelectorAll('.module-card'));
+      const srcIdx = allCards.indexOf(dragged);
+      const dstIdx = allCards.indexOf(card);
+      if (srcIdx < dstIdx) grid.insertBefore(dragged, card.nextSibling);
+      else grid.insertBefore(dragged, card);
+      await persistModuliOrder();
+    });
+  });
+}
+
+async function persistModuliOrder() {
+  const grid = document.querySelector('.module-grid');
+  if (!grid) return;
+  const ids = Array.from(grid.querySelectorAll('.module-card')).map(el => el.getAttribute('data-mod'));
+  S.prefs.moduliOrder = ids;
+  saveLocalCache();
+  const path = T.PREFS + '?id=eq.1';
+  const options = { method: 'PATCH', body: JSON.stringify({ dati: S.prefs }) };
+  try { if (isOnline()) await supaFetch(path, options); else enqueue({ path, options }); }
+  catch { enqueue({ path, options }); }
+  toast('Ordine widget salvato', 'success');
+}
+
 function renderHomeGestione() {
+  // Riordina i widget secondo le preferenze utente
+  applyModuliOrder();
+  bindModuliDrag();
   // Widget Conti di Casa: mini donut uscite + saldo del mese
   const arr = txInCurrentMonth();
   const inSum  = arr.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
@@ -2585,6 +2671,102 @@ function renderSettings() {
   D.setTheme.value = S.prefs.theme || 'auto';
   if (D.setAutori) D.setAutori.value = (S.prefs.autori || ['Stefano', 'Flavia']).join(', ');
   if (D.setAutoreDefault) populateAutoreSelect(D.setAutoreDefault, S.prefs.autoreDefault || (S.prefs.autori && S.prefs.autori[0]) || 'Stefano');
+  renderUsersList();
+  // Logout button visibile solo se loggato
+  if (D.setLogout) D.setLogout.style.display = (S.currentUser ? 'block' : 'none');
+}
+
+// ─── GESTIONE UTENTI AUTORIZZATI ────────────────────────────
+async function loadAuthorizedUsers() {
+  try {
+    const rows = await supaFetch(T.USERS + '?select=*&order=is_owner.desc,nome.asc');
+    S.authorizedUsers = rows || [];
+  } catch (e) {
+    console.warn('loadAuthorizedUsers failed', e);
+    S.authorizedUsers = [];
+  }
+}
+
+function renderUsersList() {
+  if (!D.setUsersList) return;
+  const users = S.authorizedUsers || [];
+  if (!users.length) {
+    D.setUsersList.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:14px 4px">Caricamento utenti…</div>';
+    return;
+  }
+  D.setUsersList.innerHTML = users.map(u => {
+    const initial = (u.nome || u.email || '?').charAt(0).toUpperCase();
+    const badge = u.is_owner ? '<span class="user-badge">Owner</span>' : '';
+    const del = u.is_owner
+      ? ''
+      : '<button class="user-del-btn" data-email="' + esc(u.email) + '" aria-label="Elimina utente">✕</button>';
+    return '<div class="user-row">' +
+      '<div class="user-avatar">' + esc(initial) + '</div>' +
+      '<div class="user-info">' +
+        '<div class="user-nome">' + esc(u.nome) + '</div>' +
+        '<div class="user-email">' + esc(u.email) + '</div>' +
+      '</div>' +
+      badge +
+      del +
+    '</div>';
+  }).join('');
+  $$('.user-del-btn', D.setUsersList).forEach(b => {
+    b.addEventListener('click', () => deleteAuthorizedUser(b.getAttribute('data-email')));
+  });
+}
+
+function openUserAdd() {
+  if (D.userEditNome)  D.userEditNome.value = '';
+  if (D.userEditEmail) D.userEditEmail.value = '';
+  if (D.userEditTitle) D.userEditTitle.textContent = 'Nuovo utente autorizzato';
+  openModal('modalUser');
+}
+
+async function saveAuthorizedUser() {
+  const nome  = (D.userEditNome && D.userEditNome.value || '').trim();
+  const email = (D.userEditEmail && D.userEditEmail.value || '').trim().toLowerCase();
+  if (!nome) { toast('Inserisci il nome', 'warn'); return; }
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('Email non valida', 'warn'); return; }
+  try {
+    const res = await supaFetch(T.USERS + '?select=*', {
+      method: 'POST',
+      body: JSON.stringify({ email, nome, is_owner: false }),
+      headers: { 'Prefer': 'return=representation' }
+    });
+    if (res && res[0]) S.authorizedUsers.push(res[0]);
+    S.authorizedUsers.sort((a, b) => (b.is_owner - a.is_owner) || a.nome.localeCompare(b.nome));
+    renderUsersList();
+    closeModal('modalUser');
+    toast('Utente autorizzato aggiunto', 'success');
+  } catch (e) {
+    if (String(e).includes('409') || String(e).includes('duplicate')) {
+      toast('Email già autorizzata', 'warn');
+    } else {
+      toast('Errore: ' + e.message, 'error');
+    }
+  }
+}
+
+async function deleteAuthorizedUser(email) {
+  if (!email || email === OWNER_EMAIL) {
+    toast('L\'owner non può essere rimosso', 'warn');
+    return;
+  }
+  const ok = await confirmDlg({
+    title: 'Rimuovi utente',
+    message: 'L\'utente ' + email + ' perderà l\'accesso all\'app al prossimo login.',
+    confirmLabel: 'Rimuovi',
+    danger: true
+  });
+  if (!ok) return;
+  try {
+    await supaFetch(T.USERS + '?email=eq.' + encodeURIComponent(email), { method: 'DELETE' });
+    S.authorizedUsers = S.authorizedUsers.filter(u => u.email !== email);
+    renderUsersList();
+    toast('Utente rimosso', 'success');
+  } catch (e) {
+    toast('Errore: ' + e.message, 'error');
+  }
 }
 async function saveSettings() {
   const themeNew = D.setTheme.value;
@@ -2604,8 +2786,24 @@ async function saveSettings() {
   try { if (isOnline()) await supaFetch(path, options); else enqueue({ path, options }); }
   catch { enqueue({ path, options }); }
 }
+const THEME_CYCLE = ['auto', 'dark', 'light'];
+const THEME_ICONS = { auto: '🌓', dark: '🌙', light: '☀️' };
 function applyTheme() {
   document.documentElement.setAttribute('data-theme', S.prefs.theme || 'auto');
+  if (D.themeToggle) D.themeToggle.textContent = THEME_ICONS[S.prefs.theme || 'auto'] || '🌓';
+}
+async function cycleTheme() {
+  const cur = S.prefs.theme || 'auto';
+  const idx = THEME_CYCLE.indexOf(cur);
+  const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
+  S.prefs.theme = next;
+  applyTheme();
+  saveLocalCache();
+  // sync remoto soft (merge con altri prefs)
+  const path = T.PREFS + '?id=eq.1';
+  const options = { method: 'PATCH', body: JSON.stringify({ dati: S.prefs }) };
+  try { if (isOnline()) await supaFetch(path, options); else enqueue({ path, options }); }
+  catch { enqueue({ path, options }); }
 }
 function exportCsv() {
   const rows = [['data','tipo','importo','categoria','descrizione','autore']];
@@ -2711,6 +2909,126 @@ function bindDragToClose() {
       startY = null; dy = 0;
     });
   });
+}
+
+// ─── AUTH (Google OAuth + whitelist) ────────────────────────
+function getSupabaseClient() {
+  if (typeof supabase === 'undefined') return null;
+  if (!S.supabaseClient) {
+    S.supabaseClient = supabase.createClient(SUPA_URL, SUPA_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+  }
+  return S.supabaseClient;
+}
+
+async function isEmailAuthorized(email) {
+  if (!email) return false;
+  const normalized = String(email).toLowerCase();
+  try {
+    const rows = await supaFetch(T.USERS + '?select=email&email=eq.' + encodeURIComponent(normalized));
+    return rows && rows.length > 0;
+  } catch (e) {
+    console.warn('isEmailAuthorized failed', e);
+    return false;
+  }
+}
+
+async function initAuth() {
+  // Restituisce true se l'utente è autenticato e autorizzato → app procede
+  const client = getSupabaseClient();
+  if (!client) {
+    console.warn('supabase-js non caricato — auth disabilitata');
+    return true; // fallback: lascia entrare senza auth (se il CDN fallisce)
+  }
+  try {
+    const { data: { session } } = await client.auth.getSession();
+    if (session && session.user && session.user.email) {
+      const email = session.user.email.toLowerCase();
+      const ok = await isEmailAuthorized(email);
+      if (ok) {
+        S.currentUser = {
+          email,
+          nome: (session.user.user_metadata && (session.user.user_metadata.full_name || session.user.user_metadata.name)) || email,
+          picture: session.user.user_metadata && session.user.user_metadata.picture
+        };
+        hideLoginOverlay();
+        return true;
+      } else {
+        // utente loggato ma non autorizzato
+        await client.auth.signOut();
+        showLoginOverlay('L\'email ' + email + ' non è autorizzata.\nChiedi all\'amministratore di aggiungerla.');
+        return false;
+      }
+    }
+    // nessuna sessione: mostra schermata login
+    showLoginOverlay();
+    return false;
+  } catch (e) {
+    console.warn('initAuth error', e);
+    showLoginOverlay('Errore di autenticazione: ' + e.message);
+    return false;
+  }
+}
+
+async function doLogin() {
+  const client = getSupabaseClient();
+  if (!client) { toast('Sistema di login non disponibile', 'error'); return; }
+  const errEl = document.getElementById('loginError');
+  if (errEl) errEl.style.display = 'none';
+  try {
+    const { error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname,
+        queryParams: { access_type: 'offline', prompt: 'consent' }
+      }
+    });
+    if (error) {
+      const msg = error.message || String(error);
+      showLoginOverlay('Login fallito: ' + msg + '\n\nVerifica che Google sia abilitato in Supabase Authentication → Providers.');
+    }
+    // Se ok, redirect a Google → ritorno con session → onAuthStateChange ricarica
+  } catch (e) {
+    showLoginOverlay('Errore: ' + e.message);
+  }
+}
+
+async function doLogout() {
+  const client = getSupabaseClient();
+  if (client) {
+    try { await client.auth.signOut(); } catch {}
+  }
+  S.currentUser = null;
+  location.reload();
+}
+
+function showLoginOverlay(errorMsg) {
+  const ov = document.getElementById('loginOverlay');
+  const errEl = document.getElementById('loginError');
+  const verEl = document.getElementById('loginVer');
+  if (ov) ov.style.display = 'flex';
+  if (errEl) {
+    if (errorMsg) {
+      errEl.textContent = errorMsg;
+      errEl.style.display = 'block';
+    } else {
+      errEl.style.display = 'none';
+    }
+  }
+  if (verEl) verEl.textContent = (S.localSha || '').slice(0, 7) || '—';
+  document.body.style.overflow = 'hidden';
+}
+
+function hideLoginOverlay() {
+  const ov = document.getElementById('loginOverlay');
+  if (ov) ov.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function bindLoginButton() {
+  const btn = document.getElementById('loginGoogleBtn');
+  if (btn) btn.addEventListener('click', doLogin);
 }
 
 // ─── REALTIME ───────────────────────────────────────────────
@@ -2831,9 +3149,14 @@ function bindEvents() {
   D.btnMonthNext.addEventListener('click', () => shiftMonth(1));
   // fab
   D.fab.addEventListener('click', () => openQuickAdd());
+  // theme toggle in header
+  if (D.themeToggle) D.themeToggle.addEventListener('click', cycleTheme);
   D.setSave.addEventListener('click', saveSettings);
   D.setExport.addEventListener('click', exportCsv);
   D.setClearCache.addEventListener('click', clearCache);
+  if (D.setAddUser)   D.setAddUser.addEventListener('click', openUserAdd);
+  if (D.userEditSave) D.userEditSave.addEventListener('click', saveAuthorizedUser);
+  if (D.setLogout)    D.setLogout.addEventListener('click', () => doLogout());
   // update
   D.btnUpdate.addEventListener('click', applyUpdate);
   // list filters
@@ -3063,6 +3386,13 @@ async function init() {
   loadLocalCache();
   loadQueue();
   applyTheme();
+  bindLoginButton();
+  // ── AUTH: se l'utente non è autenticato/autorizzato, l'overlay blocca l'app
+  const authed = await initAuth();
+  if (!authed) {
+    // Mantieni l'overlay visibile; non procedere con il resto dell'init
+    return;
+  }
   bindEvents();
   initMonth();
   renderHeader();
@@ -3094,6 +3424,8 @@ async function init() {
     const sha = verRows && verRows[0] && verRows[0].sha;
     if (sha && D.setVersion) D.setVersion.textContent = sha.slice(0, 7);
   } catch {}
+  // utenti autorizzati (per gestione UI nelle impostazioni)
+  loadAuthorizedUsers();
   // realtime
   setupRealtime();
   // pull-to-refresh
