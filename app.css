@@ -1085,16 +1085,17 @@ html[data-theme="light"] .carousel-arrow.side {
   grid-template-columns: 1fr 1fr 80px 1fr;
 }
 
-/* Bottom-nav stile "pill tonde sporgenti" (5 moduli) */
+/* Bottom-nav stile "pill tonde sporgenti" (6 moduli + impostazioni) */
 .bottom-nav.nav-pills {
   display: flex;
   justify-content: space-around;
   align-items: flex-start;
   background: var(--surface);
   border-top: 1px solid var(--border);
-  padding: 4px 8px;
+  padding: 4px 6px;
   padding-bottom: var(--safe-b);
   height: calc(var(--nav-h) + 4px + var(--safe-b));
+  gap: 2px;
 }
 .nav-pill {
   display: flex;
@@ -1102,21 +1103,29 @@ html[data-theme="light"] .carousel-arrow.side {
   align-items: center;
   justify-content: center;
   gap: 1px;
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 1;
+  min-width: 0;
   border-radius: 50%;
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-dim);
   cursor: pointer;
-  margin-top: -16px;
+  margin-top: -14px;
   box-shadow: 0 4px 12px rgba(0,0,0,.18);
   transition: transform .15s, background .15s, color .15s, box-shadow .15s, border-color .15s;
   padding: 0;
   font-family: inherit;
 }
-.nav-pill .np-ic { font-size: 22px; line-height: 1; }
-.nav-pill .np-lbl { font-size: 9px; font-weight: 600; opacity: .8; margin-top: 1px; }
+.nav-pill .np-ic { font-size: 20px; line-height: 1; }
+.nav-pill .np-lbl { font-size: 9px; font-weight: 600; opacity: .8; margin-top: 1px; line-height: 1; }
+/* su schermi molto stretti, riduci ulteriormente */
+@media (max-width: 380px) {
+  .nav-pill { width: 46px; height: 46px; margin-top: -12px; }
+  .nav-pill .np-ic { font-size: 18px; }
+  .nav-pill .np-lbl { display: none; }
+}
 .nav-pill:active { transform: scale(.92); }
 .nav-pill.active {
   background: var(--accent);
