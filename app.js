@@ -92,18 +92,10 @@ const S = {
 // ─── DOM CACHE ──────────────────────────────────────────────
 const D = {};
 function cacheDOM() {
-  ['monthLabel','btnMonthPrev','btnMonthNext','btnSettings','btnUpdate',
-   'view-home','view-list','view-budget','view-cat',
-   'saldoNum','saldoIn','saldoOut','ultime','donutWrap','lineWrap','budgetBars',
-   'compareWrap',
-   'meseTrendPrev','meseTrendNext','meseTrendLabel','meseTrendChart',
-   'meseCmpPrev','meseCmpNext','meseCmpLabel',
-   'donutCarousel','donutCarouselDots','donutCarouselTitle',
-   'trendCarousel','trendCarouselDots','trendCarouselTitle',
-   'anCatDonut','anCatDetail','anAutoreDonut','anAutoreDetail',
-   'anTrend12Chart','anTrend12Detail',
-   'anMeseTrendPrev','anMeseTrendNext','anMeseTrendLabel','anMeseTrendChart','anMeseTrendDetail',
-   'anCmpPrev','anCmpNext','anCmpLabel','anCmpWrap','anCmpDetail','anCmpDiffChart',
+  ['appTitle','monthNav','monthLabel','btnMonthPrev','btnMonthNext','btnUpdate',
+   'view-home','view-conti','view-list','view-cat',
+   'homeContiDonut','homeContiSaldo','homeContiSubtle','goToList','goToCategorie',
+   'saldoNum','saldoIn','saldoOut','ultime','donutWrap',
    'searchInput','listFilters','txList',
    'listPeriodChips','listPeriodCustom','listPeriodFrom','listPeriodTo','listPeriodSummary',
    'budgetList','catTabs','catList','btnAddCat',
@@ -358,9 +350,9 @@ async function fullReload() {
 // ─── RENDER ALL ─────────────────────────────────────────────
 function renderAll() {
   renderHeader();
-  renderHome();
+  renderHomeGestione();
+  renderConti();
   renderList();
-  renderBudgetView();
   renderCatView();
   renderSettings();
 }
@@ -395,7 +387,7 @@ function shiftMonth(delta) {
   localStorage.setItem(LS.LAST_MONTH, monthKey(anno, mese));
   renderHeader();
   ensureMonthLoaded().then(() => {
-    renderHome();
+    renderHomeGestione(); renderConti();
     renderList();
   });
 }
@@ -438,7 +430,7 @@ function txInCurrentMonth() {
   return S.tx.filter(t => inMonth(t.data, anno, mese));
 }
 
-function renderHome() {
+function renderConti() {
   if (!S.currentMonth) return;
   const arr = txInCurrentMonth();
   const inSum = arr.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
@@ -492,20 +484,49 @@ function renderHome() {
   });
   Charts.renderDonut(D.donutWrap, segs, { subLabel: 'uscite mese' });
 
-  // Donut uscite per AUTORE
-  renderAutoreDonut(arr);
+}
 
-  // Trend 12 mesi (entrate vs uscite)
-  renderTrend();
+// ─── HOME GESTIONE CASA (widget moduli) ─────────────────────
+function renderHomeGestione() {
+  // Widget Conti di Casa: mini donut uscite + saldo del mese
+  const arr = txInCurrentMonth();
+  const inSum  = arr.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
+  const outSum = arr.filter(t => t.tipo === 'uscita').reduce((s, t) => s + Number(t.importo), 0);
+  const saldo  = inSum - outSum;
 
-  // Trend del mese intero (selettore indipendente)
-  renderMeseTrend();
+  if (D.homeContiSaldo) {
+    D.homeContiSaldo.textContent = (saldo >= 0 ? '+' : '−') + fmtEur(Math.abs(saldo)).slice(1);
+    D.homeContiSaldo.className = 'mc-saldo ' + (saldo >= 0 ? 'pos' : 'neg');
+  }
+  if (D.homeContiSubtle && S.currentMonth) {
+    D.homeContiSubtle.textContent = MESI_FULL[S.currentMonth.mese - 1] + ' ' + S.currentMonth.anno;
+  }
 
-  // Confronto col mese precedente (selettore indipendente)
-  renderCompareMonth();
-
-  // Setup caroselli (idempotente)
-  setupCarousels();
+  // Mini donut: uscite per macro categoria (no testo centro, no legenda)
+  if (D.homeContiDonut) {
+    const uscByMacro = {};
+    arr.filter(t => t.tipo === 'uscita').forEach(t => {
+      const c = catById(t.categoria_id);
+      const macroId = (c && c.macro_categoria) || 'altro';
+      uscByMacro[macroId] = (uscByMacro[macroId] || 0) + Number(t.importo);
+    });
+    const MACRO_COLORS = {
+      casa:'#3498db', cibo:'#e74c3c', bollette:'#f39c12', trasporti:'#9b59b6',
+      salute:'#1abc9c', svago:'#34d399', sport:'#16a34a', abbigliamento:'#a777e3',
+      famiglia:'#f472b6', animali:'#fb923c', tecnologia:'#0ea5e9', regali:'#ff5722',
+      viaggi:'#06b6d4', lavoro:'#64748b', soldi:'#2ecc71', natura:'#22c55e', altro:'#94a3b8'
+    };
+    const segs = Object.keys(uscByMacro).map(macroId => ({
+      label: macroLabel(macroId),
+      value: uscByMacro[macroId],
+      color: MACRO_COLORS[macroId] || '#666'
+    }));
+    if (segs.length) {
+      Charts.renderDonut(D.homeContiDonut, segs, { noText: true, noLegend: true });
+    } else {
+      D.homeContiDonut.innerHTML = '<div style="width:100px;height:100px;display:grid;place-items:center;color:var(--text-faint);font-size:11px;text-align:center">Nessuna<br>uscita</div>';
+    }
+  }
 }
 
 // ─── TREND DEL MESE INTERO (selettore indipendente) ─────────
@@ -1471,17 +1492,27 @@ async function persistCatOrder() {
 // ─── SWITCH VIEW ────────────────────────────────────────────
 function switchView(name) {
   S.currentView = name;
-  ['home','list','analisi','cat'].forEach(v => {
+  ['home','conti','list','cat'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.classList.toggle('active', v === name);
   });
   $$('.nav-btn').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-view') === name);
   });
-  if (name === 'home') renderHome();
+  // header: titolo "Gestione Casa" in home, mese-nav nelle altre view
+  if (D.appTitle && D.monthNav) {
+    if (name === 'home') {
+      D.appTitle.style.display = '';
+      D.monthNav.style.display = 'none';
+    } else {
+      D.appTitle.style.display = 'none';
+      D.monthNav.style.display = 'flex';
+    }
+  }
+  if (name === 'home')      renderHomeGestione();
+  else if (name === 'conti') renderConti();
   else if (name === 'list') renderList();
-  else if (name === 'analisi') renderAnalisi();
-  else if (name === 'cat') renderCatView();
+  else if (name === 'cat')  renderCatView();
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
@@ -2136,7 +2167,7 @@ async function saveTransaction(payload) {
   S.tx.unshift(row);
   S.pendingTxIds.add(tmpId);
   saveLocalCache();
-  renderHome();
+  renderHomeGestione(); renderConti();
   renderList();
   // remoto
   const path = T.TX + '?select=*';
@@ -2152,7 +2183,7 @@ async function saveTransaction(payload) {
       if (idx >= 0) S.tx[idx] = res[0];
       S.pendingTxIds.delete(tmpId);
       saveLocalCache();
-      renderHome();
+      renderHomeGestione(); renderConti();
       renderList();
     }
   } catch (e) {
@@ -2191,7 +2222,7 @@ async function saveTxEdit() {
   const idx = S.tx.findIndex(t => t.id === S.editTxId);
   if (idx >= 0) S.tx[idx] = Object.assign({}, S.tx[idx], payload);
   saveLocalCache();
-  renderHome(); renderList();
+  renderHomeGestione(); renderConti(); renderList();
   closeModal('modalTx');
   toast('Transazione modificata', 'success');
   const path = T.TX + '?id=eq.' + S.editTxId;
@@ -2213,7 +2244,7 @@ async function deleteTxEdit() {
   // optimistic
   S.tx = S.tx.filter(t => t.id !== S.editTxId);
   saveLocalCache();
-  renderHome(); renderList();
+  renderHomeGestione(); renderConti(); renderList();
   closeModal('modalTx');
   toast('Transazione eliminata', 'success');
   const path = T.TX + '?id=eq.' + S.editTxId;
@@ -2452,7 +2483,7 @@ async function saveCatEdit() {
     const c = catById(S.editCatId);
     if (c) Object.assign(c, payload);
     saveLocalCache();
-    renderCatView(); renderHome(); renderList();
+    renderCatView(); renderHomeGestione(); renderConti(); renderList();
     closeModal('modalCat');
     toast('Categoria modificata', 'success');
     const path = T.CATS + '?id=eq.' + S.editCatId;
@@ -2474,7 +2505,7 @@ async function deleteCatEdit() {
   S.cats = S.cats.filter(c => c.id !== S.editCatId);
   S.tx.forEach(t => { if (t.categoria_id === S.editCatId) t.categoria_id = null; });
   saveLocalCache();
-  renderCatView(); renderHome(); renderList();
+  renderCatView(); renderHomeGestione(); renderConti(); renderList();
   closeModal('modalCat');
   toast('Categoria eliminata', 'success');
   const path = T.CATS + '?id=eq.' + S.editCatId;
@@ -2508,7 +2539,7 @@ async function saveBudgetEdit() {
     S.budgets.push({ id: uuid(), categoria_id: S.editBudgetCatId, anno, mese, importo });
   }
   saveLocalCache();
-  renderBudgetView(); renderHome();
+  renderHomeGestione(); renderConti();
   closeModal('modalBudget');
   toast('Budget salvato', 'success');
   // remoto: upsert via on_conflict
@@ -2535,7 +2566,7 @@ async function deleteBudgetEdit() {
   if (!existing) { closeModal('modalBudget'); return; }
   S.budgets = S.budgets.filter(x => x !== existing);
   saveLocalCache();
-  renderBudgetView(); renderHome();
+  renderHomeGestione(); renderConti();
   closeModal('modalBudget');
   toast('Budget rimosso', 'success');
   if (typeof existing.id === 'number') {
@@ -2717,7 +2748,7 @@ function onTxChange(p) {
     S.tx = S.tx.filter(t => t.id !== p.old.id);
   }
   saveLocalCache();
-  if (S.currentView === 'home') renderHome();
+  if (S.currentView === 'home') renderHomeGestione(); renderConti();
   else if (S.currentView === 'list') renderList();
   // dashboard widgets (saldo, donut, budget bars) si aggiornano nei rispettivi renderHome
 }
@@ -2732,10 +2763,9 @@ function onCatChange(p) {
     S.cats = S.cats.filter(c => c.id !== p.old.id);
   }
   saveLocalCache();
-  renderHome();
+  renderHomeGestione(); renderConti();
   if (S.currentView === 'list') renderList();
   if (S.currentView === 'cat') renderCatView();
-  if (S.currentView === 'budget') renderBudgetView();
 }
 function onBudgetChange(p) {
   const ev = p.eventType;
@@ -2748,8 +2778,7 @@ function onBudgetChange(p) {
     S.budgets = S.budgets.filter(b => b.id !== p.old.id);
   }
   saveLocalCache();
-  renderHome();
-  if (S.currentView === 'budget') renderBudgetView();
+  renderHomeGestione(); renderConti();
 }
 function onPrefsChange(p) {
   if (p && p.new && p.new.dati) {
@@ -2790,15 +2819,18 @@ async function applyUpdate() {
 
 // ─── EVENT BINDING ──────────────────────────────────────────
 function bindEvents() {
-  // nav
-  $$('.nav-btn').forEach(b => b.addEventListener('click', () => switchView(b.getAttribute('data-view'))));
+  // nav: data-view per cambio vista, data-action="settings" per modal
+  $$('.nav-btn').forEach(b => b.addEventListener('click', () => {
+    const action = b.getAttribute('data-action');
+    if (action === 'settings') { renderSettings(); openModal('modalSettings'); return; }
+    const view = b.getAttribute('data-view');
+    if (view) switchView(view);
+  }));
   // month nav
   D.btnMonthPrev.addEventListener('click', () => shiftMonth(-1));
   D.btnMonthNext.addEventListener('click', () => shiftMonth(1));
   // fab
   D.fab.addEventListener('click', () => openQuickAdd());
-  // settings
-  D.btnSettings.addEventListener('click', () => { renderSettings(); openModal('modalSettings'); });
   D.setSave.addEventListener('click', saveSettings);
   D.setExport.addEventListener('click', exportCsv);
   D.setClearCache.addEventListener('click', clearCache);
@@ -2870,6 +2902,20 @@ function bindEvents() {
   // tx edit
   D.txEditSave.addEventListener('click', saveTxEdit);
   D.txEditDelete.addEventListener('click', deleteTxEdit);
+  // Home Gestione Casa: tap su widget moduli
+  $$('.module-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const mod = card.getAttribute('data-mod');
+      if (mod === 'conti') {
+        switchView('conti');
+      } else {
+        toast('Modulo in arrivo', 'info');
+      }
+    });
+  });
+  // Modulo Conti: pulsanti per andare a sotto-pagine
+  if (D.goToList)      D.goToList.addEventListener('click', () => switchView('list'));
+  if (D.goToCategorie) D.goToCategorie.addEventListener('click', () => switchView('cat'));
   // cat edit
   D.catEditSave.addEventListener('click', saveCatEdit);
   D.catEditDelete.addEventListener('click', deleteCatEdit);
@@ -3020,6 +3066,10 @@ async function init() {
   bindEvents();
   initMonth();
   renderHeader();
+  // header iniziale: siamo in home → titolo "Gestione Casa" visibile, mese-nav nascosto
+  if (D.appTitle) D.appTitle.style.display = '';
+  if (D.monthNav) D.monthNav.style.display = 'none';
+  S.currentView = 'home';
   // render iniziale da cache
   if (S.cats.length || S.tx.length) {
     renderAll();

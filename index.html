@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f1419">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Conti">
+  <meta name="apple-mobile-web-app-title" content="Casa">
   <link rel="manifest" href="./manifest.json">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=3" type="image/png">
@@ -23,14 +23,15 @@
   <link rel="apple-touch-icon" sizes="167x167" href="./apple-touch-icon-167.png?v=3">
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-180.png?v=3">
   <link rel="stylesheet" href="./app.css">
-  <title>Conti di Casa</title>
+  <title>Gestione Casa</title>
 </head>
 <body>
 
   <!-- HEADER -->
   <header class="app-header">
     <div class="app-header-inner">
-      <div class="month-nav">
+      <span id="appTitle" class="app-title">🏠 Gestione Casa</span>
+      <div class="month-nav" id="monthNav" style="display:none">
         <button id="btnMonthPrev" class="icon-btn" aria-label="Mese precedente">‹</button>
         <span id="monthLabel" class="month-label">—</span>
         <button id="btnMonthNext" class="icon-btn" aria-label="Mese successivo">›</button>
@@ -38,7 +39,6 @@
       <button id="btnUpdate" title="Nuovo aggiornamento disponibile — clicca per ricaricare" aria-label="Aggiornamento disponibile">
         <span>↻</span><span>Aggiorna</span>
       </button>
-      <button id="btnSettings" class="icon-btn" aria-label="Impostazioni">⚙</button>
     </div>
   </header>
 
@@ -48,8 +48,57 @@
   <!-- MAIN -->
   <main>
 
-    <!-- HOME (dashboard) -->
+    <!-- HOME GESTIONE CASA -->
     <section id="view-home" class="view active">
+      <div class="module-grid">
+
+        <button class="module-card module-conti" data-mod="conti" type="button">
+          <div class="mc-header">
+            <span class="mc-icon">💰</span>
+            <span class="mc-title">Conti di Casa</span>
+            <span class="mc-go">›</span>
+          </div>
+          <div class="mc-body">
+            <div id="homeContiDonut" class="mc-mini-donut"></div>
+            <div class="mc-stats">
+              <div class="mc-saldo" id="homeContiSaldo">—</div>
+              <div class="mc-subtle" id="homeContiSubtle">saldo del mese</div>
+            </div>
+          </div>
+        </button>
+
+        <button class="module-card module-soon" data-mod="spesa" type="button">
+          <div class="mc-header">
+            <span class="mc-icon">🛒</span>
+            <span class="mc-title">Lista della spesa</span>
+            <span class="mc-soon">presto</span>
+          </div>
+          <div class="mc-body soon">Cosa manca a casa, condiviso in tempo reale</div>
+        </button>
+
+        <button class="module-card module-soon" data-mod="todo" type="button">
+          <div class="mc-header">
+            <span class="mc-icon">✅</span>
+            <span class="mc-title">ToDo</span>
+            <span class="mc-soon">presto</span>
+          </div>
+          <div class="mc-body soon">Cose da fare in casa</div>
+        </button>
+
+        <button class="module-card module-soon" data-mod="scadenze" type="button">
+          <div class="mc-header">
+            <span class="mc-icon">📅</span>
+            <span class="mc-title">Scadenze</span>
+            <span class="mc-soon">presto</span>
+          </div>
+          <div class="mc-body soon">Bollette, abbonamenti, compleanni</div>
+        </button>
+
+      </div>
+    </section>
+
+    <!-- MODULO CONTI DI CASA -->
+    <section id="view-conti" class="view">
       <div class="card">
         <h3 class="card-title">Saldo del mese</h3>
         <div id="saldoNum" class="saldo-num">—</div>
@@ -60,59 +109,14 @@
         <div id="ultime"></div>
       </div>
 
-      <div class="card carousel-card">
-        <div class="carousel-header">
-          <h3 class="card-title carousel-title" id="donutCarouselTitle">Uscite per categoria</h3>
-          <div class="carousel-dots" id="donutCarouselDots"></div>
-        </div>
-        <div class="carousel-track-wrap">
-          <button class="carousel-arrow side prev" data-dir="-1" aria-label="Precedente">‹</button>
-          <div class="carousel-track" id="donutCarousel">
-            <div class="carousel-slide" data-slide="0"><div id="donutWrap" class="donut-wrap"></div></div>
-            <div class="carousel-slide" data-slide="1"><div id="autoreDonutWrap" class="donut-wrap"></div></div>
-          </div>
-          <button class="carousel-arrow side next" data-dir="1" aria-label="Successivo">›</button>
-        </div>
+      <div class="card">
+        <h3 class="card-title">Uscite per categoria</h3>
+        <div id="donutWrap" class="donut-wrap"></div>
       </div>
 
-      <div class="card carousel-card">
-        <div class="carousel-header">
-          <h3 class="card-title carousel-title" id="trendCarouselTitle">Trend 12 mesi</h3>
-          <div class="carousel-dots" id="trendCarouselDots"></div>
-        </div>
-        <div class="carousel-track-wrap">
-          <button class="carousel-arrow side prev" data-dir="-1" aria-label="Precedente">‹</button>
-          <div class="carousel-track" id="trendCarousel">
-          <div class="carousel-slide" data-slide="0">
-            <div id="lineWrap" class="line-wrap"></div>
-            <div class="line-legend">
-              <span><span class="dot" style="background:var(--ok)"></span>Entrate</span>
-              <span><span class="dot" style="background:var(--danger)"></span>Uscite</span>
-            </div>
-          </div>
-          <div class="carousel-slide" data-slide="1">
-            <div class="slide-month-nav">
-              <button id="meseTrendPrev" class="slide-month-btn" aria-label="Mese precedente">‹</button>
-              <span id="meseTrendLabel" class="slide-month-label">—</span>
-              <button id="meseTrendNext" class="slide-month-btn" aria-label="Mese successivo">›</button>
-            </div>
-            <div id="meseTrendChart" class="line-wrap"></div>
-            <div class="line-legend">
-              <span><span class="dot" style="background:var(--danger)"></span>Uscite</span>
-              <span><span class="dot" style="background:var(--ok)"></span>Entrate</span>
-            </div>
-          </div>
-          <div class="carousel-slide" data-slide="2">
-            <div class="slide-month-nav">
-              <button id="meseCmpPrev" class="slide-month-btn" aria-label="Mese precedente">‹</button>
-              <span id="meseCmpLabel" class="slide-month-label">—</span>
-              <button id="meseCmpNext" class="slide-month-btn" aria-label="Mese successivo">›</button>
-            </div>
-            <div id="compareWrap" class="compare-wrap"></div>
-          </div>
-          </div>
-          <button class="carousel-arrow side next" data-dir="1" aria-label="Successivo">›</button>
-        </div>
+      <div class="module-actions">
+        <button class="btn-secondary" id="goToList" type="button">📋 Vedi tutte le transazioni</button>
+        <button class="btn-secondary" id="goToCategorie" type="button">📁 Gestisci categorie</button>
       </div>
     </section>
 
@@ -138,62 +142,6 @@
       <div id="txList"></div>
     </section>
 
-    <!-- ANALISI -->
-    <section id="view-analisi" class="view">
-      <h2>Analisi dati</h2>
-      <p class="txt-dim" style="font-size:13px;margin:0 4px 14px;">Stessi grafici della Home con il dettaglio di ogni voce sotto.</p>
-
-      <div class="card">
-        <h3 class="card-title">Uscite per categoria</h3>
-        <div id="anCatDonut" class="donut-wrap"></div>
-        <div id="anCatDetail" class="analisi-detail-list"></div>
-      </div>
-
-      <div class="card">
-        <h3 class="card-title">Uscite per autore</h3>
-        <div id="anAutoreDonut" class="donut-wrap"></div>
-        <div id="anAutoreDetail" class="analisi-detail-list"></div>
-      </div>
-
-      <div class="card">
-        <h3 class="card-title">Trend 12 mesi</h3>
-        <div id="anTrend12Chart" class="line-wrap"></div>
-        <div class="line-legend">
-          <span><span class="dot" style="background:var(--ok)"></span>Entrate</span>
-          <span><span class="dot" style="background:var(--danger)"></span>Uscite</span>
-        </div>
-        <div id="anTrend12Detail"></div>
-      </div>
-
-      <div class="card">
-        <h3 class="card-title">Trend del mese</h3>
-        <div class="slide-month-nav">
-          <button id="anMeseTrendPrev" class="slide-month-btn" aria-label="Mese precedente">‹</button>
-          <span id="anMeseTrendLabel" class="slide-month-label">—</span>
-          <button id="anMeseTrendNext" class="slide-month-btn" aria-label="Mese successivo">›</button>
-        </div>
-        <div id="anMeseTrendChart" class="line-wrap"></div>
-        <div class="line-legend">
-          <span><span class="dot" style="background:var(--danger)"></span>Uscite</span>
-          <span><span class="dot" style="background:var(--ok)"></span>Entrate</span>
-        </div>
-        <div id="anMeseTrendDetail"></div>
-      </div>
-
-      <div class="card">
-        <h3 class="card-title">Confronto col mese precedente</h3>
-        <div class="slide-month-nav">
-          <button id="anCmpPrev" class="slide-month-btn" aria-label="Mese precedente">‹</button>
-          <span id="anCmpLabel" class="slide-month-label">—</span>
-          <button id="anCmpNext" class="slide-month-btn" aria-label="Mese successivo">›</button>
-        </div>
-        <div id="anCmpWrap" class="compare-wrap"></div>
-        <div id="anCmpDetail"></div>
-        <h3 class="card-title" style="margin-top:20px;font-size:11px">Variazione per macro</h3>
-        <div id="anCmpDiffChart" class="diff-chart-wrap"></div>
-      </div>
-    </section>
-
     <!-- CATEGORIE -->
     <section id="view-cat" class="view">
       <div class="cat-tabs" id="catTabs">
@@ -206,13 +154,12 @@
 
   </main>
 
-  <!-- BOTTOM NAV -->
-  <nav class="bottom-nav">
+  <!-- BOTTOM NAV (4 voci: Home | Conti | + FAB | Impostazioni) -->
+  <nav class="bottom-nav nav-4">
     <button class="nav-btn active" data-view="home" aria-label="Home"><span class="ic">🏠</span><span>Home</span></button>
-    <button class="nav-btn" data-view="list" aria-label="Saldo e transazioni"><span class="ic">📋</span><span>Saldo</span></button>
+    <button class="nav-btn" data-view="conti" aria-label="Conti di Casa"><span class="ic">💰</span><span>Conti</span></button>
     <div class="fab-wrap"><button id="fab" class="fab" aria-label="Aggiungi transazione">+</button></div>
-    <button class="nav-btn" data-view="analisi" aria-label="Analisi dati"><span class="ic">📊</span><span>Analisi</span></button>
-    <button class="nav-btn" data-view="cat" aria-label="Categorie"><span class="ic">📁</span><span>Categorie</span></button>
+    <button class="nav-btn" data-action="settings" aria-label="Impostazioni"><span class="ic">⚙️</span><span>Impostaz.</span></button>
   </nav>
 
   <!-- ─────────── MODALS ─────────── -->

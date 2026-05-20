@@ -111,8 +111,18 @@ button { cursor: pointer; touch-action: manipulation; }
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 8px;
+  padding: 0 12px;
   height: var(--header-h);
+}
+
+.app-title {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .month-nav {
@@ -183,6 +193,104 @@ main { max-width: 760px; margin: 0 auto; padding: 12px; }
 .view.active { display: block; }
 
 h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
+
+/* ─── HOME GESTIONE CASA: widget moduli ───────────────────── */
+.module-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 4px;
+}
+.module-card {
+  display: block;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .15s;
+  text-align: left;
+  color: inherit;
+  font-family: inherit;
+}
+.module-card:active { transform: scale(.98); }
+.module-card.module-soon { opacity: .65; }
+.mc-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.mc-icon { font-size: 26px; line-height: 1; }
+.mc-title { font-size: 16px; font-weight: 700; flex: 1; color: var(--text); }
+.mc-go {
+  color: var(--text-faint);
+  font-size: 20px;
+  font-weight: 300;
+}
+.mc-soon {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.mc-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.mc-body.soon {
+  color: var(--text-faint);
+  font-size: 13px;
+  font-style: italic;
+  padding: 4px 0;
+}
+.mc-mini-donut {
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+}
+.mc-mini-donut svg {
+  width: 100px;
+  height: 100px;
+  display: block;
+}
+.mc-stats { flex: 1; min-width: 0; }
+.mc-saldo {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+.mc-saldo.pos { color: var(--ok); }
+.mc-saldo.neg { color: var(--danger); }
+.mc-subtle {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+/* ─── MODULO CONTI: pulsanti azioni ──────────────────────── */
+.module-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.module-actions .btn-secondary {
+  text-align: center;
+  font-size: 14px;
+  padding: 14px;
+}
 
 /* ─── CARDS / WIDGETS ─────────────────────────────────────── */
 
@@ -822,6 +930,9 @@ html[data-theme="light"] .carousel-arrow.side {
   display: grid;
   grid-template-columns: 1fr 1fr 80px 1fr 1fr;
   z-index: 40;
+}
+.bottom-nav.nav-4 {
+  grid-template-columns: 1fr 1fr 80px 1fr;
 }
 
 .nav-btn {

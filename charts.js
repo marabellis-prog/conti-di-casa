@@ -65,24 +65,28 @@
       svg.appendChild(path);
     });
 
-    // Centro: totale
-    const txt = document.createElementNS(NS, 'text');
-    txt.setAttribute('x', CX);
-    txt.setAttribute('y', CY + 4);
-    txt.setAttribute('text-anchor', 'middle');
-    txt.setAttribute('class', 'donut-center');
-    txt.textContent = fmtEurShort(total);
-    svg.appendChild(txt);
+    // Centro: totale (skip se opts.noText)
+    if (!opts.noText) {
+      const txt = document.createElementNS(NS, 'text');
+      txt.setAttribute('x', CX);
+      txt.setAttribute('y', CY + 4);
+      txt.setAttribute('text-anchor', 'middle');
+      txt.setAttribute('class', 'donut-center');
+      txt.textContent = fmtEurShort(total);
+      svg.appendChild(txt);
 
-    const sub = document.createElementNS(NS, 'text');
-    sub.setAttribute('x', CX);
-    sub.setAttribute('y', CY + 20);
-    sub.setAttribute('text-anchor', 'middle');
-    sub.setAttribute('class', 'donut-center-sub');
-    sub.textContent = (opts.subLabel || 'totale');
-    svg.appendChild(sub);
+      const sub = document.createElementNS(NS, 'text');
+      sub.setAttribute('x', CX);
+      sub.setAttribute('y', CY + 20);
+      sub.setAttribute('text-anchor', 'middle');
+      sub.setAttribute('class', 'donut-center-sub');
+      sub.textContent = (opts.subLabel || 'totale');
+      svg.appendChild(sub);
+    }
 
     container.appendChild(svg);
+
+    if (opts.noLegend) return;
 
     // Legend
     const legend = document.createElement('div');
