@@ -1178,6 +1178,58 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   padding: 4px 0;
 }
 
+/* Sub-titoli interni al modal Filtri (Entrate / Uscite) */
+.filter-subtitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 10px 2px 6px;
+}
+.filter-subtitle:first-child { margin-top: 2px; }
+.filter-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px;
+  margin-bottom: 8px;
+}
+
+/* Badge filtri attivi sopra Tutto/Uscite/Entrate nella pagina Transazioni */
+.active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.active-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #0f1419;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+.active-filter-badge .badge-x {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 20, 25, .18);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  transition: background .15s, transform .12s;
+}
+.active-filter-badge .badge-x:hover { background: rgba(15, 20, 25, .32); }
+.active-filter-badge .badge-x:active { transform: scale(.85); }
+
 .list-period-custom {
   display: flex;
   align-items: center;

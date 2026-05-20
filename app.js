@@ -110,7 +110,7 @@ function cacheDOM() {
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap',
    'carouselTrack','carouselPrev','carouselNext','carouselTitle','carouselDots',
    'trendFrom','trendTo','trend3mWrap',
-   'listFilters','txList',
+   'listFilters','txList','activeFiltersBar',
    'btnTogglePeriod','btnOpenFilters','filterBadge',
    'modalFilters','filterCats','filterAutori','btnApplyFilters','btnResetFilters',
    'listPeriodCustom','listPeriodFrom','listPeriodTo','listPeriodSummary',
@@ -1606,6 +1606,8 @@ function renderList() {
   }
   // Badge sul pulsante "Seleziona filtri": numero filtri attivi
   updateFilterBadge();
+  // Barra dei badge dei filtri attivi (sopra Tutto/Uscite/Entrate)
+  renderActiveFilters();
 
   // Validazione custom: se manca uno dei due estremi, mostra messaggio
   if (S.listPeriod === 'custom' && (!S.listFrom || !S.listTo)) {
@@ -1704,6 +1706,57 @@ function updateFilterBadge() {
   }
 }
 
+// Mostra i badge dei filtri attivi sopra i chip Tutto/Uscite/Entrate.
+// Ogni badge ha una x che rimuove SOLO quel filtro specifico.
+function renderActiveFilters() {
+  const bar = D.activeFiltersBar;
+  if (!bar) return;
+  const cats   = S.filtersCats || [];
+  const autori = S.filtersAutori || [];
+  if (!cats.length && !autori.length) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+  bar.style.display = 'flex';
+  let html = '';
+  // Badge categorie
+  cats.forEach(id => {
+    const c = catById(id);
+    const label = c ? ((c.icona ? c.icona + ' ' : '') + c.nome) : ('Cat #' + id);
+    html += '<span class="active-filter-badge" data-type="cat" data-id="' + id + '">' +
+            esc(label) +
+            '<span class="badge-x" aria-label="Rimuovi filtro" role="button">✕</span>' +
+            '</span>';
+  });
+  // Badge autori
+  autori.forEach(nome => {
+    html += '<span class="active-filter-badge" data-type="autore" data-id="' + esc(nome) + '">' +
+            '👤 ' + esc(nome) +
+            '<span class="badge-x" aria-label="Rimuovi filtro" role="button">✕</span>' +
+            '</span>';
+  });
+  bar.innerHTML = html;
+  twemojify(bar);
+  // Bind click sulla x per ogni badge
+  $$('.active-filter-badge .badge-x', bar).forEach(x => {
+    x.addEventListener('click', e => {
+      e.stopPropagation();
+      const badge = x.closest('.active-filter-badge');
+      if (!badge) return;
+      const type = badge.getAttribute('data-type');
+      const id = badge.getAttribute('data-id');
+      if (type === 'cat') {
+        const num = Number(id);
+        S.filtersCats = (S.filtersCats || []).filter(x => x !== num);
+      } else if (type === 'autore') {
+        S.filtersAutori = (S.filtersAutori || []).filter(x => x !== id);
+      }
+      renderList();
+    });
+  });
+}
+
 // stato draft per il modal (non commitato finché l'utente non preme Filtra)
 let _filtersDraft = null;
 
@@ -1723,17 +1776,30 @@ function renderFiltersModalCats() {
     D.filterCats.innerHTML = '<div class="filter-empty">Nessuna categoria configurata</div>';
     return;
   }
-  // Raggruppa per macro per leggibilità
-  const sorted = S.cats.slice().sort((a, b) => {
+  // Ordinamento interno: per macro_categoria, poi per ordine
+  const sortCats = (a, b) => {
     const ma = (a.macro_categoria || 'zzz'), mb = (b.macro_categoria || 'zzz');
     if (ma !== mb) return ma.localeCompare(mb);
     return (a.ordine || 0) - (b.ordine || 0);
-  });
-  const html = sorted.map(c => {
+  };
+  const entrate = S.cats.filter(c => c.tipo === 'entrata').sort(sortCats);
+  const uscite  = S.cats.filter(c => c.tipo === 'uscita').sort(sortCats);
+
+  const chipHtml = c => {
     const selected = _filtersDraft.cats.indexOf(c.id) !== -1;
     return '<button type="button" class="filter-chip' + (selected ? ' selected' : '') + '" data-cat-id="' + c.id + '">' +
            (c.icona ? c.icona + ' ' : '') + esc(c.nome) + '</button>';
-  }).join('');
+  };
+
+  let html = '';
+  if (entrate.length) {
+    html += '<div class="filter-subtitle">Entrate</div>';
+    html += '<div class="filter-chips-row">' + entrate.map(chipHtml).join('') + '</div>';
+  }
+  if (uscite.length) {
+    html += '<div class="filter-subtitle">Uscite</div>';
+    html += '<div class="filter-chips-row">' + uscite.map(chipHtml).join('') + '</div>';
+  }
   D.filterCats.innerHTML = html;
   twemojify(D.filterCats);
   $$('.filter-chip', D.filterCats).forEach(el => {
