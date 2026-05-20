@@ -3128,9 +3128,10 @@ function onTxChange(p) {
     S.tx = S.tx.filter(t => t.id !== p.old.id);
   }
   saveLocalCache();
-  if (S.currentView === 'home') renderHomeGestione(); renderConti();
+  // aggiorna sempre il widget Home (mini donut + saldo) e la view attiva
+  renderHomeGestione();
+  if (S.currentView === 'conti') renderConti();
   else if (S.currentView === 'list') renderList();
-  // dashboard widgets (saldo, donut, budget bars) si aggiornano nei rispettivi renderHome
 }
 function onCatChange(p) {
   const ev = p.eventType;
