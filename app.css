@@ -1125,23 +1125,34 @@ html[data-theme="light"] .carousel-arrow.side {
 }
 .nav-pill.active .np-lbl { opacity: 1; }
 
-/* Module action bar (sotto header, dentro un modulo) */
+/* Module action bar: pill agganciate al bordo inferiore dell'header (sporgenti verso il basso) */
 .module-actions-bar {
   position: sticky;
   top: calc(var(--header-h) + var(--safe-t));
   background: var(--bg);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 12px 14px;
-  z-index: 30;
+  z-index: 35;
+  padding: 0 12px 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  pointer-events: none; /* evita di intercettare click nello spazio vuoto */
 }
+.module-actions-bar > * { pointer-events: auto; }
+
+.ma-pills {
+  display: flex;
+  gap: 14px;
+  margin-top: -22px; /* metà della pill sporge sopra (sull'header) */
+  position: relative;
+  z-index: 55; /* sopra l'app-header (z-index 50) */
+}
+
 .ma-month {
   display: flex;
   align-items: center;
   gap: 4px;
+  margin-top: 8px;
 }
 .ma-month .icon-btn {
   width: 32px; height: 32px;
@@ -1155,25 +1166,21 @@ html[data-theme="light"] .carousel-arrow.side {
   font-size: 14px;
   user-select: none;
 }
-.ma-pills {
-  display: flex;
-  gap: 14px;
-  margin-top: 2px;
-}
+
 .action-pill {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 54px;
-  height: 54px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text);
-  font-size: 22px;
+  font-size: 20px;
   cursor: pointer;
   transition: transform .12s, background .15s, color .15s, box-shadow .15s, border-color .15s;
-  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  box-shadow: 0 4px 12px rgba(0,0,0,.25);
   padding: 0;
   font-family: inherit;
 }
@@ -1182,16 +1189,17 @@ html[data-theme="light"] .carousel-arrow.side {
   background: var(--accent);
   color: #0f1419;
   border-color: var(--accent-2);
+  box-shadow: 0 6px 16px rgba(125, 211, 168, .45);
 }
 .action-pill.action-add {
   background: var(--accent);
   color: #0f1419;
   border-color: var(--accent-2);
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 300;
-  width: 62px;
-  height: 62px;
-  box-shadow: 0 4px 14px rgba(125, 211, 168, .45);
+  width: 58px;
+  height: 58px;
+  box-shadow: 0 6px 18px rgba(125, 211, 168, .55);
 }
 .action-pill.action-add:active { transform: scale(.92); }
 
