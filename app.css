@@ -1455,7 +1455,7 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 
 /* Mese-nav del modulo (sotto le pill se serve) */
 .module-actions-bar {
-  margin-top: 72px; /* lascia spazio per le pill (con caption) che sporgono dall'header */
+  margin-top: 80px; /* lascia spazio per le pill (con caption) che sporgono dall'header */
   padding: 0 12px 8px;
   display: flex;
   flex-direction: column;
@@ -1467,13 +1467,18 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 /* Pill action: figlie di .app-header, posizionate assolute, sporgono fuori dal bordo inferiore */
 .ma-pills {
   position: absolute;
-  bottom: -56px; /* abbassate sotto l'header per non sovrapporre il breadcrumb */
+  /* Le pill sporgono dall'header verso il basso. top:100% le ancora al
+     bordo bottom dell'header (indipendentemente dall'altezza header che
+     varia con la safe-area). Con translateY(-14px) la pill ha 14px sopra
+     il bordo (effetto "scavato") e ~56px sotto — il breadcrumb in alto
+     non viene mai coperto. */
+  top: 100%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -14px);
   display: flex;
   gap: 18px;
   align-items: flex-start;
-  z-index: 60; /* sopra tutto il content sotto */
+  z-index: 60;
   pointer-events: auto;
 }
 .ma-item {
