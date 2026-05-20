@@ -3480,11 +3480,22 @@ async function init() {
   } catch (e) {
     console.warn('init sync failed', e);
   }
-  // versioning baseline
+  // versioning: check all'init se il SHA locale è diverso dal remoto → mostra badge
   try {
     const verRows = await supaFetch(T.VER + '?select=sha&id=eq.1');
     const sha = verRows && verRows[0] && verRows[0].sha;
-    if (sha && D.setVersion) D.setVersion.textContent = sha.slice(0, 7);
+    if (sha) {
+      if (D.setVersion) D.setVersion.textContent = sha.slice(0, 7);
+      if (!S.localSha) {
+        // prima visita: registra il SHA corrente come baseline (no badge)
+        S.localSha = sha;
+        localStorage.setItem(LS.SHA, sha);
+      } else if (sha !== S.localSha) {
+        // c'è stato un nuovo deploy mentre l'utente era offline / via Realtime
+        console.log('[update] new sha detected at init:', sha, 'vs local', S.localSha);
+        if (D.btnUpdate) D.btnUpdate.classList.add('show');
+      }
+    }
   } catch {}
   // utenti autorizzati (per gestione UI nelle impostazioni)
   loadAuthorizedUsers();
