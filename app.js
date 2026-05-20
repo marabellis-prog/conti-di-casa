@@ -2936,16 +2936,20 @@ async function isEmailAuthorized(email) {
 
 async function initAuth() {
   // Restituisce true se l'utente è autenticato e autorizzato → app procede
+  console.log('[auth] initAuth start, supabase global =', typeof supabase);
   const client = getSupabaseClient();
   if (!client) {
-    console.warn('supabase-js non caricato — auth disabilitata');
-    return true; // fallback: lascia entrare senza auth (se il CDN fallisce)
+    console.warn('[auth] supabase-js non caricato — overlay login mostrato comunque');
+    showLoginOverlay('Errore: libreria Supabase non caricata. Verifica connessione.');
+    return false; // BLOCCA invece di lasciare entrare
   }
   try {
     const { data: { session } } = await client.auth.getSession();
+    console.log('[auth] session =', session ? session.user?.email : null);
     if (session && session.user && session.user.email) {
       const email = session.user.email.toLowerCase();
       const ok = await isEmailAuthorized(email);
+      console.log('[auth] isEmailAuthorized(' + email + ') =', ok);
       if (ok) {
         S.currentUser = {
           email,
@@ -2955,17 +2959,17 @@ async function initAuth() {
         hideLoginOverlay();
         return true;
       } else {
-        // utente loggato ma non autorizzato
         await client.auth.signOut();
         showLoginOverlay('L\'email ' + email + ' non è autorizzata.\nChiedi all\'amministratore di aggiungerla.');
         return false;
       }
     }
     // nessuna sessione: mostra schermata login
+    console.log('[auth] nessuna sessione → mostro overlay login');
     showLoginOverlay();
     return false;
   } catch (e) {
-    console.warn('initAuth error', e);
+    console.warn('[auth] initAuth error', e);
     showLoginOverlay('Errore di autenticazione: ' + e.message);
     return false;
   }
@@ -3362,7 +3366,7 @@ function registerSW() {
 // ─── INIT ───────────────────────────────────────────────────
 // elementi critici che devono esistere — se mancano, HTML e JS sono in
 // versioni incoerenti (caso classico: SW serve vecchio app.js con nuovo HTML).
-const CRITICAL_DOM_IDS = ['fab','modalQa','qaDatePicker','qaCats','toast','view-analisi'];
+const CRITICAL_DOM_IDS = ['fab','modalQa','qaDatePicker','qaCats','toast','view-home','view-conti','loginOverlay','themeToggle'];
 function checkDomIntegrity() {
   const missing = CRITICAL_DOM_IDS.filter(id => !document.getElementById(id));
   if (missing.length) {
