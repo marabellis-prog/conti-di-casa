@@ -511,49 +511,105 @@ function applyModuliOrder() {
 }
 
 let _moduliDragBound = false;
+// Drag custom touch-friendly per i widget moduli (HTML5 dnd non funziona su iOS Safari)
 function bindModuliDrag() {
   if (_moduliDragBound) return;
   _moduliDragBound = true;
   const grid = document.querySelector('.module-grid');
   if (!grid) return;
-  let dragged = null;
-  // dragstart sui handle ⋮⋮
-  grid.querySelectorAll('.mc-drag').forEach(h => {
-    h.addEventListener('dragstart', e => {
-      const card = h.closest('.module-card');
-      if (!card) return;
-      dragged = card;
-      card.classList.add('dragging-mod');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', card.getAttribute('data-mod'));
+  grid.querySelectorAll('.mc-drag').forEach(handle => {
+    let isDragging = false;
+    let startY = 0;
+    let startTop = 0;
+    let card = null;
+    let cardHeight = 0;
+    let placeholder = null;
+    let initialOrder = '';
+
+    function cleanup() {
+      if (card) {
+        card.style.position = '';
+        card.style.top = '';
+        card.style.left = '';
+        card.style.width = '';
+        card.style.zIndex = '';
+        card.style.pointerEvents = '';
+        card.style.opacity = '';
+        card.classList.remove('dragging-mod');
+      }
+      if (placeholder && placeholder.parentNode) {
+        if (card) placeholder.parentNode.insertBefore(card, placeholder);
+        placeholder.remove();
+      }
+      placeholder = null;
+      card = null;
+      isDragging = false;
+    }
+
+    handle.addEventListener('pointerdown', e => {
+      e.preventDefault();
       e.stopPropagation();
+      const cardEl = handle.closest('.module-card');
+      if (!cardEl) return;
+      card = cardEl;
+      const rect = card.getBoundingClientRect();
+      startY = e.clientY;
+      startTop = rect.top;
+      cardHeight = card.offsetHeight;
+      initialOrder = Array.from(grid.querySelectorAll('.module-card')).map(c => c.getAttribute('data-mod')).join('|');
+      try { handle.setPointerCapture(e.pointerId); } catch {}
+
+      // crea placeholder con bordo tratteggiato
+      placeholder = document.createElement('div');
+      placeholder.style.cssText = 'height:' + cardHeight + 'px;background:var(--surface-2);border:2px dashed var(--accent);border-radius:16px;margin-bottom:14px;box-sizing:border-box;opacity:.5;';
+      card.parentNode.insertBefore(placeholder, card);
+
+      // rendi la card flottante
+      card.style.position = 'fixed';
+      card.style.top = rect.top + 'px';
+      card.style.left = rect.left + 'px';
+      card.style.width = rect.width + 'px';
+      card.style.zIndex = '1000';
+      card.style.pointerEvents = 'none';
+      card.style.opacity = '0.92';
+      card.classList.add('dragging-mod');
+      isDragging = true;
     });
-    h.addEventListener('dragend', () => {
-      if (dragged) dragged.classList.remove('dragging-mod');
-      grid.querySelectorAll('.drag-over-mod').forEach(x => x.classList.remove('drag-over-mod'));
-      const ref = dragged;
-      setTimeout(() => { if (ref === dragged) dragged = null; }, 50);
+
+    handle.addEventListener('pointermove', e => {
+      if (!isDragging || !card) return;
+      const dy = e.clientY - startY;
+      card.style.top = (startTop + dy) + 'px';
+      // posizione del centro della card draggata
+      const cy = startTop + dy + cardHeight / 2;
+      // trova dove inserire il placeholder
+      const others = Array.from(grid.querySelectorAll('.module-card:not(.dragging-mod)'));
+      let inserted = false;
+      for (const c of others) {
+        const r = c.getBoundingClientRect();
+        if (cy < r.top + r.height / 2) {
+          if (placeholder.nextSibling !== c) grid.insertBefore(placeholder, c);
+          inserted = true;
+          break;
+        }
+      }
+      if (!inserted && grid.lastElementChild !== placeholder) {
+        grid.appendChild(placeholder);
+      }
     });
-  });
-  // dragover/drop sulle card
-  grid.querySelectorAll('.module-card').forEach(card => {
-    card.addEventListener('dragover', e => {
-      if (!dragged || dragged === card) return;
-      e.preventDefault();
-      card.classList.add('drag-over-mod');
+
+    handle.addEventListener('pointerup', async e => {
+      if (!isDragging || !card) return;
+      try { handle.releasePointerCapture(e.pointerId); } catch {}
+      cleanup();
+      // ordine finale
+      const newOrder = Array.from(grid.querySelectorAll('.module-card')).map(c => c.getAttribute('data-mod')).join('|');
+      if (newOrder !== initialOrder) {
+        await persistModuliOrder();
+      }
     });
-    card.addEventListener('dragleave', () => card.classList.remove('drag-over-mod'));
-    card.addEventListener('drop', async e => {
-      e.preventDefault();
-      card.classList.remove('drag-over-mod');
-      if (!dragged || dragged === card) return;
-      const allCards = Array.from(grid.querySelectorAll('.module-card'));
-      const srcIdx = allCards.indexOf(dragged);
-      const dstIdx = allCards.indexOf(card);
-      if (srcIdx < dstIdx) grid.insertBefore(dragged, card.nextSibling);
-      else grid.insertBefore(dragged, card);
-      await persistModuliOrder();
-    });
+
+    handle.addEventListener('pointercancel', cleanup);
   });
 }
 
@@ -2796,9 +2852,11 @@ async function cycleTheme() {
   const cur = S.prefs.theme || 'auto';
   const idx = THEME_CYCLE.indexOf(cur);
   const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
+  console.log('[theme] cycle:', cur, '→', next);
   S.prefs.theme = next;
   applyTheme();
   saveLocalCache();
+  toast('Tema: ' + (next === 'auto' ? 'automatico' : next === 'dark' ? 'scuro' : 'chiaro'), 'info');
   // sync remoto soft (merge con altri prefs)
   const path = T.PREFS + '?id=eq.1';
   const options = { method: 'PATCH', body: JSON.stringify({ dati: S.prefs }) };

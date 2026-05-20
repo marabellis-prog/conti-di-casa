@@ -219,17 +219,19 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .mc-drag {
   position: absolute;
   top: 50%;
-  left: 8px;
+  left: 4px;
   transform: translateY(-50%);
   color: var(--text-faint);
-  font-size: 16px;
+  font-size: 18px;
   letter-spacing: -1px;
   cursor: grab;
-  padding: 8px 4px;
+  padding: 12px 8px;
   user-select: none;
+  -webkit-user-select: none;
   touch-action: none;
+  -webkit-touch-callout: none;
 }
-.mc-drag:active { cursor: grabbing; }
+.mc-drag:active { cursor: grabbing; color: var(--accent); }
 .module-card.dragging-mod { opacity: .4; }
 .module-card.drag-over-mod {
   outline: 2px dashed var(--accent);
