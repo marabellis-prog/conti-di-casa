@@ -122,7 +122,7 @@ function cacheDOM() {
    'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
-   'modalSettings','setTheme','setSave','setExport','setClearCache','setVersion',
+   'modalSettings','setTheme','setSave','setClearCache','setVersion',
    'setUsersList','setAddUser','setLogout',
    'modalUser','userEditTitle','userEditNome','userEditEmail','userEditSave',
    'autoreDonutWrap'
@@ -385,12 +385,13 @@ async function fullReload() {
 
 // ─── RENDER ALL ─────────────────────────────────────────────
 function renderAll() {
-  renderHeader();
-  renderHomeGestione();
-  renderConti();
-  renderList();
-  renderCatView();
-  renderSettings();
+  // Ogni render è isolato: un errore in una view non deve bloccare le altre.
+  try { renderHeader();        } catch (e) { console.warn('[renderAll] renderHeader',        e); }
+  try { renderHomeGestione();  } catch (e) { console.warn('[renderAll] renderHomeGestione',  e); }
+  try { renderConti();         } catch (e) { console.warn('[renderAll] renderConti',         e); }
+  try { renderList();          } catch (e) { console.warn('[renderAll] renderList',          e); }
+  try { renderCatView();       } catch (e) { console.warn('[renderAll] renderCatView',       e); }
+  try { renderSettings();      } catch (e) { console.warn('[renderAll] renderSettings',      e); }
 }
 
 // ─── HEADER ─────────────────────────────────────────────────
@@ -513,11 +514,46 @@ function renderConti() {
   });
   Charts.renderDonut(D.donutWrap, segs, { subLabel: 'uscite mese' });
 
-  // Carousel: aggiorna anche il trend (se è la slide attiva o se ha già stato)
+  // Carousel: aggiorna anche le altre slide (trend + donut autori)
   ensureTrendRangeDefault();
   populateTrendSelects();
   renderTrend3m();
+  renderAutoreDonut();
   updateCarouselTitle();
+}
+
+// Donut "Uscite per autore" del mese corrente — usato dalla slide 2 del carousel.
+// Mostra solo le percentuali: il centro è vuoto, le label nella legend sono in %.
+function renderAutoreDonut() {
+  if (!D.autoreDonutWrap) return;
+  const arr = txInCurrentMonth();
+  const usc = arr.filter(t => t.tipo === 'uscita');
+  if (!usc.length) {
+    D.autoreDonutWrap.innerHTML = '<div class="empty"><div class="emoji">👥</div><div>Nessuna uscita nel periodo</div></div>';
+    return;
+  }
+  const byAut = {};
+  usc.forEach(t => {
+    const nome = t.autore || '(non attribuito)';
+    if (!byAut[nome]) byAut[nome] = 0;
+    byAut[nome] += Number(t.importo);
+  });
+  const segs = Object.entries(byAut)
+    .sort((a, b) => b[1] - a[1])
+    .map(([nome, total]) => ({
+      label: nome,
+      value: total,
+      color: colorForAutore(nome === '(non attribuito)' ? null : nome),
+      onClick: function () {
+        // Click → filtra la lista per quell'autore
+        S.filtersAutori = [nome];
+        S.filtersCats = [];
+        S.donutFilter = null;
+        S.listFilter = 'uscita';
+        switchView('list');
+      }
+    }));
+  Charts.renderDonut(D.autoreDonutWrap, segs, { subLabel: 'uscite mese', noText: true });
 }
 
 // ─── CAROUSEL: donut ↔ trend mesi ───────────────────────────
@@ -645,23 +681,31 @@ async function renderTrend3m() {
   Charts.renderLine(D.trend3mWrap, data.series, data.labels, { yTicks: 5, legend: true });
 }
 
+const CAROUSEL_TITLES = ['Uscite per categoria', 'Andamento mesi', 'Uscite per autore'];
+const CAROUSEL_MAX = CAROUSEL_TITLES.length - 1;
+
 function updateCarouselTitle() {
   if (!D.carouselTitle) return;
-  D.carouselTitle.textContent = S.carouselSlide === 0 ? 'Uscite per categoria' : 'Andamento mesi';
+  D.carouselTitle.textContent = CAROUSEL_TITLES[S.carouselSlide] || CAROUSEL_TITLES[0];
 }
 
 function setCarouselSlide(n) {
   if (!D.carouselTrack) return;
-  S.carouselSlide = Math.max(0, Math.min(1, n));
+  // wrap-around: -1 → max, max+1 → 0
+  let target = n;
+  if (target < 0) target = CAROUSEL_MAX;
+  else if (target > CAROUSEL_MAX) target = 0;
+  S.carouselSlide = target;
   D.carouselTrack.style.transform = 'translateX(' + (-100 * S.carouselSlide) + '%)';
   $$('.carousel-dot', D.carouselDots).forEach((d, i) => d.classList.toggle('active', i === S.carouselSlide));
   updateCarouselTitle();
   if (S.carouselSlide === 1) renderTrend3m();
+  if (S.carouselSlide === 2) renderAutoreDonut();
 }
 
 function bindCarousel() {
-  if (D.carouselPrev) D.carouselPrev.addEventListener('click', () => setCarouselSlide(S.carouselSlide === 0 ? 1 : 0));
-  if (D.carouselNext) D.carouselNext.addEventListener('click', () => setCarouselSlide(S.carouselSlide === 1 ? 0 : 1));
+  if (D.carouselPrev) D.carouselPrev.addEventListener('click', () => setCarouselSlide(S.carouselSlide - 1));
+  if (D.carouselNext) D.carouselNext.addEventListener('click', () => setCarouselSlide(S.carouselSlide + 1));
   if (D.carouselDots) $$('.carousel-dot', D.carouselDots).forEach(d => {
     d.addEventListener('click', () => setCarouselSlide(Number(d.getAttribute('data-go') || 0)));
   });
@@ -3660,22 +3704,23 @@ function bindEvents() {
   });
   // carousel pagina Riepilogo (donut ↔ trend mesi)
   bindCarousel();
-  D.setSave.addEventListener('click', saveSettings);
-  D.setExport.addEventListener('click', exportCsv);
-  D.setClearCache.addEventListener('click', clearCache);
-  if (D.setAddUser)   D.setAddUser.addEventListener('click', openUserAdd);
-  if (D.userEditSave) D.userEditSave.addEventListener('click', saveAuthorizedUser);
-  if (D.setLogout)    D.setLogout.addEventListener('click', () => doLogout());
+  if (D.setSave)       D.setSave.addEventListener('click', saveSettings);
+  if (D.setClearCache) D.setClearCache.addEventListener('click', clearCache);
+  if (D.setAddUser)    D.setAddUser.addEventListener('click', openUserAdd);
+  if (D.userEditSave)  D.userEditSave.addEventListener('click', saveAuthorizedUser);
+  if (D.setLogout)     D.setLogout.addEventListener('click', () => doLogout());
   // update
-  D.btnUpdate.addEventListener('click', applyUpdate);
-  // list filters
-  $$('.chip', D.listFilters).forEach(c => c.addEventListener('click', () => {
-    $$('.chip', D.listFilters).forEach(x => x.classList.remove('active'));
-    c.classList.add('active');
-    S.listFilter = c.getAttribute('data-tipo');
-    S.donutFilter = null;
-    renderList();
-  }));
+  if (D.btnUpdate) D.btnUpdate.addEventListener('click', applyUpdate);
+  // list filters (chip Tutto/Uscite/Entrate)
+  if (D.listFilters) {
+    $$('.chip', D.listFilters).forEach(c => c.addEventListener('click', () => {
+      $$('.chip', D.listFilters).forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+      S.listFilter = c.getAttribute('data-tipo');
+      S.donutFilter = null;
+      renderList();
+    }));
+  }
   // Toggle "Seleziona Periodo" → entra/esce dalla modalità custom range
   if (D.btnTogglePeriod) D.btnTogglePeriod.addEventListener('click', () => {
     if (S.listPeriod !== 'custom') {

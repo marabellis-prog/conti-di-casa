@@ -644,6 +644,10 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 }
 .carousel-stage {
   position: relative; /* riferimento per le frecce absolute */
+  padding: 0 44px; /* spazio ai lati per le frecce + aria al contenuto */
+}
+@media (max-width: 360px) {
+  .carousel-stage { padding: 0 38px; }
 }
 .carousel-arrow {
   position: absolute;
@@ -670,8 +674,8 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   background: var(--accent);
   color: #0f1419;
 }
-.carousel-prev { left: 2px; }
-.carousel-next { right: 2px; }
+.carousel-prev { left: 4px; }
+.carousel-next { right: 4px; }
 .carousel-viewport {
   overflow: hidden;
   position: relative;
