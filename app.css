@@ -1140,22 +1140,23 @@ html[data-theme="light"] .carousel-arrow.side {
   position: sticky;
   top: calc(var(--header-h) + var(--safe-t));
   background: var(--bg);
-  z-index: 35;
+  /* z-index più alto dell'app-header (50) così l'intero stacking context delle pill sale */
+  z-index: 60;
   padding: 0 12px 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  pointer-events: none; /* evita di intercettare click nello spazio vuoto */
+  pointer-events: none;
 }
 .module-actions-bar > * { pointer-events: auto; }
 
 .ma-pills {
   display: flex;
   gap: 14px;
-  margin-top: -22px; /* metà della pill sporge sopra (sull'header) */
+  margin-top: -26px; /* circa metà della pill sporge sopra l'header */
   position: relative;
-  z-index: 55; /* sopra l'app-header (z-index 50) */
+  z-index: 1; /* relativo al parent — il parent gestisce lo stacking globale */
 }
 
 .ma-month {
