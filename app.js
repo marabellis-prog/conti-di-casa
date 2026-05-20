@@ -95,6 +95,7 @@ const S = {
   carouselSlide: 0,          // 0=donut, 1=trend mesi
   trendRange: null,          // {from:{anno,mese}, to:{anno,mese}} (default: ultimi 3 mesi)
   trend3mCache: null,        // {key, data}
+  autoreDonutCache: null,    // {key, segs} per il donut "Uscite per autore"
   // pending tx tmp ids
   pendingTxIds: new Set()
 };
@@ -197,10 +198,52 @@ function toast(msg, type, ms) {
   if (msgEl) msgEl.textContent = msg;
   else el.textContent = msg;
   if (icEl) icEl.textContent = TOAST_ICONS[type] || 'i';
-  el.className = 'toast show toast-' + type;
+  // Esiti delle operazioni (success/error) → toast centrato verticalmente
+  const isResult = (type === 'success' || type === 'error');
+  el.className = 'toast show toast-' + type + (isResult ? ' toast-center' : '');
   clearTimeout(toast._t);
   const dur = ms || (type === 'error' ? 2400 : (type === 'warn' ? 2200 : 1700));
   toast._t = setTimeout(() => el.classList.remove('show'), dur);
+}
+
+// Helper: spinner sui bottoni durante operazioni async (salva/elimina).
+// Sostituisce il contenuto del bottone con uno spinner e lo disabilita;
+// al ripristino rimette il testo originale.
+function setBtnLoading(btn, on) {
+  if (!btn) return;
+  if (on) {
+    if (!btn.dataset.origHtml) btn.dataset.origHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="btn-spinner"></span>';
+    btn.classList.add('loading');
+    btn.disabled = true;
+  } else {
+    if (btn.dataset.origHtml !== undefined) {
+      btn.innerHTML = btn.dataset.origHtml;
+      delete btn.dataset.origHtml;
+    }
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
+// Esegue un'operazione async mostrando spinner sul bottone, toast esito,
+// e chiusura modal in caso di successo.
+// opts: { btn, modal, okMsg, errMsg }
+async function withSpinnerOp(op, opts) {
+  opts = opts || {};
+  setBtnLoading(opts.btn, true);
+  try {
+    await op();
+    if (opts.modal) closeModal(opts.modal);
+    toast(opts.okMsg || 'Salvato', 'success');
+    return true;
+  } catch (e) {
+    console.warn('[withSpinnerOp] errore', e);
+    toast((opts.errMsg || 'Errore') + ': ' + (e && e.message ? e.message : 'operazione non riuscita'), 'error');
+    return false;
+  } finally {
+    setBtnLoading(opts.btn, false);
+  }
 }
 
 // Confirm dialog elegante (sostituisce window.confirm)
@@ -436,10 +479,18 @@ function shiftMonth(delta) {
   while (mese > 12) { mese -= 12; anno++; }
   S.currentMonth = { anno, mese };
   localStorage.setItem(LS.LAST_MONTH, monthKey(anno, mese));
+  // Reset del trendRange: l'andamento mesi e il donut autori seguono il
+  // nuovo mese di riferimento (default = mese corrente + 2 precedenti)
+  S.trendRange = null;
+  S.trend3mCache = null;
+  S.autoreDonutCache = null;
   renderHeader();
+  // 1° render IMMEDIATO con dati in cache (anche se vuoti) — così l'UI
+  // reagisce subito al cambio mese
+  renderHomeGestione(); renderConti(); renderList();
+  // 2° render dopo il fetch (se servono dati del nuovo mese non in cache)
   ensureMonthLoaded().then(() => {
-    renderHomeGestione(); renderConti();
-    renderList();
+    renderHomeGestione(); renderConti(); renderList();
   });
 }
 
@@ -536,45 +587,68 @@ function renderConti() {
   updateCarouselTitle();
 }
 
-// Donut "Uscite per autore" del mese corrente — usato dalla slide 2 del carousel.
-// Mostra solo le percentuali: il centro è vuoto, le label nella legend sono in %.
-function renderAutoreDonut() {
-  // Fallback: se D non ha l'elemento (es. ordine init), prova lookup diretto
+// Donut "Uscite per autore" — usa lo stesso range del trend mesi
+// (default: mese corrente + 2 mesi precedenti). Mostra il totale numerico
+// al centro e le percentuali nella legend, un colore per autore.
+async function renderAutoreDonut() {
   const wrap = D.autoreDonutWrap || document.getElementById('autoreDonutWrap');
   if (!wrap) {
-    console.warn('[renderAutoreDonut] elemento #autoreDonutWrap mancante nel DOM');
+    console.warn('[renderAutoreDonut] elemento #autoreDonutWrap mancante');
     return;
   }
-  const arr = txInCurrentMonth();
-  const usc = arr.filter(t => t.tipo === 'uscita');
-  console.log('[renderAutoreDonut] uscite nel mese:', usc.length);
-  if (!usc.length) {
+  ensureTrendRangeDefault();
+  const r = S.trendRange;
+  // assicura from <= to
+  if (cmpYM(r.from, r.to) > 0) { const tmp = r.from; r.from = r.to; r.to = tmp; }
+
+  // chiave cache: stessa chiave del trend (riusa il fetch quando possibile)
+  const key = monthKeyYM(r.from.anno, r.from.mese) + '..' + monthKeyYM(r.to.anno, r.to.mese) + '@' + (S.ts || 0);
+  let segs = (S.autoreDonutCache && S.autoreDonutCache.key === key) ? S.autoreDonutCache.segs : null;
+
+  if (!segs) {
+    const startStr = r.from.anno + '-' + String(r.from.mese).padStart(2, '0') + '-01';
+    const lastDay  = new Date(r.to.anno, r.to.mese, 0).getDate();
+    const endStr   = r.to.anno + '-' + String(r.to.mese).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
+    try {
+      const rows = await supaFetch(T.TX + '?select=importo,tipo,autore&data=gte.' + startStr + '&data=lte.' + endStr);
+      const byAut = {};
+      (rows || []).filter(x => x.tipo === 'uscita').forEach(rec => {
+        const nome = (rec.autore && String(rec.autore).trim()) || '(non attribuito)';
+        byAut[nome] = (byAut[nome] || 0) + Number(rec.importo);
+      });
+      segs = Object.entries(byAut)
+        .sort((a, b) => b[1] - a[1])
+        .map(([nome, total]) => ({
+          label: nome,
+          value: total,
+          color: colorForAutore(nome === '(non attribuito)' ? null : nome),
+          onClick: function () {
+            // Click → filtra la lista per quell'autore nel range
+            S.filtersAutori = [nome];
+            S.filtersCats = [];
+            S.donutFilter = null;
+            S.listFilter = 'uscita';
+            // Imposta il periodo della lista al range del donut
+            S.listPeriod = 'custom';
+            S.listFrom = startStr;
+            S.listTo = endStr;
+            switchView('list');
+          }
+        }));
+      S.autoreDonutCache = { key, segs };
+    } catch (e) {
+      console.warn('[renderAutoreDonut] fetch fallito', e);
+      wrap.innerHTML = '<div class="empty"><div class="emoji">📡</div><div>Dati non disponibili offline</div></div>';
+      return;
+    }
+  }
+
+  if (!segs.length) {
     wrap.innerHTML = '<div class="empty"><div class="emoji">👥</div><div>Nessuna uscita nel periodo</div></div>';
     return;
   }
-  const byAut = {};
-  usc.forEach(t => {
-    const nome = t.autore || '(non attribuito)';
-    if (!byAut[nome]) byAut[nome] = 0;
-    byAut[nome] += Number(t.importo);
-  });
-  console.log('[renderAutoreDonut] autori:', byAut);
-  const segs = Object.entries(byAut)
-    .sort((a, b) => b[1] - a[1])
-    .map(([nome, total]) => ({
-      label: nome,
-      value: total,
-      color: colorForAutore(nome === '(non attribuito)' ? null : nome),
-      onClick: function () {
-        // Click → filtra la lista per quell'autore
-        S.filtersAutori = [nome];
-        S.filtersCats = [];
-        S.donutFilter = null;
-        S.listFilter = 'uscita';
-        switchView('list');
-      }
-    }));
-  Charts.renderDonut(wrap, segs, { noText: true });
+  // Renderizza con totale numerico al centro (default) e percentuali in legend
+  Charts.renderDonut(wrap, segs, { subLabel: 'uscite periodo' });
 }
 
 // ─── CAROUSEL: donut ↔ trend mesi ───────────────────────────
@@ -732,11 +806,15 @@ function bindCarousel() {
   });
   if (D.trendFrom) D.trendFrom.addEventListener('change', () => {
     S.trendRange.from = parseYM(D.trendFrom.value);
+    S.autoreDonutCache = null; // invalida la cache del donut autori
     renderTrend3m();
+    renderAutoreDonut();
   });
   if (D.trendTo) D.trendTo.addEventListener('change', () => {
     S.trendRange.to = parseYM(D.trendTo.value);
+    S.autoreDonutCache = null;
     renderTrend3m();
+    renderAutoreDonut();
   });
   // swipe touch sulla viewport
   const vp = D.carouselTrack && D.carouselTrack.parentElement;
@@ -2845,17 +2923,24 @@ async function quickSave(categoria_id) {
   const desc = D.qaDesc ? D.qaDesc.value.trim() : '';
   const dataStr = D.qaDatePicker.value || QA.data || today();
   const autore = (D.qaAutore && D.qaAutore.value) || getDefaultAutore() || null;
-  await saveTransaction({
-    importo,
-    tipo: QA.tipo,
-    categoria_id,
-    descrizione: desc || null,
-    data: dataStr,
-    autore: autore || null
-  });
-  closeModal('modalQa');
-  vibrate(20);
-  toast('Salvato', 'success');
+  setBtnLoading(D.qaSaveBtn, true);
+  try {
+    await saveTransaction({
+      importo,
+      tipo: QA.tipo,
+      categoria_id,
+      descrizione: desc || null,
+      data: dataStr,
+      autore: autore || null
+    });
+    closeModal('modalQa');
+    vibrate(20);
+    toast('Salvato', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'salvataggio non riuscito'), 'error');
+  } finally {
+    setBtnLoading(D.qaSaveBtn, false);
+  }
 }
 
 async function saveTransaction(payload) {
@@ -2916,19 +3001,29 @@ async function saveTxEdit() {
     autore: (D.txEditAutore && D.txEditAutore.value) || null
   };
   if (!payload.importo || payload.importo <= 0) { toast('Importo non valido', 'warn'); return; }
-  // optimistic
-  const idx = S.tx.findIndex(t => t.id === S.editTxId);
-  if (idx >= 0) S.tx[idx] = Object.assign({}, S.tx[idx], payload);
-  saveLocalCache();
-  renderHomeGestione(); renderConti(); renderList();
-  closeModal('modalTx');
-  toast('Transazione modificata', 'success');
-  const path = T.TX + '?id=eq.' + S.editTxId;
-  const options = { method: 'PATCH', body: JSON.stringify(payload) };
-  if (!isOnline()) { enqueue({ path, options }); S.editTxId = null; return; }
-  try { await supaFetch(path, options); }
-  catch { enqueue({ path, options }); }
-  S.editTxId = null;
+  setBtnLoading(D.txEditSave, true);
+  try {
+    // optimistic
+    const idx = S.tx.findIndex(t => t.id === S.editTxId);
+    if (idx >= 0) S.tx[idx] = Object.assign({}, S.tx[idx], payload);
+    saveLocalCache();
+    renderHomeGestione(); renderConti(); renderList();
+    const path = T.TX + '?id=eq.' + S.editTxId;
+    const options = { method: 'PATCH', body: JSON.stringify(payload) };
+    if (isOnline()) {
+      try { await supaFetch(path, options); }
+      catch { enqueue({ path, options }); }
+    } else {
+      enqueue({ path, options });
+    }
+    closeModal('modalTx');
+    toast('Transazione modificata', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'salvataggio non riuscito'), 'error');
+  } finally {
+    setBtnLoading(D.txEditSave, false);
+    S.editTxId = null;
+  }
 }
 async function deleteTxEdit() {
   if (S.editTxId == null) return;
@@ -2939,18 +3034,28 @@ async function deleteTxEdit() {
     danger: true
   });
   if (!ok) return;
-  // optimistic
-  S.tx = S.tx.filter(t => t.id !== S.editTxId);
-  saveLocalCache();
-  renderHomeGestione(); renderConti(); renderList();
-  closeModal('modalTx');
-  toast('Transazione eliminata', 'success');
-  const path = T.TX + '?id=eq.' + S.editTxId;
-  const options = { method: 'DELETE' };
-  if (!isOnline()) { enqueue({ path, options }); S.editTxId = null; return; }
-  try { await supaFetch(path, options); }
-  catch { enqueue({ path, options }); }
-  S.editTxId = null;
+  setBtnLoading(D.txEditDelete, true);
+  try {
+    // optimistic
+    S.tx = S.tx.filter(t => t.id !== S.editTxId);
+    saveLocalCache();
+    renderHomeGestione(); renderConti(); renderList();
+    const path = T.TX + '?id=eq.' + S.editTxId;
+    const options = { method: 'DELETE' };
+    if (isOnline()) {
+      try { await supaFetch(path, options); }
+      catch { enqueue({ path, options }); }
+    } else {
+      enqueue({ path, options });
+    }
+    closeModal('modalTx');
+    toast('Transazione eliminata', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'eliminazione non riuscita'), 'error');
+  } finally {
+    setBtnLoading(D.txEditDelete, false);
+    S.editTxId = null;
+  }
 }
 
 function populateCatSelect(sel, tipo, currentId) {
@@ -3183,9 +3288,10 @@ async function saveCatEdit() {
     colore: catEditState.colore,
     macro_categoria: catEditState.macro_categoria || null
   };
-  if (catEditState.isNew) {
-    payload.ordine = S.cats.filter(c => c.tipo === payload.tipo).length;
-    try {
+  setBtnLoading(D.catEditSave, true);
+  try {
+    if (catEditState.isNew) {
+      payload.ordine = S.cats.filter(c => c.tipo === payload.tipo).length;
       const res = await supaFetch(T.CATS + '?select=*', { method: 'POST', body: JSON.stringify(payload), headers: { 'Prefer': 'return=representation' } });
       if (res && res[0]) {
         S.cats.push(res[0]);
@@ -3196,22 +3302,27 @@ async function saveCatEdit() {
       $$('button', D.catTabs).forEach(b => b.classList.toggle('active', b.getAttribute('data-tipo') === activeCatTab));
       renderCatView();
       toast('Categoria creata', 'success');
-    } catch (e) {
-      toast('Errore: ' + e.message, 'error');
+    } else {
+      // optimistic locale
+      const c = catById(S.editCatId);
+      if (c) Object.assign(c, payload);
+      saveLocalCache();
+      renderCatView(); renderHomeGestione(); renderConti(); renderList();
+      const path = T.CATS + '?id=eq.' + S.editCatId;
+      const options = { method: 'PATCH', body: JSON.stringify(payload) };
+      if (isOnline()) {
+        try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+      } else {
+        enqueue({ path, options });
+      }
+      closeModal('modalCat');
+      toast('Categoria modificata', 'success');
+      S.editCatId = null;
     }
-  } else {
-    // optimistic locale
-    const c = catById(S.editCatId);
-    if (c) Object.assign(c, payload);
-    saveLocalCache();
-    renderCatView(); renderHomeGestione(); renderConti(); renderList();
-    closeModal('modalCat');
-    toast('Categoria modificata', 'success');
-    const path = T.CATS + '?id=eq.' + S.editCatId;
-    const options = { method: 'PATCH', body: JSON.stringify(payload) };
-    if (!isOnline()) { enqueue({ path, options }); S.editCatId = null; return; }
-    try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
-    S.editCatId = null;
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'salvataggio non riuscito'), 'error');
+  } finally {
+    setBtnLoading(D.catEditSave, false);
   }
 }
 async function deleteCatEdit() {
@@ -3223,17 +3334,27 @@ async function deleteCatEdit() {
     danger: true
   });
   if (!ok) return;
-  S.cats = S.cats.filter(c => c.id !== S.editCatId);
-  S.tx.forEach(t => { if (t.categoria_id === S.editCatId) t.categoria_id = null; });
-  saveLocalCache();
-  renderCatView(); renderHomeGestione(); renderConti(); renderList();
-  closeModal('modalCat');
-  toast('Categoria eliminata', 'success');
-  const path = T.CATS + '?id=eq.' + S.editCatId;
-  const options = { method: 'DELETE' };
-  if (!isOnline()) { enqueue({ path, options }); S.editCatId = null; return; }
-  try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
-  S.editCatId = null;
+  setBtnLoading(D.catEditDelete, true);
+  try {
+    S.cats = S.cats.filter(c => c.id !== S.editCatId);
+    S.tx.forEach(t => { if (t.categoria_id === S.editCatId) t.categoria_id = null; });
+    saveLocalCache();
+    renderCatView(); renderHomeGestione(); renderConti(); renderList();
+    const path = T.CATS + '?id=eq.' + S.editCatId;
+    const options = { method: 'DELETE' };
+    if (isOnline()) {
+      try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+    } else {
+      enqueue({ path, options });
+    }
+    closeModal('modalCat');
+    toast('Categoria eliminata', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'eliminazione non riuscita'), 'error');
+  } finally {
+    setBtnLoading(D.catEditDelete, false);
+    S.editCatId = null;
+  }
 }
 
 // ─── EDIT BUDGET ────────────────────────────────────────────
@@ -3252,53 +3373,70 @@ async function saveBudgetEdit() {
   if (S.editBudgetCatId == null) return;
   const importo = parseAmount(D.budgetEditAmt.value);
   if (!(importo >= 0)) { toast('Inserisci un importo valido (numero ≥ 0)', 'warn'); return; }
-  const { anno, mese } = S.currentMonth;
-  const existing = S.budgets.find(x => x.categoria_id === S.editBudgetCatId && x.anno === anno && x.mese === mese);
-  if (existing) {
-    existing.importo = importo;
-  } else {
-    S.budgets.push({ id: uuid(), categoria_id: S.editBudgetCatId, anno, mese, importo });
-  }
-  saveLocalCache();
-  renderHomeGestione(); renderConti();
-  closeModal('modalBudget');
-  toast('Budget salvato', 'success');
-  // remoto: upsert via on_conflict
-  const path = T.BUDGET + '?on_conflict=categoria_id,anno,mese';
-  const body = { categoria_id: S.editBudgetCatId, anno, mese, importo };
-  const options = { method: 'POST', body: JSON.stringify(body), headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' } };
+  setBtnLoading(D.budgetEditSave, true);
   try {
-    if (!isOnline()) { enqueue({ path, options }); S.editBudgetCatId = null; return; }
-    const res = await supaFetch(path, options);
-    if (res && res[0]) {
-      // riallinea con id reale
-      const real = res[0];
-      const idx = S.budgets.findIndex(x => x.categoria_id === real.categoria_id && x.anno === real.anno && x.mese === real.mese);
-      if (idx >= 0) S.budgets[idx] = real;
-      saveLocalCache();
+    const { anno, mese } = S.currentMonth;
+    const existing = S.budgets.find(x => x.categoria_id === S.editBudgetCatId && x.anno === anno && x.mese === mese);
+    if (existing) {
+      existing.importo = importo;
+    } else {
+      S.budgets.push({ id: uuid(), categoria_id: S.editBudgetCatId, anno, mese, importo });
     }
-  } catch { enqueue({ path, options }); }
-  S.editBudgetCatId = null;
+    saveLocalCache();
+    renderHomeGestione(); renderConti();
+    // remoto: upsert via on_conflict
+    const path = T.BUDGET + '?on_conflict=categoria_id,anno,mese';
+    const body = { categoria_id: S.editBudgetCatId, anno, mese, importo };
+    const options = { method: 'POST', body: JSON.stringify(body), headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' } };
+    if (isOnline()) {
+      try {
+        const res = await supaFetch(path, options);
+        if (res && res[0]) {
+          const real = res[0];
+          const idx = S.budgets.findIndex(x => x.categoria_id === real.categoria_id && x.anno === real.anno && x.mese === real.mese);
+          if (idx >= 0) S.budgets[idx] = real;
+          saveLocalCache();
+        }
+      } catch { enqueue({ path, options }); }
+    } else {
+      enqueue({ path, options });
+    }
+    closeModal('modalBudget');
+    toast('Budget salvato', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'salvataggio non riuscito'), 'error');
+  } finally {
+    setBtnLoading(D.budgetEditSave, false);
+    S.editBudgetCatId = null;
+  }
 }
 async function deleteBudgetEdit() {
   if (S.editBudgetCatId == null) return;
   const { anno, mese } = S.currentMonth;
   const existing = S.budgets.find(x => x.categoria_id === S.editBudgetCatId && x.anno === anno && x.mese === mese);
   if (!existing) { closeModal('modalBudget'); return; }
-  S.budgets = S.budgets.filter(x => x !== existing);
-  saveLocalCache();
-  renderHomeGestione(); renderConti();
-  closeModal('modalBudget');
-  toast('Budget rimosso', 'success');
-  if (typeof existing.id === 'number') {
-    const path = T.BUDGET + '?id=eq.' + existing.id;
-    const options = { method: 'DELETE' };
-    if (!isOnline()) { enqueue({ path, options }); }
-    else { try { await supaFetch(path, options); } catch { enqueue({ path, options }); } }
-  } else {
-    // tmp non sincronizzato — niente da fare lato remoto
+  setBtnLoading(D.budgetEditDelete, true);
+  try {
+    S.budgets = S.budgets.filter(x => x !== existing);
+    saveLocalCache();
+    renderHomeGestione(); renderConti();
+    if (typeof existing.id === 'number') {
+      const path = T.BUDGET + '?id=eq.' + existing.id;
+      const options = { method: 'DELETE' };
+      if (isOnline()) {
+        try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+      } else {
+        enqueue({ path, options });
+      }
+    }
+    closeModal('modalBudget');
+    toast('Budget rimosso', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'eliminazione non riuscita'), 'error');
+  } finally {
+    setBtnLoading(D.budgetEditDelete, false);
+    S.editBudgetCatId = null;
   }
-  S.editBudgetCatId = null;
 }
 
 // ─── IMPOSTAZIONI ───────────────────────────────────────────
@@ -3853,25 +3991,26 @@ function bindEvents() {
       quickSave(QA.selectedCatId);
     });
   }
-  // Date pill: tap apre il date picker nativo
+  // Date pill: l'input type=date è in overlay sopra il bottone (opacity 0),
+  // riceve direttamente il click dell'utente e su iOS Safari apre il
+  // calendario nativo. Il button parent serve solo come stile visivo.
+  if (D.qaDatePicker) {
+    D.qaDatePicker.addEventListener('change', renderQaDateLabel);
+    D.qaDatePicker.addEventListener('input', renderQaDateLabel);
+  }
+  // Fallback per browser desktop (Chrome/Edge): se il click arriva al
+  // bottone parent (perché l'input ha pointer-events:none in qualche
+  // edge case), chiamiamo showPicker. Niente preventDefault, così se
+  // l'input ha già aperto il picker non interferiamo.
   if (D.qaDateBtn && D.qaDatePicker) {
     D.qaDateBtn.addEventListener('click', e => {
-      e.preventDefault();
-      // showPicker() richiede gesto utente sincrono — non await/setTimeout
+      if (e.target === D.qaDatePicker) return; // l'input gestisce da solo
       try {
         if (typeof D.qaDatePicker.showPicker === 'function') {
           D.qaDatePicker.showPicker();
-        } else {
-          D.qaDatePicker.focus();
-          D.qaDatePicker.click();
         }
-      } catch (err) {
-        console.warn('showPicker failed, falling back to focus', err);
-        D.qaDatePicker.focus();
-      }
+      } catch (err) { /* ignora: l'input nativo è già visibile */ }
     });
-    D.qaDatePicker.addEventListener('change', renderQaDateLabel);
-    D.qaDatePicker.addEventListener('input', renderQaDateLabel);
   }
   // tx edit
   D.txEditSave.addEventListener('click', saveTxEdit);

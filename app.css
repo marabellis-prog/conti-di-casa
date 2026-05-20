@@ -62,6 +62,19 @@ html[data-theme="light"] {
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* Spinner per bottoni in loading: lo .btn-spinner si centra perché i .btn-* sono già flex */
+.btn-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.6s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+button.loading { pointer-events: none; opacity: .92; cursor: default; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -1143,13 +1156,15 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   text-transform: uppercase;
   color: var(--text-dim);
 }
+/* Contenitore: display block così i sub-title e le righe di chip stanno
+   uno sotto l'altro. Il display flex+wrap è applicato su .filter-chips-row */
 .filter-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
   max-height: 280px;
   overflow-y: auto;
   padding: 2px;
+}
+.filter-chips > .filter-chip { /* fallback se mancano sub-sezioni: usa display:inline-flex */
+  margin: 0 6px 6px 0;
 }
 .filter-chip {
   display: inline-flex;
@@ -1778,7 +1793,10 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   padding: 0;
   font-size: 16px; /* >=16 per evitare zoom iOS */
   color: transparent;
-  pointer-events: none; /* lascia che il click bubble al button parent */
+  cursor: pointer;
+  /* NIENTE pointer-events:none: su iOS Safari l'input deve ricevere il
+     click direttamente per aprire il date picker (showPicker/click()
+     programmatico non aprono la UI nativa). */
 }
 
 .qa-amt {
@@ -2398,6 +2416,25 @@ button.btn-danger {
 .toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(-4px);
+}
+/* Toast esito operazione: centrato verticalmente, più grande/visibile */
+.toast.toast-center {
+  top: 50%;
+  bottom: auto;
+  transform: translate(-50%, -50%) scale(.92);
+  padding: 16px 22px 16px 20px;
+  font-size: 15px;
+  border-radius: 26px;
+  box-shadow: 0 12px 36px rgba(0,0,0,.45);
+}
+.toast.toast-center.show {
+  transform: translate(-50%, -50%) scale(1);
+}
+.toast.toast-center .toast-ic {
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
+  font-weight: 700;
 }
 .toast-ic {
   display: grid;
