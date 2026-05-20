@@ -599,17 +599,16 @@ async function renderAutoreDonut() {
   }
   ensureTrendRangeDefault();
   const r = S.trendRange;
-  // assicura from <= to
-  if (cmpYM(r.from, r.to) > 0) { const tmp = r.from; r.from = r.to; r.to = tmp; }
+  // assicura from <= to (string YYYY-MM-DD)
+  if (r.from > r.to) { const tmp = r.from; r.from = r.to; r.to = tmp; }
+  const startStr = r.from;
+  const endStr   = r.to;
 
   // chiave cache: stessa chiave del trend (riusa il fetch quando possibile)
-  const key = monthKeyYM(r.from.anno, r.from.mese) + '..' + monthKeyYM(r.to.anno, r.to.mese) + '@' + (S.ts || 0);
+  const key = startStr + '..' + endStr + '@' + (S.ts || 0);
   let segs = (S.autoreDonutCache && S.autoreDonutCache.key === key) ? S.autoreDonutCache.segs : null;
 
   if (!segs) {
-    const startStr = r.from.anno + '-' + String(r.from.mese).padStart(2, '0') + '-01';
-    const lastDay  = new Date(r.to.anno, r.to.mese, 0).getDate();
-    const endStr   = r.to.anno + '-' + String(r.to.mese).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
     try {
       const rows = await supaFetch(T.TX + '?select=importo,tipo,autore&data=gte.' + startStr + '&data=lte.' + endStr);
       const byAut = {};
@@ -653,71 +652,57 @@ async function renderAutoreDonut() {
 }
 
 // ─── CAROUSEL: donut ↔ trend mesi ───────────────────────────
+// S.trendRange = { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' } (range giornaliero)
+// Default: dal 1° giorno di (mese corrente - 2 mesi) all'ultimo giorno del
+// mese corrente. Es. mese corrente Maggio 2026 → 2026-03-01 ↔ 2026-05-31.
 function ensureTrendRangeDefault() {
   if (S.trendRange && S.trendRange.from && S.trendRange.to) return;
-  // default: ultimi 3 mesi rispetto al currentMonth
   const cm = S.currentMonth || { anno: new Date().getFullYear(), mese: new Date().getMonth() + 1 };
   let fromY = cm.anno, fromM = cm.mese - 2;
   while (fromM < 1) { fromM += 12; fromY--; }
-  S.trendRange = { from: { anno: fromY, mese: fromM }, to: { anno: cm.anno, mese: cm.mese } };
+  const lastDay = new Date(cm.anno, cm.mese, 0).getDate();
+  S.trendRange = {
+    from: fromY + '-' + String(fromM).padStart(2, '0') + '-01',
+    to:   cm.anno + '-' + String(cm.mese).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0')
+  };
 }
 
 function monthKeyYM(y, m) { return y + '-' + String(m).padStart(2, '0'); }
-function parseYM(s) { const [y, m] = s.split('-').map(Number); return { anno: y, mese: m }; }
-function cmpYM(a, b) { return (a.anno - b.anno) * 12 + (a.mese - b.mese); }
 
-// Genera elenco mesi disponibili nei select: 36 mesi all'indietro dal current
-function trendMonthOptions() {
-  const cm = S.currentMonth || { anno: new Date().getFullYear(), mese: new Date().getMonth() + 1 };
-  const out = [];
-  let y = cm.anno, m = cm.mese;
-  for (let i = 0; i < 36; i++) {
-    out.push({ y, m, label: (MESI_FULL[m - 1] || '') + ' ' + y });
-    m--; if (m < 1) { m = 12; y--; }
-  }
-  return out;
+function syncTrendDateInputs() {
+  const f = S.trendRange.from, t = S.trendRange.to;
+  if (D.trendFrom)  D.trendFrom.value  = f;
+  if (D.trendTo)    D.trendTo.value    = t;
+  if (D.autoreFrom) D.autoreFrom.value = f;
+  if (D.autoreTo)   D.autoreTo.value   = t;
 }
-
-function populateTrendSelects() {
-  const opts = trendMonthOptions();
-  const fromKey = monthKeyYM(S.trendRange.from.anno, S.trendRange.from.mese);
-  const toKey   = monthKeyYM(S.trendRange.to.anno,   S.trendRange.to.mese);
-  const buildOpts = sel => opts.map(o => {
-    const k = monthKeyYM(o.y, o.m);
-    const selected = k === sel ? ' selected' : '';
-    return '<option value="' + k + '"' + selected + '>' + o.label + '</option>';
-  }).join('');
-  // Stesso S.trendRange è condiviso tra slide 1 (Andamento mesi) e slide 2 (Uscite per autore)
-  if (D.trendFrom)  D.trendFrom.innerHTML  = buildOpts(fromKey);
-  if (D.trendTo)    D.trendTo.innerHTML    = buildOpts(toKey);
-  if (D.autoreFrom) D.autoreFrom.innerHTML = buildOpts(fromKey);
-  if (D.autoreTo)   D.autoreTo.innerHTML   = buildOpts(toKey);
-}
+// Compat: il nome vecchio è ancora referenziato altrove (renderConti) — lo aliaso
+const populateTrendSelects = syncTrendDateInputs;
 
 async function renderTrend3m() {
   if (!D.trend3mWrap) return;
   ensureTrendRangeDefault();
   const r = S.trendRange;
-  // assicura from <= to
-  if (cmpYM(r.from, r.to) > 0) { const tmp = r.from; r.from = r.to; r.to = tmp; }
-  // calcola lista mesi nel range (incluso to)
+  // assicura from <= to (string compare lexicografico funziona su YYYY-MM-DD)
+  if (r.from > r.to) { const tmp = r.from; r.from = r.to; r.to = tmp; }
+  const startStr = r.from;
+  const endStr   = r.to;
+  // calcola lista mesi nel range (incluso quello di endStr) per il grafico
+  const fromParts = startStr.split('-').map(Number);
+  const toParts   = endStr.split('-').map(Number);
   const months = [];
-  let y = r.from.anno, m = r.from.mese;
-  const end = r.to;
-  while (cmpYM({ anno: y, mese: m }, end) <= 0) {
+  let y = fromParts[0], m = fromParts[1];
+  while (y < toParts[0] || (y === toParts[0] && m <= toParts[1])) {
     months.push({ y, m });
     m++; if (m > 12) { m = 1; y++; }
     if (months.length > 36) break; // safety
   }
   const labels = months.map(o => MESI_SHORT[o.m - 1] + (o.m === 1 ? ' \'' + String(o.y).slice(-2) : ''));
 
-  // chiave cache: range + ts
-  const key = monthKeyYM(r.from.anno, r.from.mese) + '..' + monthKeyYM(r.to.anno, r.to.mese) + '@' + (S.ts || 0);
+  // chiave cache: range giornaliero + ts
+  const key = startStr + '..' + endStr + '@' + (S.ts || 0);
   let data = S.trend3mCache && S.trend3mCache.key === key ? S.trend3mCache.data : null;
   if (!data) {
-    const startStr = r.from.anno + '-' + String(r.from.mese).padStart(2, '0') + '-01';
-    const lastDay  = new Date(r.to.anno, r.to.mese, 0).getDate();
-    const endStr   = r.to.anno + '-' + String(r.to.mese).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
     try {
       const rows = await supaFetch(T.TX + '?select=data,importo,tipo,categoria_id&data=gte.' + startStr + '&data=lte.' + endStr);
       // buckets[macroId][monthKey] = somma uscite
@@ -807,23 +792,24 @@ function bindCarousel() {
   if (D.carouselDots) $$('.carousel-dot', D.carouselDots).forEach(d => {
     d.addEventListener('click', () => setCarouselSlide(Number(d.getAttribute('data-go') || 0)));
   });
-  // Helper: setta from o to + sincronizza ENTRAMBI i set di select +
-  // invalida cache + ri-renderizza le due slide che usano il range condiviso
+  // Helper: setta from o to (string YYYY-MM-DD) + sincronizza ENTRAMBI i
+  // set di date picker + invalida cache + ri-renderizza le due slide che
+  // usano il range condiviso
   function setTrendFrom(value) {
-    S.trendRange.from = parseYM(value);
+    if (!value) return;
+    S.trendRange.from = value;
     S.trend3mCache = null;
     S.autoreDonutCache = null;
-    if (D.trendFrom)  D.trendFrom.value  = value;
-    if (D.autoreFrom) D.autoreFrom.value = value;
+    syncTrendDateInputs();
     renderTrend3m();
     renderAutoreDonut();
   }
   function setTrendTo(value) {
-    S.trendRange.to = parseYM(value);
+    if (!value) return;
+    S.trendRange.to = value;
     S.trend3mCache = null;
     S.autoreDonutCache = null;
-    if (D.trendTo)  D.trendTo.value  = value;
-    if (D.autoreTo) D.autoreTo.value = value;
+    syncTrendDateInputs();
     renderTrend3m();
     renderAutoreDonut();
   }
