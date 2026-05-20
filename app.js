@@ -3891,8 +3891,53 @@ function onVersionChange(newSha) {
     return;
   }
   if (newSha !== S.localSha) {
-    D.btnUpdate.classList.add('show');
+    if (D.btnUpdate) D.btnUpdate.classList.add('show');
   }
+}
+
+// Check esplicito del SHA remoto: usato per recuperare aggiornamenti quando
+// Realtime non ha consegnato l'evento (es. WebSocket idle in background,
+// tab appena tornato in foreground, connessione appena ripristinata).
+async function checkAppVersionNow() {
+  try {
+    const rows = await supaFetch(T.VER + '?select=sha&id=eq.1');
+    const sha = rows && rows[0] && rows[0].sha;
+    if (sha) onVersionChange(sha);
+  } catch (e) { /* offline: niente da fare */ }
+}
+
+// Riconnette il channel Realtime se è in stato chiuso/errore (Safari iOS
+// pausa i WebSocket in background; quando l'app torna visibile bisogna
+// forzare la subscribe).
+function ensureRealtimeAlive() {
+  const ch = S.realtimeChannel;
+  if (!ch) return;
+  const state = ch.state || (ch.socket && ch.socket.connectionState && ch.socket.connectionState());
+  if (state === 'closed' || state === 'errored' || state === 'leaving') {
+    try { ch.subscribe(); } catch {}
+  }
+}
+
+// Setup dei trigger per il check "vivo" del SHA: visibility change, online,
+// più un polling di backup ogni 60s.
+let _versionPollId = null;
+function setupVersionWatchdog() {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      ensureRealtimeAlive();
+      checkAppVersionNow();
+    }
+  });
+  window.addEventListener('online', () => {
+    ensureRealtimeAlive();
+    checkAppVersionNow();
+  });
+  // Polling di backup: ogni 60s se la tab è visibile, controlla il SHA.
+  // Costo: 1 GET sub-100B ogni minuto, niente lato server.
+  if (_versionPollId) clearInterval(_versionPollId);
+  _versionPollId = setInterval(() => {
+    if (!document.hidden) checkAppVersionNow();
+  }, 60000);
 }
 async function applyUpdate() {
   D.btnUpdate.disabled = true;
@@ -4278,6 +4323,10 @@ async function init() {
   loadAuthorizedUsers();
   // realtime
   setupRealtime();
+  // Watchdog del badge "↻ Aggiorna": riconnette Realtime su visibilitychange/
+  // online e fa polling del SHA ogni 60s come backup (in PWA iOS i WebSocket
+  // vengono pausati in background, quindi l'evento di deploy può perdersi)
+  setupVersionWatchdog();
   // pull-to-refresh
   setupPullToRefresh();
   // drain queue se online
