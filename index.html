@@ -22,6 +22,14 @@
   <link rel="apple-touch-icon" sizes="152x152" href="./apple-touch-icon-152.png?v=3">
   <link rel="apple-touch-icon" sizes="167x167" href="./apple-touch-icon-167.png?v=3">
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-180.png?v=3">
+  <!-- PRELOAD tema dal localStorage PRIMA del primo paint (no flash dark→light) -->
+  <script>
+    try {
+      var __p = JSON.parse(localStorage.getItem('cdc-prefs') || '{}');
+      var __t = (__p && __p.theme) ? __p.theme : 'auto';
+      document.documentElement.setAttribute('data-theme', __t);
+    } catch(e) {}
+  </script>
   <link rel="stylesheet" href="./app.css">
   <title>Gestione Casa</title>
 </head>
