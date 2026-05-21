@@ -62,6 +62,173 @@ html[data-theme="light"] {
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* ─── LISTA DELLA SPESA ──────────────────────────────────── */
+.spesa-section { margin-bottom: 18px; }
+.spesa-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 8px 4px 10px;
+}
+.spesa-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 11px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.spesa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.spesa-list:empty::before {
+  content: 'Nessun elemento';
+  display: block;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+  font-style: italic;
+  padding: 16px 0;
+}
+.spesa-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  transition: opacity .2s, background .15s;
+}
+.spesa-item-icon {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  line-height: 1;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform .12s, background .15s;
+}
+.spesa-item-icon:active { transform: scale(.92); }
+.spesa-item-icon img.emoji { width: 28px; height: 28px; }
+.spesa-item-icon .check-mark {
+  position: absolute;
+  inset: -2px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(38, 121, 73, .92);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 22px;
+  font-weight: 700;
+  border: 2px solid var(--ok);
+}
+.spesa-item.preso .spesa-item-icon .check-mark { display: flex; }
+.spesa-item.preso .spesa-item-icon img.emoji { filter: grayscale(1); opacity: .55; }
+.spesa-item.preso .spesa-item-name { text-decoration: line-through; opacity: .55; }
+.spesa-item.preso { opacity: .85; }
+.spesa-item-body {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.spesa-item-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spesa-item-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spesa-item-qty {
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  margin-right: 4px;
+}
+
+/* Modal aggiunta/modifica: icona circolare grande in alto */
+.spesa-icon-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.spesa-icon-circle {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 2px solid var(--border);
+  font-size: 44px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform .12s, background .15s, border-color .15s;
+}
+.spesa-icon-circle:active { transform: scale(.95); }
+.spesa-icon-circle img.emoji { width: 48px; height: 48px; }
+
+/* Riga +/− quantità */
+.qty-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 4px 0;
+}
+.qty-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background .15s, transform .12s;
+}
+.qty-btn:active { transform: scale(.9); background: var(--accent); color: #0f1419; }
+.qty-value {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+  text-align: center;
+  color: var(--text);
+}
+
 /* Spinner per bottoni in loading: lo .btn-spinner si centra perché i .btn-* sono già flex */
 .btn-spinner {
   display: inline-block;

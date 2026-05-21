@@ -241,6 +241,24 @@
       <button id="btnAddCat" class="add-cat-btn">+ Aggiungi categoria</button>
     </section>
 
+    <!-- LISTA DELLA SPESA -->
+    <section id="view-spesa" class="view">
+      <div class="spesa-section">
+        <h3 class="spesa-section-title">
+          <span>Da prendere</span>
+          <span class="spesa-count" id="spesaCountToBuy">0</span>
+        </h3>
+        <div id="spesaListToBuy" class="spesa-list"></div>
+      </div>
+      <div class="spesa-section">
+        <h3 class="spesa-section-title">
+          <span>Presi</span>
+          <span class="spesa-count" id="spesaCountBought">0</span>
+        </h3>
+        <div id="spesaListBought" class="spesa-list"></div>
+      </div>
+    </section>
+
   </main>
 
   <!-- BOTTOM NAV (6 pill tonde sporgenti — moduli + impostazioni) -->
@@ -248,7 +266,7 @@
     <button class="nav-pill active" data-view="home" aria-label="Home"><span class="np-ic">🏠</span><span class="np-lbl">Home</span></button>
     <button class="nav-pill" data-view="conti" aria-label="Conti di Casa"><span class="np-ic">💰</span><span class="np-lbl">Conti</span></button>
     <button class="nav-pill" data-mod-soon="todo" aria-label="ToDo"><span class="np-ic">✅</span><span class="np-lbl">ToDo</span></button>
-    <button class="nav-pill" data-mod-soon="spesa" aria-label="Lista spesa"><span class="np-ic">🛒</span><span class="np-lbl">Spesa</span></button>
+    <button class="nav-pill" data-view="spesa" aria-label="Lista spesa"><span class="np-ic">🛒</span><span class="np-lbl">Spesa</span></button>
     <button class="nav-pill" data-mod-soon="scadenze" aria-label="Scadenze"><span class="np-ic">📅</span><span class="np-lbl">Scadenze</span></button>
     <button class="nav-pill" data-action="settings" aria-label="Impostazioni"><span class="np-ic">⚙️</span><span class="np-lbl">Impostaz.</span></button>
   </nav>
@@ -432,6 +450,40 @@
   </div>
 
   <!-- Aggiungi/Modifica utente autorizzato -->
+  <!-- Modal nuovo/modifica elemento Lista Spesa -->
+  <div class="modal" id="modalSpesa">
+    <div class="sheet" id="sheetSpesa">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="spesaEditTitle">Nuovo elemento</h3>
+        <button class="sheet-close" data-close="modalSpesa">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="spesa-icon-row">
+          <button id="spesaEditIconBtn" class="spesa-icon-circle" type="button" aria-label="Cambia icona">🛒</button>
+        </div>
+        <div class="form-field">
+          <label>Nome</label>
+          <input type="text" id="spesaEditNome" placeholder="Pane, Latte, Pomodori..." autocomplete="off" autocapitalize="sentences">
+        </div>
+        <div class="form-field">
+          <label>Quantità</label>
+          <div class="qty-row">
+            <button type="button" id="spesaEditQtyMinus" class="qty-btn">−</button>
+            <span id="spesaEditQtyValue" class="qty-value">1</span>
+            <button type="button" id="spesaEditQtyPlus" class="qty-btn">+</button>
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Note (opzionale)</label>
+          <input type="text" id="spesaEditNote" placeholder="es. integrale, altrimenti saraceno" autocomplete="off">
+        </div>
+        <button id="spesaEditSave" class="btn-primary">Salva</button>
+        <button id="spesaEditDelete" class="btn-secondary" style="margin-top:8px;display:none">Elimina</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Filtri (categorie + autori) -->
   <div class="modal" id="modalFilters">
     <div class="sheet" id="sheetFilters">

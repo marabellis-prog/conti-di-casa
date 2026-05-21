@@ -17,7 +17,8 @@ const T = {
   PREFS: 'cdc_prefs',
   TS: 'cdc_update_cache',
   VER: 'cdc_app_version',
-  USERS: 'cdc_authorized_users'
+  USERS: 'cdc_authorized_users',
+  SPESA: 'cdc_lista_spesa'
 };
 const OWNER_EMAIL = 'marabelli.s@gmail.com';
 
@@ -30,7 +31,8 @@ const LS = {
   QUEUE: 'cdc-queue',
   SHA: 'cdc-deploy-sha',
   LAST_TIPO: 'cdc-last-tipo',
-  LAST_MONTH: 'cdc-last-month'
+  LAST_MONTH: 'cdc-last-month',
+  SPESA: 'cdc-spesa'
 };
 
 // Tavolozza colori per categorie
@@ -96,6 +98,9 @@ const S = {
   trendRange: null,          // {from:{anno,mese}, to:{anno,mese}} (default: ultimi 3 mesi)
   trend3mCache: null,        // {key, data}
   autoreDonutCache: null,    // {key, segs} per il donut "Uscite per autore"
+  // Lista della spesa
+  spesa: [],                 // array di item {id, nome, icona, quantita, note, preso, ordine}
+  editSpesaId: null,         // id dell'item correntemente in modifica (null = nuovo)
   // pending tx tmp ids
   pendingTxIds: new Set()
 };
@@ -106,7 +111,9 @@ function cacheDOM() {
   ['appTitle','appSubtitle','monthLabel','btnMonthPrev','btnMonthNext','btnUpdate','themeToggle',
    'bcRoot','bcModule','bcLeaf',
    'moduleActions','moduleMonth','moduleActionPills',
-   'view-home','view-conti','view-list','view-cat',
+   'view-home','view-conti','view-list','view-cat','view-spesa',
+   'spesaListToBuy','spesaListBought','spesaCountToBuy','spesaCountBought',
+   'modalSpesa','spesaEditTitle','spesaEditIconBtn','spesaEditNome','spesaEditQtyMinus','spesaEditQtyValue','spesaEditQtyPlus','spesaEditNote','spesaEditSave','spesaEditDelete',
    'homeContiDonut','homeContiSaldo','homeContiSubtle','homeContiPeriod','goToList','goToCategorie',
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap',
    'carouselTrack','carouselPrev','carouselNext','carouselTitle','carouselDots',
@@ -356,6 +363,7 @@ function loadLocalCache() {
   try { S.cats = JSON.parse(localStorage.getItem(LS.CATS) || '[]'); } catch { S.cats = []; }
   try { S.tx = JSON.parse(localStorage.getItem(LS.TX) || '[]'); } catch { S.tx = []; }
   try { S.budgets = JSON.parse(localStorage.getItem(LS.BUDGETS) || '[]'); } catch { S.budgets = []; }
+  try { S.spesa = JSON.parse(localStorage.getItem(LS.SPESA) || '[]'); } catch { S.spesa = []; }
   try {
     const p = JSON.parse(localStorage.getItem(LS.PREFS) || 'null');
     if (p) S.prefs = Object.assign(S.prefs, p);
@@ -366,6 +374,7 @@ function saveLocalCache() {
   localStorage.setItem(LS.CATS, JSON.stringify(S.cats));
   localStorage.setItem(LS.TX, JSON.stringify(S.tx));
   localStorage.setItem(LS.BUDGETS, JSON.stringify(S.budgets));
+  localStorage.setItem(LS.SPESA, JSON.stringify(S.spesa));
   localStorage.setItem(LS.PREFS, JSON.stringify(S.prefs));
   localStorage.setItem(LS.TS, String(S.ts));
 }
@@ -384,16 +393,18 @@ async function reloadAll() {
   const cutoff = new Date(now.getFullYear(), now.getMonth() - 2, 1);
   const cutoffStr = cutoff.getFullYear() + '-' + String(cutoff.getMonth()+1).padStart(2,'0') + '-01';
 
-  const [cats, tx, budgets, prefsRows, verRows] = await Promise.all([
+  const [cats, tx, budgets, prefsRows, verRows, spesa] = await Promise.all([
     supaFetch(T.CATS + '?select=*&order=ordine.asc,id.asc'),
     supaFetch(T.TX + '?select=*&data=gte.' + cutoffStr + '&order=data.desc,id.desc'),
     supaFetch(T.BUDGET + '?select=*&anno=eq.' + now.getFullYear()),
     supaFetch(T.PREFS + '?select=dati&id=eq.1'),
-    supaFetch(T.VER + '?select=sha&id=eq.1')
+    supaFetch(T.VER + '?select=sha&id=eq.1'),
+    supaFetch(T.SPESA + '?select=*&order=ordine.asc,created_at.asc')
   ]);
   S.cats = cats || [];
   S.tx = tx || [];
   S.budgets = budgets || [];
+  S.spesa = spesa || [];
   if (prefsRows && prefsRows[0] && prefsRows[0].dati) {
     S.prefs = Object.assign(S.prefs, prefsRows[0].dati);
   }
@@ -435,6 +446,7 @@ function renderAll() {
   try { renderConti();         } catch (e) { console.warn('[renderAll] renderConti',         e); }
   try { renderList();          } catch (e) { console.warn('[renderAll] renderList',          e); }
   try { renderCatView();       } catch (e) { console.warn('[renderAll] renderCatView',       e); }
+  try { renderSpesa();         } catch (e) { console.warn('[renderAll] renderSpesa',         e); }
   try { renderSettings();      } catch (e) { console.warn('[renderAll] renderSettings',      e); }
 }
 
@@ -525,6 +537,330 @@ async function ensureMonthLoaded() {
       saveLocalCache();
     }
   } catch (e) { console.warn('ensureMonthLoaded failed', e); }
+}
+
+// ─── LISTA DELLA SPESA ──────────────────────────────────────
+// Mappa keyword → emoji per suggerimento automatico icona dal nome elemento.
+// Match in lowercase su parole intere O substring (la chiave più lunga vince).
+const SPESA_KEYWORD_ICONS = [
+  // Frutta
+  ['mela', '🍎'], ['mele', '🍎'], ['pera', '🍐'], ['pere', '🍐'],
+  ['banana', '🍌'], ['banane', '🍌'], ['arancia', '🍊'], ['arance', '🍊'],
+  ['limone', '🍋'], ['limoni', '🍋'], ['fragola', '🍓'], ['fragole', '🍓'],
+  ['ciliegia', '🍒'], ['ciliegie', '🍒'], ['uva', '🍇'], ['anguria', '🍉'],
+  ['melone', '🍈'], ['pesca', '🍑'], ['pesche', '🍑'], ['ananas', '🍍'],
+  ['mango', '🥭'], ['cocco', '🥥'], ['kiwi', '🥝'], ['mirtillo', '🫐'],
+  // Verdura
+  ['pomodoro', '🍅'], ['pomodori', '🍅'], ['carota', '🥕'], ['carote', '🥕'],
+  ['cetriolo', '🥒'], ['cetrioli', '🥒'], ['peperone', '🫑'], ['peperoni', '🫑'],
+  ['mais', '🌽'], ['patata', '🥔'], ['patate', '🥔'], ['cipolla', '🧅'], ['cipolle', '🧅'],
+  ['aglio', '🧄'], ['broccoli', '🥦'], ['lattuga', '🥬'], ['insalata', '🥬'],
+  ['melanzana', '🍆'], ['melanzane', '🍆'], ['zucchina', '🥒'], ['zucchine', '🥒'],
+  ['funghi', '🍄'], ['fungo', '🍄'], ['fagioli', '🫘'], ['piselli', '🫛'],
+  // Pane / cereali
+  ['pane', '🍞'], ['baguette', '🥖'], ['panini', '🥖'], ['toast', '🍞'],
+  ['cracker', '🍘'], ['biscotti', '🍪'], ['biscotto', '🍪'],
+  ['cereali', '🥣'], ['riso', '🍚'], ['pasta', '🍝'], ['spaghetti', '🍝'],
+  // Carne / pesce
+  ['carne', '🥩'], ['bistecca', '🥩'], ['pollo', '🍗'], ['salsiccia', '🌭'],
+  ['salsicce', '🌭'], ['hamburger', '🍔'], ['prosciutto', '🥓'], ['bacon', '🥓'],
+  ['pesce', '🐟'], ['tonno', '🐟'], ['salmone', '🐟'], ['gamberi', '🦐'],
+  // Latticini / uova
+  ['latte', '🥛'], ['formaggio', '🧀'], ['parmigiano', '🧀'], ['mozzarella', '🧀'],
+  ['burro', '🧈'], ['yogurt', '🥛'], ['uova', '🥚'], ['uovo', '🥚'],
+  // Dolci / snack
+  ['cioccolato', '🍫'], ['cioccolata', '🍫'], ['caramelle', '🍬'], ['caramella', '🍬'],
+  ['gelato', '🍦'], ['torta', '🍰'], ['dolce', '🍰'], ['miele', '🍯'],
+  ['marmellata', '🍯'], ['cornetto', '🥐'], ['cornetti', '🥐'],
+  ['ciambella', '🍩'], ['popcorn', '🍿'],
+  // Bevande
+  ['acqua', '💧'], ['vino', '🍷'], ['birra', '🍺'], ['caffe', '☕'], ['caffè', '☕'],
+  ['te', '🍵'], ['tè', '🍵'], ['succo', '🧃'], ['cocacola', '🥤'], ['coca', '🥤'],
+  ['bibita', '🥤'], ['drink', '🥤'], ['liquore', '🥃'], ['champagne', '🍾'],
+  // Condimenti
+  ['sale', '🧂'], ['zucchero', '🍬'], ['olio', '🫒'], ['olive', '🫒'], ['oliva', '🫒'],
+  ['pepe', '🌶'], ['peperoncino', '🌶'], ['salsa', '🍶'],
+  // Pulizia casa
+  ['detersivo', '🧴'], ['detergente', '🧴'], ['sapone', '🧼'], ['shampoo', '🧴'],
+  ['carta igienica', '🧻'], ['scottex', '🧻'], ['rotolo', '🧻'], ['scope', '🧹'],
+  ['spazzola', '🧹'], ['secchio', '🪣'], ['guanti', '🧤'],
+  // Igiene personale
+  ['dentifricio', '🪥'], ['spazzolino', '🪥'], ['profumo', '🧴'],
+  // Bimbi / animali
+  ['pannolini', '👶'], ['biberon', '🍼'], ['cibo gatto', '🐱'], ['cibo cane', '🐶'],
+  // Altro
+  ['fiori', '💐'], ['regalo', '🎁'], ['candela', '🕯'], ['libro', '📖'],
+  ['batterie', '🔋'], ['lampadina', '💡']
+];
+
+function spesaIconForName(name) {
+  if (!name) return '🛒';
+  const n = String(name).toLowerCase().trim();
+  // Match il più lungo (più specifico) prima
+  let best = '';
+  let bestIcon = '';
+  for (const [kw, ic] of SPESA_KEYWORD_ICONS) {
+    if (n.indexOf(kw) !== -1 && kw.length > best.length) {
+      best = kw;
+      bestIcon = ic;
+    }
+  }
+  return bestIcon || '🛒';
+}
+
+function renderSpesa() {
+  if (!D.spesaListToBuy || !D.spesaListBought) return;
+  const items = (S.spesa || []).slice().sort((a, b) => (a.ordine || 0) - (b.ordine || 0));
+  const toBuy   = items.filter(x => !x.preso);
+  const bought  = items.filter(x =>  x.preso);
+  if (D.spesaCountToBuy)  D.spesaCountToBuy.textContent  = toBuy.length;
+  if (D.spesaCountBought) D.spesaCountBought.textContent = bought.length;
+  D.spesaListToBuy.innerHTML  = toBuy.map(spesaItemHtml).join('');
+  D.spesaListBought.innerHTML = bought.map(spesaItemHtml).join('');
+  twemojify(D.spesaListToBuy);
+  twemojify(D.spesaListBought);
+  bindSpesaItemEvents();
+}
+
+function spesaItemHtml(it) {
+  const icon = it.icona || '🛒';
+  const qty  = (it.quantita && it.quantita > 1) ? '<span class="spesa-item-qty">×' + it.quantita + '</span>' : '';
+  const note = it.note ? ' — ' + esc(it.note) : '';
+  return '<div class="spesa-item' + (it.preso ? ' preso' : '') + '" data-id="' + it.id + '">' +
+           '<button class="spesa-item-icon" data-action="toggle" type="button" aria-label="Segna preso/non preso">' +
+             '<span class="spesa-icon-emoji">' + icon + '</span>' +
+             '<span class="check-mark">✓</span>' +
+           '</button>' +
+           '<div class="spesa-item-body" data-action="edit">' +
+             '<div class="spesa-item-name">' + qty + esc(it.nome || '') + '</div>' +
+             ((it.note || (it.quantita && it.quantita > 1)) ? '<div class="spesa-item-meta">' + esc(it.note || '') + '</div>' : '') +
+           '</div>' +
+         '</div>';
+}
+
+function bindSpesaItemEvents() {
+  // Toggle preso/non preso al click sull'icona
+  $$('.spesa-item .spesa-item-icon').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const item = btn.closest('.spesa-item');
+      if (item) toggleSpesaPreso(item.getAttribute('data-id'));
+    });
+  });
+  // Apertura modal modifica al click sul body
+  $$('.spesa-item .spesa-item-body').forEach(body => {
+    body.addEventListener('click', () => {
+      const item = body.closest('.spesa-item');
+      if (item) openSpesaEdit(item.getAttribute('data-id'));
+    });
+  });
+}
+
+async function toggleSpesaPreso(idStr) {
+  const id = isNaN(Number(idStr)) ? idStr : Number(idStr);
+  const it = S.spesa.find(x => x.id === id);
+  if (!it) return;
+  const newPreso = !it.preso;
+  // optimistic
+  it.preso = newPreso;
+  it.updated_at = new Date().toISOString();
+  saveLocalCache();
+  vibrate(10);
+  renderSpesa();
+  // remoto
+  const path = T.SPESA + '?id=eq.' + id;
+  const options = { method: 'PATCH', body: JSON.stringify({ preso: newPreso }) };
+  if (isOnline()) {
+    try { await supaFetch(path, options); }
+    catch { enqueue({ path, options }); }
+  } else {
+    enqueue({ path, options });
+  }
+}
+
+// ─── MODAL Aggiungi/Modifica elemento ───────────────────────
+let _spesaEditState = { icona: '🛒', iconaManual: false, qty: 1 };
+
+function openSpesaAdd() {
+  S.editSpesaId = null;
+  _spesaEditState = { icona: '🛒', iconaManual: false, qty: 1 };
+  if (D.spesaEditTitle) D.spesaEditTitle.textContent = 'Nuovo elemento';
+  if (D.spesaEditNome)  D.spesaEditNome.value = '';
+  if (D.spesaEditNote)  D.spesaEditNote.value = '';
+  updateSpesaEditQty(1);
+  updateSpesaEditIcon('🛒');
+  if (D.spesaEditDelete) D.spesaEditDelete.style.display = 'none';
+  openModal('modalSpesa');
+  setTimeout(() => { if (D.spesaEditNome) D.spesaEditNome.focus(); }, 80);
+}
+
+function openSpesaEdit(idStr) {
+  const id = isNaN(Number(idStr)) ? idStr : Number(idStr);
+  const it = S.spesa.find(x => x.id === id);
+  if (!it) return;
+  S.editSpesaId = id;
+  _spesaEditState = { icona: it.icona || '🛒', iconaManual: true, qty: it.quantita || 1 };
+  if (D.spesaEditTitle) D.spesaEditTitle.textContent = 'Modifica elemento';
+  if (D.spesaEditNome)  D.spesaEditNome.value = it.nome || '';
+  if (D.spesaEditNote)  D.spesaEditNote.value = it.note || '';
+  updateSpesaEditQty(_spesaEditState.qty);
+  updateSpesaEditIcon(_spesaEditState.icona);
+  if (D.spesaEditDelete) D.spesaEditDelete.style.display = 'block';
+  openModal('modalSpesa');
+}
+
+function updateSpesaEditQty(n) {
+  _spesaEditState.qty = Math.max(1, Math.min(99, n));
+  if (D.spesaEditQtyValue) D.spesaEditQtyValue.textContent = String(_spesaEditState.qty);
+}
+
+function updateSpesaEditIcon(icon) {
+  _spesaEditState.icona = icon || '🛒';
+  if (D.spesaEditIconBtn) {
+    D.spesaEditIconBtn.innerHTML = _spesaEditState.icona;
+    twemojify(D.spesaEditIconBtn);
+  }
+}
+
+function onSpesaEditNomeInput() {
+  // Se l'utente non ha scelto un'icona manualmente, aggiorna in base al nome
+  if (_spesaEditState.iconaManual) return;
+  const nome = D.spesaEditNome ? D.spesaEditNome.value : '';
+  const auto = spesaIconForName(nome);
+  updateSpesaEditIcon(auto);
+}
+
+async function saveSpesaEdit() {
+  const nome = D.spesaEditNome ? D.spesaEditNome.value.trim() : '';
+  if (!nome) { toast('Inserisci il nome', 'warn'); return; }
+  const note = D.spesaEditNote ? D.spesaEditNote.value.trim() : '';
+  const quantita = _spesaEditState.qty;
+  const icona = _spesaEditState.icona || spesaIconForName(nome);
+  setBtnLoading(D.spesaEditSave, true);
+  try {
+    if (S.editSpesaId == null) {
+      // INSERT
+      const ordineNew = (S.spesa.length ? Math.max.apply(null, S.spesa.map(x => x.ordine || 0)) : 0) + 1;
+      const payload = { nome, note: note || null, quantita, icona, preso: false, ordine: ordineNew };
+      const tmpId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      const row = Object.assign({ id: tmpId, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, payload);
+      S.spesa.push(row);
+      saveLocalCache();
+      renderSpesa();
+      const path = T.SPESA + '?select=*';
+      const options = { method: 'POST', body: JSON.stringify(payload), headers: { 'Prefer': 'return=representation' } };
+      if (isOnline()) {
+        try {
+          const res = await supaFetch(path, options);
+          if (res && res[0]) {
+            const idx = S.spesa.findIndex(x => x.id === tmpId);
+            if (idx >= 0) S.spesa[idx] = res[0];
+            saveLocalCache();
+            renderSpesa();
+          }
+        } catch { enqueue({ path, options }); }
+      } else {
+        enqueue({ path, options });
+      }
+      closeModal('modalSpesa');
+      toast('Aggiunto alla lista', 'success');
+    } else {
+      // UPDATE
+      const idx = S.spesa.findIndex(x => x.id === S.editSpesaId);
+      const payload = { nome, note: note || null, quantita, icona };
+      if (idx >= 0) S.spesa[idx] = Object.assign({}, S.spesa[idx], payload, { updated_at: new Date().toISOString() });
+      saveLocalCache();
+      renderSpesa();
+      const path = T.SPESA + '?id=eq.' + S.editSpesaId;
+      const options = { method: 'PATCH', body: JSON.stringify(payload) };
+      if (isOnline()) {
+        try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+      } else {
+        enqueue({ path, options });
+      }
+      closeModal('modalSpesa');
+      toast('Modifiche salvate', 'success');
+    }
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'salvataggio non riuscito'), 'error');
+  } finally {
+    setBtnLoading(D.spesaEditSave, false);
+    S.editSpesaId = null;
+  }
+}
+
+async function deleteSpesaEdit() {
+  if (S.editSpesaId == null) return;
+  const ok = await confirmDlg({
+    title: 'Elimina elemento',
+    message: 'Vuoi davvero eliminare questo elemento dalla lista?',
+    confirmLabel: 'Elimina',
+    danger: true
+  });
+  if (!ok) return;
+  setBtnLoading(D.spesaEditDelete, true);
+  try {
+    const idToDelete = S.editSpesaId;
+    S.spesa = S.spesa.filter(x => x.id !== idToDelete);
+    saveLocalCache();
+    renderSpesa();
+    const path = T.SPESA + '?id=eq.' + idToDelete;
+    const options = { method: 'DELETE' };
+    if (isOnline()) {
+      try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+    } else {
+      enqueue({ path, options });
+    }
+    closeModal('modalSpesa');
+    toast('Elemento eliminato', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'eliminazione non riuscita'), 'error');
+  } finally {
+    setBtnLoading(D.spesaEditDelete, false);
+    S.editSpesaId = null;
+  }
+}
+
+async function confirmClearSpesa() {
+  if (!S.spesa.length) { toast('Lista già vuota', 'info'); return; }
+  const ok = await confirmDlg({
+    title: 'Svuota lista della spesa',
+    message: 'Verranno eliminati tutti gli elementi (sia "da prendere" che "presi"). L\'azione non è reversibile.',
+    confirmLabel: 'Svuota',
+    danger: true
+  });
+  if (!ok) return;
+  try {
+    S.spesa = [];
+    saveLocalCache();
+    renderSpesa();
+    const path = T.SPESA + '?id=gt.0';
+    const options = { method: 'DELETE' };
+    if (isOnline()) {
+      try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+    } else {
+      enqueue({ path, options });
+    }
+    toast('Lista svuotata', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'svuotamento fallito'), 'error');
+  }
+}
+
+// Realtime listener per cdc_lista_spesa
+function onSpesaChange(p) {
+  const ev = p.eventType;
+  if (ev === 'INSERT') {
+    if (!S.spesa.find(x => x.id === p.new.id)) S.spesa.push(p.new);
+  } else if (ev === 'UPDATE') {
+    const idx = S.spesa.findIndex(x => x.id === p.new.id);
+    if (idx >= 0) S.spesa[idx] = p.new;
+    else S.spesa.push(p.new);
+  } else if (ev === 'DELETE') {
+    S.spesa = S.spesa.filter(x => x.id !== p.old.id);
+  }
+  saveLocalCache();
+  renderSpesa();
 }
 
 // ─── HOME (DASHBOARD) ───────────────────────────────────────
@@ -2194,19 +2530,30 @@ const MODULI = {
       { id: 'actAddTx', cls: 'action-add', label: '+', aria: 'Nuova transazione', onClick: openQuickAdd },
       { go: 'cat',  label: '📁', caption: 'Categorie',  aria: 'Categorie',         active: cv === 'cat'  }
     ]
+  },
+  spesa: {
+    label: '🛒 Lista della spesa',
+    home: 'spesa',
+    hasMonthNav: false,
+    viewLabels: { spesa: 'Lista' },
+    getActions: () => [
+      { id: 'actAddSpesa', cls: 'action-add', label: '+', aria: 'Nuovo elemento', onClick: openSpesaAdd },
+      { id: 'actClearSpesa', label: '🗑', caption: 'Svuota', aria: 'Svuota lista', onClick: confirmClearSpesa }
+    ]
   }
-  // futuri moduli (todo, spesa, scadenze) → si aggiungono qui con la stessa shape
+  // futuri moduli (todo, scadenze) → si aggiungono qui con la stessa shape
 };
 
 function moduloOf(viewName) {
   if (viewName === 'home') return null;
   if (viewName === 'conti' || viewName === 'list' || viewName === 'cat') return 'conti';
+  if (viewName === 'spesa') return 'spesa';
   return null;
 }
 
 function switchView(name) {
   S.currentView = name;
-  ['home','conti','list','cat'].forEach(v => {
+  ['home','conti','list','cat','spesa'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.classList.toggle('active', v === name);
   });
@@ -2239,6 +2586,7 @@ function switchView(name) {
   else if (name === 'conti') renderConti();
   else if (name === 'list') renderList();
   else if (name === 'cat')  renderCatView();
+  else if (name === 'spesa') renderSpesa();
   // Sincronizza monthLabel + visibilità frecce mese in base alla nuova view
   renderHeader();
   window.scrollTo({ top: 0, behavior: 'instant' });
@@ -3839,6 +4187,7 @@ function setupRealtime() {
     ch.on('postgres_changes', { event: '*', schema: 'public', table: T.BUDGET }, p => onBudgetChange(p));
     ch.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: T.PREFS, filter: 'id=eq.1' }, p => onPrefsChange(p));
     ch.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: T.VER, filter: 'id=eq.1' }, p => onVersionChange(p && p.new && p.new.sha));
+    ch.on('postgres_changes', { event: '*', schema: 'public', table: T.SPESA }, p => onSpesaChange(p));
     ch.subscribe(status => { if (status === 'SUBSCRIBED') console.log('Realtime connesso'); });
     S.realtimeChannel = ch;
   } catch (e) { console.warn('Realtime init failed', e); }
@@ -4085,6 +4434,26 @@ function bindEvents() {
   // tx edit
   D.txEditSave.addEventListener('click', saveTxEdit);
   D.txEditDelete.addEventListener('click', deleteTxEdit);
+  // Lista della spesa: modal add/edit
+  if (D.spesaEditSave)     D.spesaEditSave.addEventListener('click', saveSpesaEdit);
+  if (D.spesaEditDelete)   D.spesaEditDelete.addEventListener('click', deleteSpesaEdit);
+  if (D.spesaEditQtyMinus) D.spesaEditQtyMinus.addEventListener('click', () => updateSpesaEditQty(_spesaEditState.qty - 1));
+  if (D.spesaEditQtyPlus)  D.spesaEditQtyPlus.addEventListener('click', () => updateSpesaEditQty(_spesaEditState.qty + 1));
+  if (D.spesaEditNome)     D.spesaEditNome.addEventListener('input', onSpesaEditNomeInput);
+  // Click sull'icona circolare nel modal: per ora ciclo tra alcune emoji
+  // base; in un secondo commit aggiungeremo il selettore completo.
+  if (D.spesaEditIconBtn) {
+    D.spesaEditIconBtn.addEventListener('click', () => {
+      // Marca l'icona come "scelta manualmente" così non viene sovrascritta
+      // dall'auto-suggestion del nome
+      _spesaEditState.iconaManual = true;
+      // ciclo placeholder (verrà sostituito dal modal-picker icone)
+      const pool = ['🛒', '🍞', '🥛', '🍅', '🥕', '🍎', '🍝', '🧀', '🥩', '🐟', '☕', '🍷', '🧴', '🧻'];
+      const cur = _spesaEditState.icona;
+      const i = pool.indexOf(cur);
+      updateSpesaEditIcon(pool[(i + 1) % pool.length]);
+    });
+  }
   // Home Gestione Casa: tap su widget moduli
   $$('.module-card').forEach(card => {
     card.addEventListener('click', () => {
