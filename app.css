@@ -336,6 +336,70 @@ html[data-theme="light"] .spesa-item-meta { color: rgba(0,0,0,.6); }
 .spesa-icon-circle:active { transform: scale(.95); }
 .spesa-icon-circle img.emoji { width: 48px; height: 48px; }
 
+/* Modal selettore icone (per la lista spesa) */
+.icon-picker-cats {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+.icon-picker-cats::-webkit-scrollbar { display: none; }
+.icon-picker-cat {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+  white-space: nowrap;
+}
+.icon-picker-cat.active {
+  background: var(--accent);
+  color: #0f1419;
+  border-color: var(--accent-2);
+}
+.icon-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+@media (max-width: 360px) {
+  .icon-picker-grid { grid-template-columns: repeat(5, 1fr); }
+}
+.icon-picker-cell {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform .12s, background .15s, border-color .15s;
+}
+.icon-picker-cell:active { transform: scale(.92); }
+.icon-picker-cell.selected { background: var(--accent); border-color: var(--accent-2); }
+.icon-picker-cell img.emoji { width: 30px; height: 30px; }
+.icon-picker-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-faint);
+  font-style: italic;
+  font-size: 13px;
+  padding: 24px 0;
+}
+
 /* Riga +/− quantità */
 .qty-row {
   display: flex;

@@ -114,6 +114,7 @@ function cacheDOM() {
    'view-home','view-conti','view-list','view-cat','view-spesa',
    'spesaListToBuy','spesaListBought','spesaCountToBuy','spesaCountBought',
    'modalSpesa','spesaEditTitle','spesaEditIconBtn','spesaEditNome','spesaEditQtyMinus','spesaEditQtyValue','spesaEditQtyPlus','spesaEditNote','spesaEditSave','spesaEditDelete',
+   'modalIconPicker','iconPickerSearch','iconPickerCategories','iconPickerGrid',
    'homeContiDonut','homeContiSaldo','homeContiSubtle','homeContiPeriod','goToList','goToCategorie',
    'homeSpesaPreview','homeSpesaCount',
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap',
@@ -541,72 +542,237 @@ async function ensureMonthLoaded() {
 }
 
 // ─── LISTA DELLA SPESA ──────────────────────────────────────
-// Mappa keyword → emoji per suggerimento automatico icona dal nome elemento.
-// Match in lowercase su parole intere O substring (la chiave più lunga vince).
-const SPESA_KEYWORD_ICONS = [
-  // Frutta
-  ['mela', '🍎'], ['mele', '🍎'], ['pera', '🍐'], ['pere', '🍐'],
-  ['banana', '🍌'], ['banane', '🍌'], ['arancia', '🍊'], ['arance', '🍊'],
-  ['limone', '🍋'], ['limoni', '🍋'], ['fragola', '🍓'], ['fragole', '🍓'],
-  ['ciliegia', '🍒'], ['ciliegie', '🍒'], ['uva', '🍇'], ['anguria', '🍉'],
-  ['melone', '🍈'], ['pesca', '🍑'], ['pesche', '🍑'], ['ananas', '🍍'],
-  ['mango', '🥭'], ['cocco', '🥥'], ['kiwi', '🥝'], ['mirtillo', '🫐'],
-  // Verdura
-  ['pomodoro', '🍅'], ['pomodori', '🍅'], ['carota', '🥕'], ['carote', '🥕'],
-  ['cetriolo', '🥒'], ['cetrioli', '🥒'], ['peperone', '🫑'], ['peperoni', '🫑'],
-  ['mais', '🌽'], ['patata', '🥔'], ['patate', '🥔'], ['cipolla', '🧅'], ['cipolle', '🧅'],
-  ['aglio', '🧄'], ['broccoli', '🥦'], ['lattuga', '🥬'], ['insalata', '🥬'],
-  ['melanzana', '🍆'], ['melanzane', '🍆'], ['zucchina', '🥒'], ['zucchine', '🥒'],
-  ['funghi', '🍄'], ['fungo', '🍄'], ['fagioli', '🫘'], ['piselli', '🫛'],
-  // Pane / cereali
-  ['pane', '🍞'], ['baguette', '🥖'], ['panini', '🥖'], ['toast', '🍞'],
-  ['cracker', '🍘'], ['biscotti', '🍪'], ['biscotto', '🍪'],
-  ['cereali', '🥣'], ['riso', '🍚'], ['pasta', '🍝'], ['spaghetti', '🍝'],
-  // Carne / pesce
-  ['carne', '🥩'], ['bistecca', '🥩'], ['pollo', '🍗'], ['salsiccia', '🌭'],
-  ['salsicce', '🌭'], ['hamburger', '🍔'], ['prosciutto', '🥓'], ['bacon', '🥓'],
-  ['pesce', '🐟'], ['tonno', '🐟'], ['salmone', '🐟'], ['gamberi', '🦐'],
-  // Latticini / uova
-  ['latte', '🥛'], ['formaggio', '🧀'], ['parmigiano', '🧀'], ['mozzarella', '🧀'],
-  ['burro', '🧈'], ['yogurt', '🥛'], ['uova', '🥚'], ['uovo', '🥚'],
-  // Dolci / snack
-  ['cioccolato', '🍫'], ['cioccolata', '🍫'], ['caramelle', '🍬'], ['caramella', '🍬'],
-  ['gelato', '🍦'], ['torta', '🍰'], ['dolce', '🍰'], ['miele', '🍯'],
-  ['marmellata', '🍯'], ['cornetto', '🥐'], ['cornetti', '🥐'],
-  ['ciambella', '🍩'], ['popcorn', '🍿'],
-  // Bevande
-  ['acqua', '💧'], ['vino', '🍷'], ['birra', '🍺'], ['caffe', '☕'], ['caffè', '☕'],
-  ['te', '🍵'], ['tè', '🍵'], ['succo', '🧃'], ['cocacola', '🥤'], ['coca', '🥤'],
-  ['bibita', '🥤'], ['drink', '🥤'], ['liquore', '🥃'], ['champagne', '🍾'],
-  // Condimenti
-  ['sale', '🧂'], ['zucchero', '🍬'], ['olio', '🫒'], ['olive', '🫒'], ['oliva', '🫒'],
-  ['pepe', '🌶'], ['peperoncino', '🌶'], ['salsa', '🍶'],
-  // Pulizia casa
-  ['detersivo', '🧴'], ['detergente', '🧴'], ['sapone', '🧼'], ['shampoo', '🧴'],
-  ['carta igienica', '🧻'], ['scottex', '🧻'], ['rotolo', '🧻'], ['scope', '🧹'],
-  ['spazzola', '🧹'], ['secchio', '🪣'], ['guanti', '🧤'],
-  // Igiene personale
-  ['dentifricio', '🪥'], ['spazzolino', '🪥'], ['profumo', '🧴'],
-  // Bimbi / animali
-  ['pannolini', '👶'], ['biberon', '🍼'], ['cibo gatto', '🐱'], ['cibo cane', '🐶'],
-  // Altro
-  ['fiori', '💐'], ['regalo', '🎁'], ['candela', '🕯'], ['libro', '📖'],
-  ['batterie', '🔋'], ['lampadina', '💡']
+// Categorie del selettore icone (modal). Ogni categoria ha un set di emoji.
+// Le keyword sotto fanno match ANCHE su radici/prefissi (es. "natalin" → 🎄
+// per matchare "natalini, natalino, natalina, natale").
+const SPESA_ICON_CATS = [
+  { id: 'food', label: 'Cibo', icon: '🍽',
+    emojis: ['🍞','🥖','🥐','🥯','🥪','🧀','🥚','🥩','🥓','🍗','🍖','🌭','🍔','🍟','🍕','🥙','🌮','🌯','🥗','🥘','🍝','🍜','🍲','🍱','🍚','🍙','🍘','🍢','🍡','🥟','🍤','🍣','🍿','🥫','🧂','🫙','🥣','🍫','🍬','🍭','🍮','🍡','🍯','🍰','🎂','🧁','🍩','🍪','🥧','🍦','🍨','🍧'] },
+  { id: 'fruit', label: 'Frutta & Verdura', icon: '🥕',
+    emojis: ['🍎','🍏','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶','🫑','🌽','🥕','🫒','🧄','🧅','🥔','🍠','🫘','🫛','🌰','🍄'] },
+  { id: 'drinks', label: 'Bevande', icon: '🥤',
+    emojis: ['💧','🥛','☕','🫖','🍵','🧃','🥤','🧋','🍶','🍾','🍷','🥂','🍺','🍻','🥃','🍸','🍹','🧉'] },
+  { id: 'home', label: 'Casa & Pulizia', icon: '🧼',
+    emojis: ['🧹','🧺','🧻','🧴','🧼','🪣','🧽','🪥','🪒','🧯','🛏','🛋','🚪','🪟','🪑','🖼','📺','🔌','💡','🔋','🕯','🧯','🗝','🔑','🔨','🛠','🪚','🔩','⚙️','🪛'] },
+  { id: 'health', label: 'Salute', icon: '💊',
+    emojis: ['💊','🩹','🩺','💉','🌡','🧴','🧻','🪥','🧼','🩼','🦷','👓','🥽','😷'] },
+  { id: 'baby', label: 'Bimbi & Animali', icon: '👶',
+    emojis: ['👶','🍼','🧸','🧷','🎈','🪀','🎁','🐶','🐱','🐹','🐰','🐦','🐟','🦴','🐾'] },
+  { id: 'tech', label: 'Tecnologia', icon: '📱',
+    emojis: ['📱','💻','⌨️','🖱','🖥','🖨','📷','📸','🎧','🔋','🔌','💾','💿','📀','📻','🎮','🕹','📺','💡','📡','📞','☎️','🔭','🔬'] },
+  { id: 'clothes', label: 'Abbigliamento', icon: '👕',
+    emojis: ['👕','👖','👗','👘','👙','👚','👔','👞','👟','🥾','👢','👠','👡','🩴','🧢','🎩','👒','🧣','🧤','🧦','🩲','🩳','🥼','🥋','🦺','👜','👛','👝','🎒','🕶','👓','💍','💄','💼'] },
+  { id: 'gifts', label: 'Regali & Feste', icon: '🎁',
+    emojis: ['🎁','🎀','🎂','🎈','🎊','🎉','🥳','🎆','🎇','🎄','🌟','⭐','🕯','🎃','🐰','🥚','💝','💐','🌹','🌷','🌺','🌸','🌼','🍾','🥂','🪅','🪩','🎭','🎨'] },
+  { id: 'nature', label: 'Natura & Giardino', icon: '🪴',
+    emojis: ['🪴','🌱','🌿','🍀','🍃','🌳','🌲','🌴','🌵','🌾','🌻','🌼','🌷','🌹','🌺','💐','🌸','☘','🍂','🍁'] },
+  { id: 'tools', label: 'Bricolage & Sport', icon: '🛠',
+    emojis: ['🛠','🔨','🔧','🪛','🔩','⚙️','🪚','🪜','📏','📐','✂️','🧰','🧲','🪤','⚽','🏀','🏈','⚾','🎾','🏐','🥎','🏓','🏸','🥏','⛳','🥅','🏹','🎣','🛹','🛼','🎿','⛷','🏂','🏊','🚴','🚵','🏋️','🤸','⛸'] },
+  { id: 'other', label: 'Altro', icon: '✨',
+    emojis: ['🛒','📦','📨','💸','💰','📚','📖','📓','📒','📕','✏️','🖊','🖋','🪪','🔑','🗝','🎫','🎟','📅','📆','⏰','🛍','🎒','💼'] }
 ];
 
+// Mappa keyword → emoji per suggerimento automatico icona dal nome elemento.
+// Match smart: split in parole, prefisso 4+ char, la più specifica vince.
+// Includere radici/lemmi (senza desinenza) per matchare plurali/femminili/diminutivi
+// es: "natalin" matcha "natalino, natalini, natalina, natale" e "natalini pacchetti"
+const SPESA_KEYWORD_ICONS = [
+  // Frutta
+  ['mel', '🍎'], ['pera', '🍐'], ['pere', '🍐'], ['perin', '🍐'],
+  ['banan', '🍌'], ['aranc', '🍊'], ['limon', '🍋'], ['fragol', '🍓'],
+  ['cilieg', '🍒'], ['uva', '🍇'], ['anguri', '🍉'], ['cocomer', '🍉'],
+  ['melon', '🍈'], ['pesc', '🍑'], ['pesch', '🍑'], ['ananas', '🍍'],
+  ['mango', '🥭'], ['cocco', '🥥'], ['kiwi', '🥝'], ['mirtill', '🫐'],
+  ['lampon', '🫐'], ['fico', '🍈'], ['fichi', '🍈'], ['cachi', '🍑'],
+  ['albicocc', '🍑'], ['susin', '🍑'], ['castagn', '🌰'], ['noc', '🌰'],
+  // Verdura
+  ['pomodor', '🍅'], ['pomidor', '🍅'], ['pomidoro', '🍅'],
+  ['carot', '🥕'], ['cetriol', '🥒'], ['peperon', '🫑'], ['peperoni', '🫑'],
+  ['mais', '🌽'], ['granoturco', '🌽'], ['patat', '🥔'], ['cipoll', '🧅'],
+  ['aglio', '🧄'], ['broccol', '🥦'], ['cavolfior', '🥦'], ['cavol', '🥬'],
+  ['lattug', '🥬'], ['insalat', '🥬'], ['rucol', '🥬'], ['spinac', '🥬'],
+  ['melanzan', '🍆'], ['zucchin', '🥒'], ['zucca', '🎃'], ['fungh', '🍄'],
+  ['fagiol', '🫘'], ['fagiolin', '🥦'], ['pisell', '🫛'], ['cec', '🫘'],
+  ['lentic', '🫘'], ['asparag', '🌱'], ['finocch', '🥬'], ['sedan', '🥬'],
+  // Pane / cereali / pasta
+  ['pane', '🍞'], ['panin', '🥖'], ['baguett', '🥖'], ['ciabatt', '🥖'],
+  ['cracker', '🍘'], ['grissin', '🥖'], ['biscott', '🍪'], ['frollin', '🍪'],
+  ['cereal', '🥣'], ['ris', '🍚'], ['pasta', '🍝'], ['spaghett', '🍝'],
+  ['pen', '🍝'], ['fusill', '🍝'], ['rigaton', '🍝'], ['gnocch', '🥟'],
+  ['lasagn', '🍝'], ['toast', '🍞'], ['cornett', '🥐'], ['brioche', '🥐'],
+  ['focacc', '🥖'], ['pizza', '🍕'], ['piad', '🌮'], ['fett', '🍞'],
+  // Carne / pesce
+  ['carne', '🥩'], ['bistec', '🥩'], ['poll', '🍗'], ['tacchin', '🍗'],
+  ['salsicc', '🌭'], ['wurstel', '🌭'], ['hamburger', '🍔'], ['polpett', '🍖'],
+  ['prosciutt', '🥓'], ['bacon', '🥓'], ['speck', '🥓'], ['salam', '🥓'],
+  ['mortadell', '🥓'], ['braciol', '🥩'], ['arrost', '🍖'], ['stinco', '🍖'],
+  ['pesce', '🐟'], ['pesci', '🐟'], ['tonno', '🐟'], ['salmon', '🐟'],
+  ['sgombr', '🐟'], ['merlu', '🐟'], ['gamber', '🦐'], ['cozz', '🦪'],
+  ['vongol', '🦪'], ['calam', '🦑'], ['polp', '🐙'],
+  // Latticini / uova
+  ['latte', '🥛'], ['lactos', '🥛'], ['lattin', '🥛'], ['form', '🧀'],
+  ['parmigian', '🧀'], ['grana', '🧀'], ['mozzarell', '🧀'], ['stracchin', '🧀'],
+  ['ricott', '🧀'], ['robiol', '🧀'], ['pecorin', '🧀'], ['provolon', '🧀'],
+  ['burro', '🧈'], ['yogurt', '🥛'], ['panna', '🥛'], ['uova', '🥚'], ['uovo', '🥚'],
+  ['frittat', '🍳'],
+  // Dolci / snack / dessert
+  ['ciocc', '🍫'], ['kinder', '🍫'], ['nutella', '🍫'], ['nutell', '🍫'],
+  ['caramell', '🍬'], ['gelat', '🍦'], ['ghiacciol', '🍧'], ['sorbett', '🍧'],
+  ['torta', '🍰'], ['dolce', '🍰'], ['dolci', '🍰'], ['miele', '🍯'],
+  ['marmellat', '🍯'], ['confettur', '🍯'], ['ciambell', '🍩'],
+  ['popcorn', '🍿'], ['nutella', '🍫'], ['merendin', '🧁'], ['merendine', '🧁'],
+  ['snack', '🍫'], ['patatin', '🍟'], ['krek', '🍘'], ['waffle', '🧇'],
+  ['frutta sec', '🌰'], ['mandorl', '🌰'], ['noccio', '🌰'], ['pistacch', '🌰'],
+  // Bevande
+  ['acqua', '💧'], ['frizzant', '💧'], ['minerale', '💧'], ['naturale', '💧'],
+  ['vino', '🍷'], ['rosso', '🍷'], ['bianco', '🍷'], ['rosé', '🍷'],
+  ['birra', '🍺'], ['birrett', '🍺'], ['prosecc', '🍾'], ['lambrusc', '🍾'],
+  ['champag', '🍾'], ['spumant', '🍾'], ['caffe', '☕'], ['cappuc', '☕'],
+  ['the ', '🍵'], ['tè', '🍵'], ['tisane', '🍵'], ['camomill', '🍵'],
+  ['succ', '🧃'], ['cocacol', '🥤'], ['coca', '🥤'], ['fanta', '🥤'],
+  ['sprite', '🥤'], ['bibit', '🥤'], ['energy', '🥤'], ['rum', '🥃'],
+  ['whisky', '🥃'], ['vodka', '🥃'], ['gin', '🥃'], ['amaro', '🥃'],
+  ['liquor', '🥃'], ['grappa', '🥃'], ['aperitiv', '🥂'], ['spritz', '🥂'],
+  // Condimenti
+  ['sale', '🧂'], ['zucchero', '🍬'], ['olio', '🫒'], ['oliv', '🫒'],
+  ['pepe', '🌶'], ['peperoncin', '🌶'], ['salsa', '🥫'], ['ketchup', '🥫'],
+  ['maionese', '🥫'], ['senape', '🌭'], ['aceto', '🫙'], ['vaniglia', '🍦'],
+  // Pulizia casa
+  ['detersiv', '🧴'], ['detergent', '🧴'], ['saponett', '🧼'], ['sapon', '🧼'],
+  ['shampoo', '🧴'], ['balsamo', '🧴'], ['ammorbidente', '🧴'],
+  ['carta igien', '🧻'], ['scottex', '🧻'], ['rotolo', '🧻'], ['rotoli', '🧻'],
+  ['tovaglio', '🧻'], ['scope', '🧹'], ['scopa', '🧹'], ['spazzolon', '🧹'],
+  ['paletta', '🧹'], ['straccio', '🧹'], ['stracci', '🧹'], ['secchi', '🪣'],
+  ['guanti', '🧤'], ['mocio', '🧹'], ['candegg', '🧴'], ['amuchi', '🧴'],
+  // Igiene personale
+  ['dentifric', '🪥'], ['spazzolin', '🪥'], ['profum', '🧴'], ['deodorant', '🧴'],
+  ['rasoi', '🪒'], ['lametta', '🪒'], ['filo interden', '🪥'], ['collutorio', '🪥'],
+  ['salviett', '🧻'], ['fazzolett', '🧻'], ['cotone', '🧻'],
+  // Bimbi
+  ['pannolin', '👶'], ['biberon', '🍼'], ['salviette', '🧻'], ['ciuccio', '👶'],
+  ['gioco', '🧸'], ['giochi', '🧸'], ['peluche', '🧸'],
+  // Animali
+  ['cibo gatto', '🐱'], ['cibo cane', '🐶'], ['croccantin', '🐾'],
+  ['lettiera', '🐾'], ['gatto', '🐱'], ['cane', '🐶'],
+  // Feste / regali / espressioni colloquiali
+  ['natal', '🎄'], ['natalin', '🎄'], ['pandor', '🎄'], ['panetton', '🎄'],
+  ['albero', '🎄'], ['regal', '🎁'], ['pacc', '📦'], ['pacchett', '🎁'],
+  ['compleann', '🎂'], ['festa', '🎉'], ['party', '🥳'], ['fest', '🎊'],
+  ['pasqu', '🐰'], ['coloma', '🎂'], ['colomba', '🐰'], ['uovo di pasq', '🥚'],
+  ['valent', '💝'], ['cuore', '❤️'], ['cuori', '❤️'], ['rose', '🌹'],
+  ['halloween', '🎃'], ['zucca', '🎃'], ['carnev', '🎭'], ['masc', '🎭'],
+  ['battesimo', '🎉'], ['matrimon', '💐'], ['anniversar', '💐'],
+  // Altro / casa
+  ['fiori', '💐'], ['fior', '💐'], ['piant', '🪴'], ['vaso', '🪴'],
+  ['candele', '🕯'], ['candela', '🕯'], ['libro', '📖'], ['libri', '📖'],
+  ['quaderno', '📓'], ['penne', '🖊'], ['penna', '🖊'], ['matit', '✏️'],
+  ['batter', '🔋'], ['lampadin', '💡'], ['pile', '🔋'],
+  ['busta', '📨'], ['buste', '📨'], ['sacchett', '🛍'], ['borse', '👜'],
+  ['ombrell', '☂️'], ['scarp', '👟'], ['calz', '🧦'], ['vestit', '👔'],
+  // Tecnologia
+  ['carica', '🔌'], ['cavo', '🔌'], ['cavi', '🔌'], ['cuffi', '🎧'],
+  ['auricola', '🎧'], ['cellular', '📱'], ['telefono', '📱'], ['computer', '💻'],
+  // Sport / hobby
+  ['palla', '⚽'], ['pallone', '⚽'], ['scarpe sport', '👟'], ['tute', '🦺']
+];
+
+// Smart match: priorità per token più lungo o keyword più specifica.
 function spesaIconForName(name) {
   if (!name) return '🛒';
-  const n = String(name).toLowerCase().trim();
-  // Match il più lungo (più specifico) prima
-  let best = '';
+  const n = String(name).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  if (!n) return '🛒';
+  let bestKw = '';
   let bestIcon = '';
   for (const [kw, ic] of SPESA_KEYWORD_ICONS) {
-    if (n.indexOf(kw) !== -1 && kw.length > best.length) {
-      best = kw;
+    if (n.indexOf(kw) !== -1 && kw.length > bestKw.length) {
+      bestKw = kw;
       bestIcon = ic;
     }
   }
   return bestIcon || '🛒';
+}
+
+// ─── MODAL SELETTORE ICONE ──────────────────────────────────
+let _iconPickerCat = 'all'; // 'all' o id di SPESA_ICON_CATS
+let _iconPickerSearch = '';
+
+function openIconPicker() {
+  _iconPickerCat = 'all';
+  _iconPickerSearch = '';
+  if (D.iconPickerSearch) D.iconPickerSearch.value = '';
+  renderIconPickerCats();
+  renderIconPickerGrid();
+  openModal('modalIconPicker');
+  setTimeout(() => { if (D.iconPickerSearch) D.iconPickerSearch.focus(); }, 60);
+}
+
+function renderIconPickerCats() {
+  if (!D.iconPickerCategories) return;
+  const html = '<button class="icon-picker-cat' + (_iconPickerCat === 'all' ? ' active' : '') + '" data-cat="all">Tutte</button>' +
+    SPESA_ICON_CATS.map(c =>
+      '<button class="icon-picker-cat' + (_iconPickerCat === c.id ? ' active' : '') + '" data-cat="' + c.id + '">' +
+        c.icon + ' ' + esc(c.label) +
+      '</button>'
+    ).join('');
+  D.iconPickerCategories.innerHTML = html;
+  twemojify(D.iconPickerCategories);
+  $$('.icon-picker-cat', D.iconPickerCategories).forEach(b => {
+    b.addEventListener('click', () => {
+      _iconPickerCat = b.getAttribute('data-cat');
+      renderIconPickerCats();
+      renderIconPickerGrid();
+    });
+  });
+}
+
+function renderIconPickerGrid() {
+  if (!D.iconPickerGrid) return;
+  let emojis;
+  if (_iconPickerSearch) {
+    // ricerca: cerca tra TUTTE le emoji + match keyword del map per dare anche
+    // emoji che mappano al termine (es. "natale" → 🎄 anche se non in categoria
+    // dedicata)
+    const q = _iconPickerSearch.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    const found = new Set();
+    // 1. cerca tra keyword map → emoji
+    SPESA_KEYWORD_ICONS.forEach(([kw, ic]) => {
+      if (kw.indexOf(q) !== -1 || q.indexOf(kw) !== -1) found.add(ic);
+    });
+    // 2. completa con emoji dalle categorie (per dare scelta)
+    SPESA_ICON_CATS.forEach(c => c.emojis.forEach(e => {
+      if (c.label.toLowerCase().indexOf(q) !== -1) found.add(e);
+    }));
+    // Se la search non è esplicita, aggiungi anche tutte le emoji come fallback
+    emojis = Array.from(found);
+    // Se ancora vuoto, mostra tutte
+    if (!emojis.length) emojis = SPESA_ICON_CATS.flatMap(c => c.emojis);
+  } else if (_iconPickerCat === 'all') {
+    emojis = SPESA_ICON_CATS.flatMap(c => c.emojis);
+  } else {
+    const cat = SPESA_ICON_CATS.find(c => c.id === _iconPickerCat);
+    emojis = cat ? cat.emojis : [];
+  }
+  // dedup
+  emojis = Array.from(new Set(emojis));
+  if (!emojis.length) {
+    D.iconPickerGrid.innerHTML = '<div class="icon-picker-empty">Nessuna icona trovata</div>';
+    return;
+  }
+  const cur = _spesaEditState.icona;
+  D.iconPickerGrid.innerHTML = emojis.map(e =>
+    '<button class="icon-picker-cell' + (e === cur ? ' selected' : '') + '" data-emoji="' + e + '" type="button">' +
+      e +
+    '</button>'
+  ).join('');
+  twemojify(D.iconPickerGrid);
+  $$('.icon-picker-cell', D.iconPickerGrid).forEach(b => {
+    b.addEventListener('click', () => {
+      const e = b.getAttribute('data-emoji');
+      _spesaEditState.iconaManual = true;
+      updateSpesaEditIcon(e);
+      closeModal('modalIconPicker');
+    });
+  });
 }
 
 function renderSpesa() {
@@ -4468,18 +4634,14 @@ function bindEvents() {
   if (D.spesaEditQtyMinus) D.spesaEditQtyMinus.addEventListener('click', () => updateSpesaEditQty(_spesaEditState.qty - 1));
   if (D.spesaEditQtyPlus)  D.spesaEditQtyPlus.addEventListener('click', () => updateSpesaEditQty(_spesaEditState.qty + 1));
   if (D.spesaEditNome)     D.spesaEditNome.addEventListener('input', onSpesaEditNomeInput);
-  // Click sull'icona circolare nel modal: per ora ciclo tra alcune emoji
-  // base; in un secondo commit aggiungeremo il selettore completo.
+  // Click sull'icona circolare → apri modal selettore icone con ricerca + categorie
   if (D.spesaEditIconBtn) {
-    D.spesaEditIconBtn.addEventListener('click', () => {
-      // Marca l'icona come "scelta manualmente" così non viene sovrascritta
-      // dall'auto-suggestion del nome
-      _spesaEditState.iconaManual = true;
-      // ciclo placeholder (verrà sostituito dal modal-picker icone)
-      const pool = ['🛒', '🍞', '🥛', '🍅', '🥕', '🍎', '🍝', '🧀', '🥩', '🐟', '☕', '🍷', '🧴', '🧻'];
-      const cur = _spesaEditState.icona;
-      const i = pool.indexOf(cur);
-      updateSpesaEditIcon(pool[(i + 1) % pool.length]);
+    D.spesaEditIconBtn.addEventListener('click', openIconPicker);
+  }
+  if (D.iconPickerSearch) {
+    D.iconPickerSearch.addEventListener('input', e => {
+      _iconPickerSearch = e.target.value || '';
+      renderIconPickerGrid();
     });
   }
   // Home Gestione Casa: tap su widget moduli

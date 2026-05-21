@@ -455,6 +455,22 @@
   </div>
 
   <!-- Aggiungi/Modifica utente autorizzato -->
+  <!-- Modal selettore icone (con ricerca + categorie) -->
+  <div class="modal" id="modalIconPicker">
+    <div class="sheet" id="sheetIconPicker">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3>Scegli icona</h3>
+        <button class="sheet-close" data-close="modalIconPicker">✕</button>
+      </div>
+      <div class="sheet-body">
+        <input type="search" id="iconPickerSearch" class="search-input" placeholder="Cerca (pane, regalo, natale...)" autocomplete="off">
+        <div id="iconPickerCategories" class="icon-picker-cats"></div>
+        <div id="iconPickerGrid" class="icon-picker-grid"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal nuovo/modifica elemento Lista Spesa -->
   <div class="modal" id="modalSpesa">
     <div class="sheet" id="sheetSpesa">
