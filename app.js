@@ -1623,8 +1623,10 @@ function renderHomeGestione() {
         const qty = (it.quantita && it.quantita > 1) ? '<span class="mc-spesa-row-qty">×' + it.quantita + '</span>' : '';
         return '<div class="mc-spesa-row">' +
                  '<span class="mc-spesa-row-icon">' + (it.icona || '🛒') + '</span>' +
-                 '<span class="mc-spesa-row-name">' + esc(it.nome || '') + '</span>' +
-                 qty +
+                 '<span class="mc-spesa-row-text">' +
+                   '<span class="mc-spesa-row-name">' + esc(it.nome || '') + '</span>' +
+                   qty +
+                 '</span>' +
                '</div>';
       }).join('');
       if (toBuy.length > 3) {

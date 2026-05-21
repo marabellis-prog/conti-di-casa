@@ -88,8 +88,17 @@ html[data-theme="light"] {
   flex-shrink: 0;
 }
 .mc-spesa-row-icon img.emoji { width: 14px; height: 14px; }
-.mc-spesa-row-name {
+/* Wrapper nome+qty: prende lo spazio rimanente ma li tiene attaccati */
+.mc-spesa-row-text {
   flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+}
+.mc-spesa-row-name {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -102,6 +111,7 @@ html[data-theme="light"] {
   color: var(--accent);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
+  /* niente margin-left auto: la qty sta SUBITO accanto al nome */
 }
 .mc-spesa-more {
   font-size: 12px;
