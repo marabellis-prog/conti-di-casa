@@ -810,7 +810,11 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .donut-legend {
   margin-top: 14px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* auto-fit con minmax(160, 1fr): su schermi larghi ne entrano 2/3 per riga,
+     su mobile (slide ~220-240px) automaticamente passa a 1 colonna piena.
+     Così la legend si allunga in VERTICALE (mai larghezza tagliata) per
+     qualsiasi numero di voci. */
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 6px 14px;
   width: 100%;
   font-size: 13px;
@@ -820,14 +824,27 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   align-items: center;
   gap: 6px;
   cursor: pointer;
+  min-width: 0;        /* permette al nome di ellipsizzare correttamente */
 }
 .legend-dot {
   width: 10px; height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.legend-row span:nth-child(2) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.legend-row b { font-variant-numeric: tabular-nums; }
+/* Nome: si tronca con ellipsis se non c'è spazio */
+.legend-row span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Valore (es. "22%", "€391"): NON si tronca mai */
+.legend-row b {
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 
 /* (vecchio blocco duplicato .carousel-* rimosso: faceva override dei nuovi
     stili del carousel a 3 slide, in particolare azzerava il padding laterale
