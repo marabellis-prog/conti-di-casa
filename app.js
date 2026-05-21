@@ -107,7 +107,7 @@ function cacheDOM() {
    'bcRoot','bcModule','bcLeaf',
    'moduleActions','moduleMonth','moduleActionPills',
    'view-home','view-conti','view-list','view-cat',
-   'homeContiDonut','homeContiSaldo','homeContiSubtle','goToList','goToCategorie',
+   'homeContiDonut','homeContiSaldo','homeContiSubtle','homeContiPeriod','goToList','goToCategorie',
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap',
    'carouselTrack','carouselPrev','carouselNext','carouselTitle','carouselDots',
    'trendFrom','trendTo','trend3mWrap',
@@ -815,6 +815,7 @@ function bindCarousel() {
     syncTrendDateInputs();
     renderTrend3m();
     renderAutoreDonut();
+    renderHomeGestione(); // aggiorna anche il "periodo" accanto al titolo del widget Home
   }
   function setTrendTo(value) {
     if (!value) return;
@@ -824,6 +825,7 @@ function bindCarousel() {
     syncTrendDateInputs();
     renderTrend3m();
     renderAutoreDonut();
+    renderHomeGestione();
   }
   if (D.trendFrom)  D.trendFrom.addEventListener('change',  () => setTrendFrom(D.trendFrom.value));
   if (D.trendTo)    D.trendTo.addEventListener('change',    () => setTrendTo(D.trendTo.value));
@@ -1002,6 +1004,25 @@ function renderHomeGestione() {
   }
   if (D.homeContiSubtle && S.currentMonth) {
     D.homeContiSubtle.textContent = MESI_FULL[S.currentMonth.mese - 1] + ' ' + S.currentMonth.anno;
+  }
+  // Periodo accanto al titolo "Conti di Casa" nell'header del widget:
+  // mostra il mese corrente (default), oppure il range se è stato impostato
+  // un periodo custom (es. via slide Andamento mesi / Uscite per autore).
+  if (D.homeContiPeriod && S.currentMonth) {
+    let label = MESI_FULL[S.currentMonth.mese - 1] + ' ' + S.currentMonth.anno;
+    // Se l'utente ha modificato il trendRange dal default (currentMonth-2 → currentMonth),
+    // mostra il range. Calcolo il default e confronto.
+    const cm = S.currentMonth;
+    let fromY = cm.anno, fromM = cm.mese - 2;
+    while (fromM < 1) { fromM += 12; fromY--; }
+    const ld = new Date(cm.anno, cm.mese, 0).getDate();
+    const defaultFrom = fromY + '-' + String(fromM).padStart(2,'0') + '-01';
+    const defaultTo   = cm.anno + '-' + String(cm.mese).padStart(2,'0') + '-' + String(ld).padStart(2,'0');
+    const tr = S.trendRange;
+    if (tr && tr.from && tr.to && (tr.from !== defaultFrom || tr.to !== defaultTo)) {
+      label = fmtDataLong(tr.from) + ' – ' + fmtDataLong(tr.to);
+    }
+    D.homeContiPeriod.textContent = label;
   }
 
   // Mini donut: uscite per macro categoria (no testo centro, no legenda)

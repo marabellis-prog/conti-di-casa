@@ -366,11 +366,26 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   margin-bottom: 10px;
 }
 .mc-icon { font-size: 26px; line-height: 1; }
-.mc-title { font-size: 16px; font-weight: 700; flex: 1; color: var(--text); }
+.mc-title { font-size: 16px; font-weight: 700; color: var(--text); white-space: nowrap; }
+/* Periodo accanto al titolo nel widget Conti (es. "MAGGIO 2026" o range) */
+.mc-period {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: 2px;
+}
+.mc-period:empty { display: none; }
 .mc-go {
   color: var(--text-faint);
   font-size: 20px;
   font-weight: 300;
+  flex-shrink: 0;
 }
 .mc-soon {
   font-size: 10px;
