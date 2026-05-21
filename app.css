@@ -272,29 +272,30 @@ html[data-theme="light"] {
 }
 .spesa-item-icon:active { transform: scale(.92); }
 .spesa-item-icon img.emoji { width: 25px; height: 25px; }
-/* Spunta più piccola sovrapposta in alto-destra (badge), no più overlay
-   intero. L'icona b/n dietro resta TUTTA visibile con un velo grigio
-   leggero per indicare "fatto/preso". */
+/* Spunta sui PRESI: solo il glyph ✓ verde, no cerchio attorno. L'alone
+   bianco (text-shadow) lo rende leggibile sopra qualsiasi sfondo. */
 .spesa-item-icon .check-mark {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: -6px;
+  right: -6px;
   bottom: auto;
   left: auto;
   inset: auto;
-  width: 20px;
-  height: 20px;
+  width: auto;
+  height: auto;
   display: none;
-  align-items: center;
-  justify-content: center;
-  background: #ffffff;
+  background: transparent;
+  border: none;
+  box-shadow: none;
   color: var(--ok);
-  border-radius: 50%;
-  font-size: 14px;
+  font-size: 22px;
   font-weight: 900;
-  border: 2px solid var(--ok);
-  box-shadow: 0 1px 4px rgba(0,0,0,.25);
   line-height: 1;
+  text-shadow:
+    0 0 4px #fff,
+    0 0 4px #fff,
+    0 0 2px #fff,
+    0 1px 3px rgba(0,0,0,.35);
 }
 .spesa-item.preso .spesa-item-icon .check-mark { display: flex; }
 /* Velo grigio molto trasparente sopra l'icona b/n quando preso */

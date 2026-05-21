@@ -748,24 +748,34 @@ function renderIconPickerCats() {
 function renderIconPickerGrid() {
   if (!D.iconPickerGrid) return;
   let emojis;
-  if (_iconPickerSearch) {
-    // ricerca: cerca tra TUTTE le emoji + match keyword del map per dare anche
-    // emoji che mappano al termine (es. "natale" → 🎄 anche se non in categoria
-    // dedicata)
-    const q = _iconPickerSearch.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-    const found = new Set();
-    // 1. cerca tra keyword map → emoji
-    SPESA_KEYWORD_ICONS.forEach(([kw, ic]) => {
-      if (kw.indexOf(q) !== -1 || q.indexOf(kw) !== -1) found.add(ic);
-    });
-    // 2. completa con emoji dalle categorie (per dare scelta)
-    SPESA_ICON_CATS.forEach(c => c.emojis.forEach(e => {
-      if (c.label.toLowerCase().indexOf(q) !== -1) found.add(e);
-    }));
-    // Se la search non è esplicita, aggiungi anche tutte le emoji come fallback
-    emojis = Array.from(found);
-    // Se ancora vuoto, mostra tutte
-    if (!emojis.length) emojis = SPESA_ICON_CATS.flatMap(c => c.emojis);
+  const q = (_iconPickerSearch || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  if (q) {
+    if (q.length < SPESA_MIN_QUERY_LEN) {
+      // Sotto la soglia minima → mostra tutto della categoria attuale come
+      // se non ci fosse query (l'utente sta ancora digitando)
+      if (_iconPickerCat === 'all') emojis = SPESA_ICON_CATS.flatMap(c => c.emojis);
+      else {
+        const cat = SPESA_ICON_CATS.find(c => c.id === _iconPickerCat);
+        emojis = cat ? cat.emojis : [];
+      }
+    } else {
+      // Match coerente con spesaIconSuggestions: keyword inizia con query
+      // OR query contiene keyword (NO substring middle che produceva troppi
+      // falsi positivi)
+      const found = new Set();
+      SPESA_KEYWORD_ICONS.forEach(([kw, ic]) => {
+        if (kw.indexOf(q) === 0 || q.indexOf(kw) !== -1) found.add(ic);
+      });
+      // Match anche la label della categoria (es. "frutta" → tutte le emoji
+      // della categoria Frutta&Verdura)
+      SPESA_ICON_CATS.forEach(c => {
+        const labLower = c.label.toLowerCase();
+        if (labLower === q || labLower.indexOf(q) === 0) {
+          c.emojis.forEach(e => found.add(e));
+        }
+      });
+      emojis = Array.from(found);
+    }
   } else if (_iconPickerCat === 'all') {
     emojis = SPESA_ICON_CATS.flatMap(c => c.emojis);
   } else {
@@ -775,7 +785,7 @@ function renderIconPickerGrid() {
   // dedup
   emojis = Array.from(new Set(emojis));
   if (!emojis.length) {
-    D.iconPickerGrid.innerHTML = '<div class="icon-picker-empty">Nessuna icona trovata</div>';
+    D.iconPickerGrid.innerHTML = '<div class="icon-picker-empty">Nessuna icona trovata per "' + esc(q) + '"</div>';
     return;
   }
   const cur = _spesaEditState.icona;
