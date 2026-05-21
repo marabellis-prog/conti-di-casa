@@ -713,10 +713,14 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 }
 .carousel-slide {
   flex: 0 0 100%;
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  overflow: hidden; /* clippa eventuali figli che provano a uscire lateralmente */
+  box-sizing: border-box;
 }
 .carousel-dots {
   display: flex;
@@ -1074,20 +1078,11 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   font-size: 14px;
   flex-shrink: 0;
 }
-.line-legend {
-  display: flex;
-  justify-content: center;
-  gap: 18px;
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--text-dim);
-}
-.line-legend .dot {
-  display: inline-block;
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  margin-right: 6px;
-}
+/* (vecchio .line-legend display:flex single-row rimosso: causava overflow
+    laterale quando il line chart aveva 3+ macro nella legend. Ora la
+    classe .line-legend eredita solo da .donut-legend (display:grid 2 cols
+    con auto wrap su nuove righe). Il div del grafico si allunga in altezza
+    invece di allargarsi orizzontalmente.) */
 
 /* Budget barre */
 .budget-row { margin-bottom: 14px; }
