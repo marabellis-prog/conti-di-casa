@@ -118,8 +118,72 @@ html[data-theme="light"] {
   padding: 4px 0;
 }
 
-/* ─── LISTA DELLA SPESA ──────────────────────────────────── */
-.spesa-section { margin-bottom: 18px; }
+/* ─── LISTA DELLA SPESA — stile block-notes ───────────────── */
+/* Variabili: passo righe e colore */
+:root {
+  --notebook-line: 44px;       /* altezza di una "riga" */
+  --notebook-line-color: rgba(74, 144, 226, .22);
+  --notebook-margin: 38px;     /* posizione del margine rosso da sinistra */
+  --notebook-margin-color: rgba(220, 38, 38, .42);
+}
+html[data-theme="light"] {
+  --notebook-line-color: rgba(74, 144, 226, .28);
+  --notebook-margin-color: rgba(220, 38, 38, .55);
+}
+
+.spesa-section {
+  position: relative;
+  margin-bottom: 20px;
+  padding: 16px calc(var(--notebook-margin) - 30px) 14px calc(var(--notebook-margin) + 12px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.06);
+  /* Righe orizzontali in background */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--notebook-line) - 1px),
+    var(--notebook-line-color) calc(var(--notebook-line) - 1px),
+    var(--notebook-line-color) var(--notebook-line)
+  );
+  /* Offset del pattern così la prima riga cade sotto il titolo */
+  background-position: 0 60px;
+  background-repeat: repeat-y;
+}
+/* Margine rosso verticale (come quaderno scolastico) */
+.spesa-section::before {
+  content: '';
+  position: absolute;
+  left: var(--notebook-margin);
+  top: 14px;
+  bottom: 14px;
+  width: 0;
+  border-left: 1.5px solid var(--notebook-margin-color);
+  pointer-events: none;
+}
+/* Tre "buchi" rilegatura sul lato sinistro */
+.spesa-section::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 70%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 6px 12px, rgba(0,0,0,.18) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 6px 50%, rgba(0,0,0,.18) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 6px calc(100% - 12px), rgba(0,0,0,.18) 0 3px, transparent 3.5px);
+}
+html[data-theme="light"] .spesa-section::after {
+  background:
+    radial-gradient(circle at 6px 12px, rgba(0,0,0,.28) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 6px 50%, rgba(0,0,0,.28) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 6px calc(100% - 12px), rgba(0,0,0,.28) 0 3px, transparent 3.5px);
+}
+
 .spesa-section-title {
   display: flex;
   align-items: center;
@@ -129,7 +193,9 @@ html[data-theme="light"] {
   letter-spacing: 0.6px;
   text-transform: uppercase;
   color: var(--text-dim);
-  margin: 8px 4px 10px;
+  margin: 0 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--border);
 }
 .spesa-count {
   display: inline-grid;
@@ -147,7 +213,7 @@ html[data-theme="light"] {
 .spesa-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  /* Allinea ogni riga al passo del background pattern */
 }
 .spesa-list:empty::before {
   content: 'Nessun elemento';
@@ -156,35 +222,40 @@ html[data-theme="light"] {
   color: var(--text-faint);
   font-size: 13px;
   font-style: italic;
-  padding: 16px 0;
+  padding: 12px 0;
+  height: var(--notebook-line);
+  line-height: calc(var(--notebook-line) - 12px);
+  padding: 0;
 }
+/* Gli item ora sono "scritti sulla riga": niente background/bordo/radius */
 .spesa-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  transition: opacity .2s, background .15s;
+  padding: 0 6px;
+  height: var(--notebook-line);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  transition: opacity .2s;
 }
 .spesa-item-icon {
   position: relative;
-  width: 48px;
-  height: 48px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: var(--surface-2);
   border: 1px solid var(--border);
   display: grid;
   place-items: center;
-  font-size: 26px;
+  font-size: 20px;
   line-height: 1;
   flex-shrink: 0;
   cursor: pointer;
   transition: transform .12s, background .15s;
 }
 .spesa-item-icon:active { transform: scale(.92); }
-.spesa-item-icon img.emoji { width: 28px; height: 28px; }
+.spesa-item-icon img.emoji { width: 22px; height: 22px; }
 .spesa-item-icon .check-mark {
   position: absolute;
   inset: -2px;
