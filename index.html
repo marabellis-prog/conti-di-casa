@@ -553,9 +553,8 @@
   </div>
 
   <!-- Confirm modal -->
-  <div class="modal" id="modalConfirm">
+  <div class="modal modal-center" id="modalConfirm">
     <div class="sheet" id="sheetConfirm">
-      <div class="sheet-handle" data-drag></div>
       <div class="sheet-header">
         <h3 id="confirmTitle">Conferma</h3>
       </div>
@@ -563,6 +562,22 @@
         <p id="confirmMsg" class="txt-dim" style="font-size:14px;margin:4px 0 18px;line-height:1.5;"></p>
         <button id="confirmOk" class="btn-primary">Conferma</button>
         <button id="confirmCancel" class="btn-secondary" style="margin-top:8px">Annulla</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal scelta scope svuotamento Lista Spesa -->
+  <div class="modal modal-center" id="modalClearSpesa">
+    <div class="sheet" id="sheetClearSpesa">
+      <div class="sheet-header">
+        <h3>Svuota la lista</h3>
+        <button class="sheet-close" data-close="modalClearSpesa">✕</button>
+      </div>
+      <div class="sheet-body">
+        <p class="txt-dim" style="font-size:14px;margin:4px 0 14px;line-height:1.5;">Cosa vuoi svuotare?</p>
+        <button id="clearSpesaToBuy" class="btn-secondary" type="button" style="margin-bottom:8px">📋 Solo "Da prendere"</button>
+        <button id="clearSpesaBought" class="btn-secondary" type="button" style="margin-bottom:8px">✓ Solo "Presi"</button>
+        <button id="clearSpesaAll" class="btn-primary" type="button">🗑 Svuota tutto</button>
       </div>
     </div>
   </div>

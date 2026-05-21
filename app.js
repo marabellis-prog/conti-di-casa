@@ -1065,27 +1065,55 @@ async function deleteSpesaEdit() {
   }
 }
 
-async function confirmClearSpesa() {
+// Step 1: apri modal scelta scope (Da prendere / Presi / Tutto)
+function confirmClearSpesa() {
   if (!S.spesa.length) { toast('Lista già vuota', 'info'); return; }
+  openModal('modalClearSpesa');
+}
+
+// Step 2: chiamato dal modal scope → mostra conferma finale → esegue
+async function clearSpesaScope(scope) {
+  const all = S.spesa || [];
+  let items, msg;
+  if (scope === 'toBuy') {
+    items = all.filter(x => !x.preso);
+    if (!items.length) { closeModal('modalClearSpesa'); toast('Nessun elemento "Da prendere"', 'info'); return; }
+    msg = 'Eliminare i ' + items.length + ' elementi della lista "Da prendere"? L\'azione non è reversibile.';
+  } else if (scope === 'bought') {
+    items = all.filter(x => x.preso);
+    if (!items.length) { closeModal('modalClearSpesa'); toast('Nessun elemento "Preso"', 'info'); return; }
+    msg = 'Eliminare i ' + items.length + ' elementi della lista "Presi"? L\'azione non è reversibile.';
+  } else {
+    items = all.slice();
+    msg = 'Eliminare TUTTI i ' + items.length + ' elementi della lista (sia "Da prendere" che "Presi")? L\'azione non è reversibile.';
+  }
+  closeModal('modalClearSpesa');
   const ok = await confirmDlg({
-    title: 'Svuota lista della spesa',
-    message: 'Verranno eliminati tutti gli elementi (sia "da prendere" che "presi"). L\'azione non è reversibile.',
+    title: 'Conferma svuotamento',
+    message: msg,
     confirmLabel: 'Svuota',
     danger: true
   });
   if (!ok) return;
   try {
-    S.spesa = [];
+    const ids = items.map(x => x.id).filter(id => typeof id === 'number');
+    // optimistic locale
+    if (scope === 'all')   S.spesa = [];
+    else if (scope === 'toBuy')  S.spesa = all.filter(x => x.preso);
+    else                          S.spesa = all.filter(x => !x.preso);
     saveLocalCache();
     renderSpesa();
-    const path = T.SPESA + '?id=gt.0';
-    const options = { method: 'DELETE' };
-    if (isOnline()) {
-      try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
-    } else {
-      enqueue({ path, options });
+    // remoto
+    if (ids.length) {
+      const path = T.SPESA + '?id=in.(' + ids.join(',') + ')';
+      const options = { method: 'DELETE' };
+      if (isOnline()) {
+        try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+      } else {
+        enqueue({ path, options });
+      }
     }
-    toast('Lista svuotata', 'success');
+    toast(scope === 'all' ? 'Lista svuotata' : 'Elementi eliminati', 'success');
   } catch (e) {
     toast('Errore: ' + (e && e.message ? e.message : 'svuotamento fallito'), 'error');
   }
@@ -4733,6 +4761,13 @@ function bindEvents() {
       renderIconPickerGrid();
     });
   }
+  // Modal scelta scope svuotamento Lista Spesa
+  const btnClearToBuy  = document.getElementById('clearSpesaToBuy');
+  const btnClearBought = document.getElementById('clearSpesaBought');
+  const btnClearAll    = document.getElementById('clearSpesaAll');
+  if (btnClearToBuy)  btnClearToBuy.addEventListener('click',  () => clearSpesaScope('toBuy'));
+  if (btnClearBought) btnClearBought.addEventListener('click', () => clearSpesaScope('bought'));
+  if (btnClearAll)    btnClearAll.addEventListener('click',    () => clearSpesaScope('all'));
   // Home Gestione Casa: tap su widget moduli
   // Il click su qualsiasi parte della card apre il modulo, TRANNE che sul
   // drag handle (.mc-drag) che serve per riordinare i widget.
