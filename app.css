@@ -393,14 +393,16 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   font-style: italic;
   padding: 4px 0;
 }
+/* Mini-donut nel widget Home Conti: dimensionato vicino all'altezza del
+   testo (saldo ~26px + label sotto) per non occupare troppo spazio. */
 .mc-mini-donut {
-  width: 100px;
-  height: 100px;
+  width: 56px;
+  height: 56px;
   flex-shrink: 0;
 }
 .mc-mini-donut svg {
-  width: 100px;
-  height: 100px;
+  width: 56px;
+  height: 56px;
   display: block;
 }
 .mc-stats { flex: 1; min-width: 0; }
