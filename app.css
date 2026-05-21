@@ -62,11 +62,13 @@ html[data-theme="light"] {
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-/* Preview Lista della Spesa nel widget Home (primi 3 "da prendere") */
+/* Preview Lista della Spesa nel widget Home (primi 6 "da prendere"
+   disposti in grid auto-fit: 3 colonne quando ci stanno, altrimenti 2 o 1)
+   minmax(130px,1fr): se entrano 3 colonne da 130px usa 3, altrimenti meno */
 .mc-spesa-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 6px 12px;
   width: 100%;
 }
 .mc-spesa-row {
@@ -114,6 +116,7 @@ html[data-theme="light"] {
   /* niente margin-left auto: la qty sta SUBITO accanto al nome */
 }
 .mc-spesa-more {
+  grid-column: 1 / -1;            /* occupa tutta la riga grid */
   font-size: 12px;
   font-weight: 600;
   color: var(--text-faint);
@@ -121,6 +124,7 @@ html[data-theme="light"] {
   padding-top: 2px;
 }
 .mc-spesa-empty {
+  grid-column: 1 / -1;
   font-size: 13px;
   color: var(--text-faint);
   font-style: italic;

@@ -1608,11 +1608,14 @@ function renderHomeGestione() {
     }
   }
 
-  // Widget Lista della Spesa: primi 3 elementi "da prendere" + contatore
+  // Widget Lista della Spesa: primi 6 elementi "da prendere" in grid
+  // (CSS auto-fit: 3 colonne quando ci stanno, altrimenti 2 o 1). Il
+  // numero effettivamente visibile dipende dalla larghezza schermo.
   if (D.homeSpesaPreview) {
     const items = (S.spesa || []).slice().sort((a, b) => (a.ordine || 0) - (b.ordine || 0));
     const toBuy = items.filter(x => !x.preso);
-    const preview = toBuy.slice(0, 3);
+    const PREVIEW_MAX = 6;
+    const preview = toBuy.slice(0, PREVIEW_MAX);
     if (D.homeSpesaCount) {
       D.homeSpesaCount.textContent = toBuy.length ? (toBuy.length + ' da prendere') : 'lista vuota';
     }
@@ -1629,8 +1632,8 @@ function renderHomeGestione() {
                  '</span>' +
                '</div>';
       }).join('');
-      if (toBuy.length > 3) {
-        html += '<div class="mc-spesa-more">+ ' + (toBuy.length - 3) + ' altri</div>';
+      if (toBuy.length > PREVIEW_MAX) {
+        html += '<div class="mc-spesa-more">+ ' + (toBuy.length - PREVIEW_MAX) + ' altri</div>';
       }
       D.homeSpesaPreview.innerHTML = html;
     }
