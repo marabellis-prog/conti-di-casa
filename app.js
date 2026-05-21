@@ -1132,7 +1132,8 @@ async function clearSpesaScope(scope) {
   }
 }
 
-// Realtime listener per cdc_lista_spesa
+// Realtime listener per cdc_lista_spesa — INSERT/UPDATE/DELETE sincronizzati
+// in tempo reale tra tutti i dispositivi collegati
 function onSpesaChange(p) {
   const ev = p.eventType;
   if (ev === 'INSERT') {
@@ -1145,7 +1146,25 @@ function onSpesaChange(p) {
     S.spesa = S.spesa.filter(x => x.id !== p.old.id);
   }
   saveLocalCache();
-  renderSpesa();
+  // Aggiorna ENTRAMBE le viste rilevanti: la lista nel modulo Spesa E
+  // il widget anteprima nella Home Gestione Casa
+  try { renderSpesa(); } catch {}
+  try { renderHomeGestione(); } catch {}
+}
+
+// Refresh esplicito della lista spesa: usato dal watchdog quando l'app
+// torna visibile (su Safari iOS PWA il WebSocket Realtime può addormentarsi
+// in background e gli eventi UPDATE/INSERT/DELETE andrebbero persi)
+async function refreshSpesaNow() {
+  try {
+    const rows = await supaFetch(T.SPESA + '?select=*&order=ordine.asc,created_at.asc');
+    if (rows) {
+      S.spesa = rows;
+      saveLocalCache();
+      renderSpesa();
+      renderHomeGestione();
+    }
+  } catch (e) { /* offline o errore: niente */ }
 }
 
 // ─── HOME (DASHBOARD) ───────────────────────────────────────
@@ -4612,14 +4631,18 @@ function setupVersionWatchdog() {
     if (document.visibilityState === 'visible') {
       ensureRealtimeAlive();
       checkAppVersionNow();
+      // Refresh esplicito della lista spesa: il WebSocket Realtime su
+      // Safari iOS PWA si addormenta in background → recuperiamo lo
+      // stato vero della tabella quando torna visibile
+      refreshSpesaNow();
     }
   });
   window.addEventListener('online', () => {
     ensureRealtimeAlive();
     checkAppVersionNow();
+    refreshSpesaNow();
   });
   // Polling di backup: ogni 60s se la tab è visibile, controlla il SHA.
-  // Costo: 1 GET sub-100B ogni minuto, niente lato server.
   if (_versionPollId) clearInterval(_versionPollId);
   _versionPollId = setInterval(() => {
     if (!document.hidden) checkAppVersionNow();
