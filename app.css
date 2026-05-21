@@ -119,25 +119,19 @@ html[data-theme="light"] {
 }
 
 /* ─── LISTA DELLA SPESA — stile block-notes ───────────────── */
-/* Variabili: passo righe, colori giallino quaderno */
+/* Block-notes: STESSI colori per entrambi i temi (giallino chiaro,
+   ben visibile su qualunque sfondo) per richiesta utente */
 :root {
   --notebook-line: 44px;                      /* altezza di una "riga" */
-  --notebook-line-color: rgba(74, 144, 226, .25);
-  --notebook-margin: 38px;                    /* posizione del margine rosso */
-  --notebook-margin-color: rgba(220, 38, 38, .55);
-  --notebook-bg: #3a3520;                     /* dark theme: giallo scuro caldo */
-  --notebook-text: #f3e7c4;                   /* testo su giallino in dark */
-  --notebook-border: rgba(0, 0, 0, .35);
-  --notebook-title: rgba(243, 231, 196, .7);
-}
-html[data-theme="light"] {
   --notebook-line-color: rgba(74, 144, 226, .42);
+  --notebook-margin: 38px;
   --notebook-margin-color: rgba(220, 38, 38, .65);
-  --notebook-bg: #fff5b8;                     /* light theme: giallino chiaro */
-  --notebook-text: #2a241a;
+  --notebook-bg: #fff5b8;                     /* giallino lemon chiffon */
+  --notebook-text: #2a241a;                   /* testo dark sempre */
   --notebook-border: rgba(0, 0, 0, .18);
   --notebook-title: rgba(42, 36, 26, .65);
 }
+/* In dark theme NON cambia: vogliamo lo stesso giallino del light */
 
 .spesa-section {
   position: relative;
@@ -249,50 +243,52 @@ html[data-theme="light"] {
 }
 .spesa-item-icon {
   position: relative;
-  width: 36px;
-  height: 36px;
+  width: 40px;             /* 10% più grande di 36px */
+  height: 40px;
   border-radius: 50%;
-  background: rgba(255,255,255,.18);
-  border: 1px solid rgba(0,0,0,.18);
+  background: rgba(255,255,255,.55);
+  border: 1px solid rgba(0,0,0,.15);
   display: grid;
   place-items: center;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
   flex-shrink: 0;
   cursor: pointer;
   transition: transform .12s, background .15s;
 }
-html[data-theme="light"] .spesa-item-icon {
-  background: rgba(255,255,255,.55);
-  border-color: rgba(0,0,0,.15);
-}
 .spesa-item-icon:active { transform: scale(.92); }
-.spesa-item-icon img.emoji { width: 22px; height: 22px; }
+.spesa-item-icon img.emoji { width: 25px; height: 25px; }
+/* Spunta sovrapposta quando preso: bordo+icona verde, sfondo bianco
+   semi-trasparente → l'icona b/n sottostante resta visibile per ricordare
+   quale elemento è stato preso */
 .spesa-item-icon .check-mark {
   position: absolute;
-  inset: -2px;
+  inset: -3px;
   display: none;
   align-items: center;
   justify-content: center;
-  background: rgba(38, 121, 73, .92);
-  color: #fff;
+  background: rgba(255, 255, 255, .82);
+  color: var(--ok);
   border-radius: 50%;
   font-size: 22px;
-  font-weight: 700;
-  border: 2px solid var(--ok);
+  font-weight: 900;
+  border: 2.5px solid var(--ok);
+  text-shadow: 0 1px 2px rgba(0,0,0,.15);
 }
 .spesa-item.preso .spesa-item-icon .check-mark { display: flex; }
-.spesa-item.preso .spesa-item-icon img.emoji { filter: grayscale(1); opacity: .55; }
-.spesa-item.preso .spesa-item-name { text-decoration: line-through; opacity: .55; }
-.spesa-item.preso { opacity: .85; }
+.spesa-item.preso .spesa-item-icon img.emoji { filter: grayscale(1) contrast(1.05); opacity: .9; }
+.spesa-item.preso .spesa-item-name { text-decoration: line-through; opacity: .6; }
+.spesa-item.preso { opacity: 1; }
 .spesa-item-body {
   flex: 1;
   min-width: 0;
   cursor: pointer;
 }
 .spesa-item-name {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase; /* NOME sempre in MAIUSCOLO */
   color: var(--notebook-text);
   white-space: nowrap;
   overflow: hidden;
@@ -300,13 +296,14 @@ html[data-theme="light"] .spesa-item-icon {
 }
 .spesa-item-meta {
   font-size: 12px;
-  color: rgba(243, 231, 196, .65); /* dark: testo crema sul giallo scuro */
+  color: rgba(0, 0, 0, .6);
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-style: italic;
+  text-transform: lowercase; /* NOTE sempre in minuscolo */
 }
-html[data-theme="light"] .spesa-item-meta { color: rgba(0,0,0,.6); }
 .spesa-item-qty {
   font-weight: 700;
   color: var(--accent);

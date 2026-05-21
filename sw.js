@@ -2,7 +2,7 @@
 // Strategia: stale-while-revalidate su risorse statiche + GET REST tabelle,
 // network-only su mutazioni (POST/PATCH/DELETE) e su update_cache (gating).
 
-const CACHE = 'conti-di-casa-v84';
+const CACHE = 'conti-di-casa-v85';
 const SUPA_HOST = 'lrvkchqvjzynfzevpqaj.supabase.co';
 const CDN_HOST = 'cdn.jsdelivr.net'; // supabase-js + twemoji
 const STATIC = [
