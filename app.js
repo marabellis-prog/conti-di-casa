@@ -2918,11 +2918,20 @@ function switchView(name) {
     }
   }
   // render contenuto view
-  if (name === 'home')      renderHomeGestione();
+  if (name === 'home') {
+    renderHomeGestione();
+    // Refresh anche in home perché c'è il widget anteprima Lista spesa
+    refreshSpesaNow();
+  }
   else if (name === 'conti') renderConti();
   else if (name === 'list') renderList();
   else if (name === 'cat')  renderCatView();
-  else if (name === 'spesa') renderSpesa();
+  else if (name === 'spesa') {
+    renderSpesa();
+    // Refresh in background: assicura che la lista sia allineata col remoto
+    // (utile se Realtime ha perso eventi mentre l'app era in background)
+    refreshSpesaNow();
+  }
   // Sincronizza monthLabel + visibilità frecce mese in base alla nuova view
   renderHeader();
   window.scrollTo({ top: 0, behavior: 'instant' });
@@ -5009,7 +5018,7 @@ async function init() {
     if (changed) renderAll();
     else {
       // se cache vuota anche dopo sync, prova full reload
-      if (!S.cats.length && !S.tx.length) {
+      if (!S.cats.length && !S.tx.length && !S.spesa.length) {
         await reloadAll();
         renderAll();
       }
