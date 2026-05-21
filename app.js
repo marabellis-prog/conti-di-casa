@@ -539,7 +539,8 @@ function renderConti() {
   const inSum = arr.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
   const outSum = arr.filter(t => t.tipo === 'uscita').reduce((s, t) => s + Number(t.importo), 0);
   const saldo = inSum - outSum;
-  D.saldoNum.textContent = (saldo >= 0 ? '+' : '−') + fmtEur(Math.abs(saldo)).slice(1);
+  // Saldo SEMPRE con € (anche per zero/positivo/negativo)
+  D.saldoNum.textContent = (saldo >= 0 ? '+' : '−') + fmtEur(Math.abs(saldo));
   D.saldoNum.className = 'saldo-num ' + (saldo >= 0 ? 'pos' : 'neg');
   D.saldoIn.textContent = fmtEur(inSum);
   D.saldoOut.textContent = fmtEur(outSum);
@@ -986,7 +987,8 @@ function renderHomeGestione() {
   const saldo  = inSum - outSum;
 
   if (D.homeContiSaldo) {
-    D.homeContiSaldo.textContent = (saldo >= 0 ? '+' : '−') + fmtEur(Math.abs(saldo)).slice(1);
+    // Saldo SEMPRE con € (anche nel mini-widget Home)
+    D.homeContiSaldo.textContent = (saldo >= 0 ? '+' : '−') + fmtEur(Math.abs(saldo));
     D.homeContiSaldo.className = 'mc-saldo ' + (saldo >= 0 ? 'pos' : 'neg');
   }
   if (D.homeContiSubtle && S.currentMonth) {
