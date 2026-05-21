@@ -258,25 +258,41 @@ html[data-theme="light"] {
 }
 .spesa-item-icon:active { transform: scale(.92); }
 .spesa-item-icon img.emoji { width: 25px; height: 25px; }
-/* Spunta sovrapposta quando preso: bordo+icona verde, sfondo bianco
-   semi-trasparente → l'icona b/n sottostante resta visibile per ricordare
-   quale elemento è stato preso */
+/* Spunta più piccola sovrapposta in alto-destra (badge), no più overlay
+   intero. L'icona b/n dietro resta TUTTA visibile con un velo grigio
+   leggero per indicare "fatto/preso". */
 .spesa-item-icon .check-mark {
   position: absolute;
-  inset: -3px;
+  top: -4px;
+  right: -4px;
+  bottom: auto;
+  left: auto;
+  inset: auto;
+  width: 20px;
+  height: 20px;
   display: none;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, .82);
+  background: #ffffff;
   color: var(--ok);
   border-radius: 50%;
-  font-size: 22px;
+  font-size: 14px;
   font-weight: 900;
-  border: 2.5px solid var(--ok);
-  text-shadow: 0 1px 2px rgba(0,0,0,.15);
+  border: 2px solid var(--ok);
+  box-shadow: 0 1px 4px rgba(0,0,0,.25);
+  line-height: 1;
 }
 .spesa-item.preso .spesa-item-icon .check-mark { display: flex; }
-.spesa-item.preso .spesa-item-icon img.emoji { filter: grayscale(1) contrast(1.05); opacity: .9; }
+/* Velo grigio molto trasparente sopra l'icona b/n quando preso */
+.spesa-item.preso .spesa-item-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(120, 120, 120, .18);
+  pointer-events: none;
+}
+.spesa-item.preso .spesa-item-icon img.emoji { filter: grayscale(1); opacity: .92; }
 .spesa-item.preso .spesa-item-name { text-decoration: line-through; opacity: .6; }
 .spesa-item.preso { opacity: 1; }
 .spesa-item-body {
@@ -2048,6 +2064,23 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   padding-top: calc(var(--safe-t) + 12px);
   padding-bottom: var(--safe-b);
   box-sizing: border-box;
+}
+/* Variante "centered": modal sopra-modal (es. selettore icone aperto sopra
+   il modal Spesa). Centrato verticalmente, z-index alto, NON copre il modal
+   sotto quando si chiude perché il backdrop nero è di un secondo livello. */
+.modal.modal-center {
+  z-index: 200;
+  align-items: center;
+  padding: max(20px, var(--safe-t)) 16px max(20px, var(--safe-b));
+}
+.modal.modal-center .sheet {
+  border-radius: 18px;
+  max-height: calc(100vh - 80px);
+  animation: zoomin .22s cubic-bezier(.2,.8,.3,1);
+}
+@keyframes zoomin {
+  from { transform: scale(.94); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
 }
 .modal.open { display: flex; }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
