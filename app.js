@@ -678,18 +678,30 @@ const SPESA_KEYWORD_ICONS = [
 
 // Smart match: priorità per token più lungo o keyword più specifica.
 function spesaIconForName(name) {
-  if (!name) return '🛒';
+  const s = spesaIconSuggestions(name, 1);
+  return s[0] || '🛒';
+}
+
+// Restituisce fino a `max` emoji suggerite per il nome, ordinate per
+// specificità (keyword più lunga = match più specifico = prima posizione).
+// La prima emoji è quella che il sistema considera "migliore" (centro UI).
+function spesaIconSuggestions(name, max) {
+  if (max == null) max = 5;
+  if (!name) return ['🛒'];
   const n = String(name).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-  if (!n) return '🛒';
-  let bestKw = '';
-  let bestIcon = '';
+  if (!n) return ['🛒'];
+  const matches = [];
+  const seen = new Set();
   for (const [kw, ic] of SPESA_KEYWORD_ICONS) {
-    if (n.indexOf(kw) !== -1 && kw.length > bestKw.length) {
-      bestKw = kw;
-      bestIcon = ic;
+    if (n.indexOf(kw) !== -1 && !seen.has(ic)) {
+      matches.push({ kw, ic, score: kw.length });
+      seen.add(ic);
     }
   }
-  return bestIcon || '🛒';
+  matches.sort((a, b) => b.score - a.score);
+  const out = matches.slice(0, max).map(m => m.ic);
+  if (!out.length) out.push('🛒');
+  return out;
 }
 
 // ─── MODAL SELETTORE ICONE ──────────────────────────────────
@@ -846,16 +858,17 @@ async function toggleSpesaPreso(idStr) {
 }
 
 // ─── MODAL Aggiungi/Modifica elemento ───────────────────────
-let _spesaEditState = { icona: '🛒', iconaManual: false, qty: 1 };
+// icone[0] = centro (icona scelta), icone[1..4] = suggerimenti laterali
+let _spesaEditState = { icone: ['🛒'], iconaManual: false, qty: 1 };
 
 function openSpesaAdd() {
   S.editSpesaId = null;
-  _spesaEditState = { icona: '🛒', iconaManual: false, qty: 1 };
+  _spesaEditState = { icone: ['🛒'], iconaManual: false, qty: 1 };
   if (D.spesaEditTitle) D.spesaEditTitle.textContent = 'Nuovo elemento';
   if (D.spesaEditNome)  D.spesaEditNome.value = '';
   if (D.spesaEditNote)  D.spesaEditNote.value = '';
   updateSpesaEditQty(1);
-  updateSpesaEditIcon('🛒');
+  updateSpesaEditIcons(['🛒']);
   if (D.spesaEditDelete) D.spesaEditDelete.style.display = 'none';
   openModal('modalSpesa');
   setTimeout(() => { if (D.spesaEditNome) D.spesaEditNome.focus(); }, 80);
@@ -866,12 +879,12 @@ function openSpesaEdit(idStr) {
   const it = S.spesa.find(x => x.id === id);
   if (!it) return;
   S.editSpesaId = id;
-  _spesaEditState = { icona: it.icona || '🛒', iconaManual: true, qty: it.quantita || 1 };
+  _spesaEditState = { icone: [it.icona || '🛒'], iconaManual: true, qty: it.quantita || 1 };
   if (D.spesaEditTitle) D.spesaEditTitle.textContent = 'Modifica elemento';
   if (D.spesaEditNome)  D.spesaEditNome.value = it.nome || '';
   if (D.spesaEditNote)  D.spesaEditNote.value = it.note || '';
   updateSpesaEditQty(_spesaEditState.qty);
-  updateSpesaEditIcon(_spesaEditState.icona);
+  updateSpesaEditIcons(_spesaEditState.icone);
   if (D.spesaEditDelete) D.spesaEditDelete.style.display = 'block';
   openModal('modalSpesa');
 }
@@ -881,20 +894,61 @@ function updateSpesaEditQty(n) {
   if (D.spesaEditQtyValue) D.spesaEditQtyValue.textContent = String(_spesaEditState.qty);
 }
 
-function updateSpesaEditIcon(icon) {
-  _spesaEditState.icona = icon || '🛒';
+// Aggiorna le 5 icone: centro (slot 0) + max 4 laterali (slot 1..4)
+function updateSpesaEditIcons(icone) {
+  if (!Array.isArray(icone) || !icone.length) icone = ['🛒'];
+  _spesaEditState.icone = icone.slice(0, 5);
+  // Centro
   if (D.spesaEditIconBtn) {
-    D.spesaEditIconBtn.innerHTML = _spesaEditState.icona;
+    D.spesaEditIconBtn.innerHTML = _spesaEditState.icone[0];
     twemojify(D.spesaEditIconBtn);
   }
+  // 4 side slot (data-slot=1..4)
+  document.querySelectorAll('.spesa-icon-side').forEach(el => {
+    const slot = Number(el.getAttribute('data-slot'));
+    const ic = _spesaEditState.icone[slot];
+    if (ic) {
+      el.hidden = false;
+      el.innerHTML = ic;
+      twemojify(el);
+    } else {
+      el.hidden = true;
+      el.innerHTML = '';
+    }
+  });
+}
+
+// Compat con codice legacy che chiamava updateSpesaEditIcon (singolo)
+function updateSpesaEditIcon(icon) {
+  if (!icon) icon = '🛒';
+  // Sostituisce solo il centro mantenendo i laterali
+  const arr = _spesaEditState.icone.slice();
+  // Se l'icona scelta era in uno dei side, rimuovila da lì (no duplicati)
+  const existing = arr.indexOf(icon, 1);
+  if (existing > 0) arr.splice(existing, 1);
+  arr[0] = icon;
+  updateSpesaEditIcons(arr);
 }
 
 function onSpesaEditNomeInput() {
-  // Se l'utente non ha scelto un'icona manualmente, aggiorna in base al nome
   if (_spesaEditState.iconaManual) return;
   const nome = D.spesaEditNome ? D.spesaEditNome.value : '';
-  const auto = spesaIconForName(nome);
-  updateSpesaEditIcon(auto);
+  const suggestions = spesaIconSuggestions(nome, 5);
+  updateSpesaEditIcons(suggestions);
+}
+
+// Swap di una icona laterale col centro: l'utente clicca un side → la
+// icona laterale diventa centro, e quella che era centro va al posto del
+// side cliccato. Marca iconaManual=true così smetto di sovrascrivere
+// dall'auto-suggestion del nome.
+function swapSpesaIcon(slot) {
+  const arr = _spesaEditState.icone.slice();
+  if (!arr[slot]) return;
+  const tmp = arr[0];
+  arr[0] = arr[slot];
+  arr[slot] = tmp;
+  _spesaEditState.iconaManual = true;
+  updateSpesaEditIcons(arr);
 }
 
 async function saveSpesaEdit() {
@@ -902,7 +956,7 @@ async function saveSpesaEdit() {
   if (!nome) { toast('Inserisci il nome', 'warn'); return; }
   const note = D.spesaEditNote ? D.spesaEditNote.value.trim() : '';
   const quantita = _spesaEditState.qty;
-  const icona = _spesaEditState.icona || spesaIconForName(nome);
+  const icona = (_spesaEditState.icone && _spesaEditState.icone[0]) || spesaIconForName(nome);
   setBtnLoading(D.spesaEditSave, true);
   try {
     if (S.editSpesaId == null) {
@@ -4634,10 +4688,17 @@ function bindEvents() {
   if (D.spesaEditQtyMinus) D.spesaEditQtyMinus.addEventListener('click', () => updateSpesaEditQty(_spesaEditState.qty - 1));
   if (D.spesaEditQtyPlus)  D.spesaEditQtyPlus.addEventListener('click', () => updateSpesaEditQty(_spesaEditState.qty + 1));
   if (D.spesaEditNome)     D.spesaEditNome.addEventListener('input', onSpesaEditNomeInput);
-  // Click sull'icona circolare → apri modal selettore icone con ricerca + categorie
+  // Click sull'icona circolare CENTRALE → apri modal selettore icone
   if (D.spesaEditIconBtn) {
     D.spesaEditIconBtn.addEventListener('click', openIconPicker);
   }
+  // Click su un suggerimento laterale → swap col centro
+  $$('.spesa-icon-side').forEach(el => {
+    el.addEventListener('click', () => {
+      const slot = Number(el.getAttribute('data-slot'));
+      swapSpesaIcon(slot);
+    });
+  });
   if (D.iconPickerSearch) {
     D.iconPickerSearch.addEventListener('input', e => {
       _iconPickerSearch = e.target.value || '';

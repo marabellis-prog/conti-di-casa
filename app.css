@@ -311,27 +311,58 @@ html[data-theme="light"] {
   margin-right: 4px;
 }
 
-/* Modal aggiunta/modifica: icona circolare grande in alto */
+/* Modal aggiunta/modifica: 5 icone (1 centro + 2 sx + 2 dx) */
 .spesa-icon-row {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 14px;
+  min-height: 84px;
 }
 .spesa-icon-circle {
   width: 84px;
   height: 84px;
   border-radius: 50%;
   background: var(--surface-2);
-  border: 2px solid var(--border);
+  border: 2px solid var(--accent);
   font-size: 44px;
   line-height: 1;
   display: grid;
   place-items: center;
   cursor: pointer;
   transition: transform .12s, background .15s, border-color .15s;
+  box-shadow: 0 4px 14px rgba(0,0,0,.18);
+  flex-shrink: 0;
 }
 .spesa-icon-circle:active { transform: scale(.95); }
 .spesa-icon-circle img.emoji { width: 48px; height: 48px; }
+/* Side icons: alternative cliccabili — più piccole, ridotte se più lontane */
+.spesa-icon-side {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 22px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform .12s, background .15s, opacity .15s;
+  opacity: .9;
+  flex-shrink: 0;
+}
+.spesa-icon-side:hover { opacity: 1; }
+.spesa-icon-side:active { transform: scale(.9); background: var(--accent); }
+.spesa-icon-side img.emoji { width: 24px; height: 24px; }
+/* Le posizioni più "lontane" (slot 3, 4) sono leggermente più piccole */
+.spesa-icon-side[data-slot="3"], .spesa-icon-side[data-slot="4"] {
+  width: 38px; height: 38px; font-size: 18px; opacity: .75;
+}
+.spesa-icon-side[data-slot="3"] img.emoji,
+.spesa-icon-side[data-slot="4"] img.emoji { width: 20px; height: 20px; }
+.spesa-icon-side[hidden] { display: none !important; }
 
 /* Modal selettore icone (per la lista spesa) */
 .icon-picker-cats {
