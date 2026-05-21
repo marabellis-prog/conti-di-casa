@@ -4026,25 +4026,30 @@ function bindEvents() {
       quickSave(QA.selectedCatId);
     });
   }
-  // Date pill: l'input type=date è in overlay sopra il bottone (opacity 0),
-  // riceve direttamente il click dell'utente e su iOS Safari apre il
-  // calendario nativo. Il button parent serve solo come stile visivo.
+  // Date pill: l'INTERO bottone deve essere cliccabile (non solo l'icona
+  // triangolino). Il click apre il date picker via showPicker (Chrome/Safari
+  // 16+) o fallback su focus+click sull'input nativo (browser più vecchi).
   if (D.qaDatePicker) {
     D.qaDatePicker.addEventListener('change', renderQaDateLabel);
     D.qaDatePicker.addEventListener('input', renderQaDateLabel);
   }
-  // Fallback per browser desktop (Chrome/Edge): se il click arriva al
-  // bottone parent (perché l'input ha pointer-events:none in qualche
-  // edge case), chiamiamo showPicker. Niente preventDefault, così se
-  // l'input ha già aperto il picker non interferiamo.
   if (D.qaDateBtn && D.qaDatePicker) {
-    D.qaDateBtn.addEventListener('click', e => {
-      if (e.target === D.qaDatePicker) return; // l'input gestisce da solo
+    const openDatePicker = () => {
       try {
         if (typeof D.qaDatePicker.showPicker === 'function') {
           D.qaDatePicker.showPicker();
+          return;
         }
-      } catch (err) { /* ignora: l'input nativo è già visibile */ }
+      } catch (err) {}
+      try { D.qaDatePicker.focus(); D.qaDatePicker.click(); } catch (err) {}
+    };
+    // Click su QUALSIASI parte del bottone (icona, label, freccia, padding)
+    D.qaDateBtn.addEventListener('click', e => {
+      // Se il browser ha già aperto il picker (click diretto sull'input
+      // overlay), non duplicare l'apertura
+      if (e.target === D.qaDatePicker) return;
+      e.preventDefault();
+      openDatePicker();
     });
   }
   // tx edit

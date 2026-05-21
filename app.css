@@ -1846,10 +1846,13 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   padding: 0;
   font-size: 16px; /* >=16 per evitare zoom iOS */
   color: transparent;
-  cursor: pointer;
-  /* NIENTE pointer-events:none: su iOS Safari l'input deve ricevere il
-     click direttamente per aprire il date picker (showPicker/click()
-     programmatico non aprono la UI nativa). */
+  /* pointer-events:none → tutti i click sul .qa-date-pill arrivano al
+     button parent (anche su icona/label/freccia/padding), che chiama
+     showPicker() programmaticamente. Era stato rimosso per provare il
+     click diretto sull'input, ma su iOS questo intercettava i click sulle
+     etichette interne e l'utente doveva premere precisamente sul
+     triangolino indicator a destra. */
+  pointer-events: none;
 }
 
 .qa-amt {
