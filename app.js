@@ -683,18 +683,26 @@ function spesaIconForName(name) {
 }
 
 // Restituisce fino a `max` emoji suggerite per il nome, ordinate per
-// specificità (keyword più lunga = match più specifico = prima posizione).
-// La prima emoji è quella che il sistema considera "migliore" (centro UI).
+// specificità. Match bidirezionale (con minimo 3 caratteri per il prefix):
+// - nome contiene keyword (es. "pane integrale" matcha 'pane' → 🍞)
+// - keyword inizia col nome (es. "mel" matcha 'melon','melanzan','mel' →
+//   🍈, 🍆, 🍎)
+// Priorità (score): keyword più lunga = match più specifico = prima posizione.
+const SPESA_MIN_QUERY_LEN = 3;
 function spesaIconSuggestions(name, max) {
   if (max == null) max = 5;
   if (!name) return ['🛒'];
   const n = String(name).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-  if (!n) return ['🛒'];
+  if (!n || n.length < SPESA_MIN_QUERY_LEN) return ['🛒'];
   const matches = [];
   const seen = new Set();
   for (const [kw, ic] of SPESA_KEYWORD_ICONS) {
-    if (n.indexOf(kw) !== -1 && !seen.has(ic)) {
-      matches.push({ kw, ic, score: kw.length });
+    const nameContainsKw = n.indexOf(kw) !== -1;
+    const kwStartsWithName = kw.indexOf(n) === 0; // prefix-match: utente sta digitando
+    if ((nameContainsKw || kwStartsWithName) && !seen.has(ic)) {
+      // Score: match diretto (nome ⊇ kw) ha priorità maggiore del prefix-match
+      const score = (nameContainsKw ? 100 : 0) + kw.length;
+      matches.push({ kw, ic, score });
       seen.add(ic);
     }
   }
@@ -932,19 +940,21 @@ function updateSpesaEditIcon(icon) {
 
 function onSpesaEditNomeInput() {
   const nome = D.spesaEditNome ? D.spesaEditNome.value : '';
+  const trimmed = nome.trim();
+  // Sotto la lunghezza minima non ricalcoliamo: l'utente sta ancora digitando
+  // e non vogliamo "spegnere" l'icona corrente (es. cancellando un char)
+  if (trimmed.length < SPESA_MIN_QUERY_LEN) return;
   const suggestions = spesaIconSuggestions(nome, 5);
   const currentIcon = _spesaEditState.icone && _spesaEditState.icone[0];
   // L'icona corrente è ancora rilevante per il nuovo nome?
-  // (cioè: appare ancora tra i suggerimenti del nome corrente)
   const stillRelevant = suggestions.indexOf(currentIcon) !== -1;
   if (_spesaEditState.iconaManual && stillRelevant) {
-    // L'utente aveva scelto manualmente E la scelta è ancora coerente
-    // col nome → tengo l'icona al centro e aggiorno solo i laterali
+    // Utente aveva scelto manualmente E la scelta è ancora coerente:
+    // tengo l'icona al centro e aggiorno solo i laterali
     const lateral = suggestions.filter(e => e !== currentIcon).slice(0, 4);
     updateSpesaEditIcons([currentIcon].concat(lateral));
   } else {
-    // Il nome è cambiato in modo significativo (es. pomodori → kiwi):
-    // l'icona attuale non matcha più → reset manuale e ricalcolo
+    // Il nome è cambiato in modo significativo → reset e ricalcolo
     _spesaEditState.iconaManual = false;
     updateSpesaEditIcons(suggestions);
   }
