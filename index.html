@@ -244,21 +244,23 @@
       <button id="btnAddCat" class="add-cat-btn">+ Aggiungi categoria</button>
     </section>
 
-    <!-- LISTA DELLA SPESA -->
+    <!-- LISTA DELLA SPESA — un solo block-notes con due sub-sezioni -->
     <section id="view-spesa" class="view">
       <div class="spesa-section">
-        <h3 class="spesa-section-title">
-          <span>Da prendere</span>
-          <span class="spesa-count" id="spesaCountToBuy">0</span>
-        </h3>
-        <div id="spesaListToBuy" class="spesa-list"></div>
-      </div>
-      <div class="spesa-section">
-        <h3 class="spesa-section-title">
-          <span>Presi</span>
-          <span class="spesa-count" id="spesaCountBought">0</span>
-        </h3>
-        <div id="spesaListBought" class="spesa-list"></div>
+        <div class="spesa-subsection">
+          <h3 class="spesa-section-title">
+            <span>Da prendere</span>
+            <span class="spesa-count" id="spesaCountToBuy">0</span>
+          </h3>
+          <div id="spesaListToBuy" class="spesa-list"></div>
+        </div>
+        <div class="spesa-subsection spesa-subsection-bought">
+          <h3 class="spesa-section-title">
+            <span>Presi</span>
+            <span class="spesa-count" id="spesaCountBought">0</span>
+          </h3>
+          <div id="spesaListBought" class="spesa-list"></div>
+        </div>
       </div>
     </section>
 

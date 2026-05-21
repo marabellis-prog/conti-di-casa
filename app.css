@@ -119,26 +119,35 @@ html[data-theme="light"] {
 }
 
 /* ─── LISTA DELLA SPESA — stile block-notes ───────────────── */
-/* Variabili: passo righe e colore */
+/* Variabili: passo righe, colori giallino quaderno */
 :root {
-  --notebook-line: 44px;       /* altezza di una "riga" */
-  --notebook-line-color: rgba(74, 144, 226, .22);
-  --notebook-margin: 38px;     /* posizione del margine rosso da sinistra */
-  --notebook-margin-color: rgba(220, 38, 38, .42);
+  --notebook-line: 44px;                      /* altezza di una "riga" */
+  --notebook-line-color: rgba(74, 144, 226, .25);
+  --notebook-margin: 38px;                    /* posizione del margine rosso */
+  --notebook-margin-color: rgba(220, 38, 38, .55);
+  --notebook-bg: #3a3520;                     /* dark theme: giallo scuro caldo */
+  --notebook-text: #f3e7c4;                   /* testo su giallino in dark */
+  --notebook-border: rgba(0, 0, 0, .35);
+  --notebook-title: rgba(243, 231, 196, .7);
 }
 html[data-theme="light"] {
-  --notebook-line-color: rgba(74, 144, 226, .28);
-  --notebook-margin-color: rgba(220, 38, 38, .55);
+  --notebook-line-color: rgba(74, 144, 226, .42);
+  --notebook-margin-color: rgba(220, 38, 38, .65);
+  --notebook-bg: #fff5b8;                     /* light theme: giallino chiaro */
+  --notebook-text: #2a241a;
+  --notebook-border: rgba(0, 0, 0, .18);
+  --notebook-title: rgba(42, 36, 26, .65);
 }
 
 .spesa-section {
   position: relative;
   margin-bottom: 20px;
-  padding: 16px calc(var(--notebook-margin) - 30px) 14px calc(var(--notebook-margin) + 12px);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  padding: 14px calc(var(--notebook-margin) - 30px) 14px calc(var(--notebook-margin) + 12px);
+  background-color: var(--notebook-bg);
+  color: var(--notebook-text);
+  border: 1px solid var(--notebook-border);
   border-radius: 14px;
-  box-shadow: 0 4px 14px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.06);
+  box-shadow: 0 6px 18px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.08);
   /* Righe orizzontali in background */
   background-image: repeating-linear-gradient(
     to bottom,
@@ -147,17 +156,17 @@ html[data-theme="light"] {
     var(--notebook-line-color) calc(var(--notebook-line) - 1px),
     var(--notebook-line-color) var(--notebook-line)
   );
-  /* Offset del pattern così la prima riga cade sotto il titolo */
-  background-position: 0 60px;
+  /* Offset così la prima riga cade SOTTO il titolo (28px ≈ titolo + gap) */
+  background-position: 0 42px;
   background-repeat: repeat-y;
 }
-/* Margine rosso verticale (come quaderno scolastico) */
+/* Margine rosso verticale (come quaderno scolastico) — copre TUTTO il block-notes */
 .spesa-section::before {
   content: '';
   position: absolute;
   left: var(--notebook-margin);
-  top: 14px;
-  bottom: 14px;
+  top: 12px;
+  bottom: 12px;
   width: 0;
   border-left: 1.5px solid var(--notebook-margin-color);
   pointer-events: none;
@@ -170,32 +179,31 @@ html[data-theme="light"] {
   top: 50%;
   transform: translateY(-50%);
   width: 12px;
-  height: 70%;
+  height: 60%;
   pointer-events: none;
   background:
-    radial-gradient(circle at 6px 12px, rgba(0,0,0,.18) 0 3px, transparent 3.5px),
-    radial-gradient(circle at 6px 50%, rgba(0,0,0,.18) 0 3px, transparent 3.5px),
-    radial-gradient(circle at 6px calc(100% - 12px), rgba(0,0,0,.18) 0 3px, transparent 3.5px);
+    radial-gradient(circle at 6px 12px, rgba(0,0,0,.32) 0 3.5px, transparent 4px),
+    radial-gradient(circle at 6px 50%, rgba(0,0,0,.32) 0 3.5px, transparent 4px),
+    radial-gradient(circle at 6px calc(100% - 12px), rgba(0,0,0,.32) 0 3.5px, transparent 4px);
 }
-html[data-theme="light"] .spesa-section::after {
-  background:
-    radial-gradient(circle at 6px 12px, rgba(0,0,0,.28) 0 3px, transparent 3.5px),
-    radial-gradient(circle at 6px 50%, rgba(0,0,0,.28) 0 3px, transparent 3.5px),
-    radial-gradient(circle at 6px calc(100% - 12px), rgba(0,0,0,.28) 0 3px, transparent 3.5px);
-}
+
+/* Sub-sezioni interne: nessun bordo proprio, solo separazione via title */
+.spesa-subsection { padding: 0; margin: 0; }
+.spesa-subsection-bought { margin-top: 18px; padding-top: 4px; }
 
 .spesa-section-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: var(--text-dim);
-  margin: 0 0 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px dashed var(--border);
+  color: var(--notebook-title);
+  margin: 0 0 0;
+  height: var(--notebook-line);
+  border-bottom: 1px dashed var(--notebook-border);
+  align-self: stretch;
 }
 .spesa-count {
   display: inline-grid;
@@ -244,8 +252,8 @@ html[data-theme="light"] .spesa-section::after {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: rgba(255,255,255,.18);
+  border: 1px solid rgba(0,0,0,.18);
   display: grid;
   place-items: center;
   font-size: 20px;
@@ -253,6 +261,10 @@ html[data-theme="light"] .spesa-section::after {
   flex-shrink: 0;
   cursor: pointer;
   transition: transform .12s, background .15s;
+}
+html[data-theme="light"] .spesa-item-icon {
+  background: rgba(255,255,255,.55);
+  border-color: rgba(0,0,0,.15);
 }
 .spesa-item-icon:active { transform: scale(.92); }
 .spesa-item-icon img.emoji { width: 22px; height: 22px; }
@@ -281,19 +293,20 @@ html[data-theme="light"] .spesa-section::after {
 .spesa-item-name {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--notebook-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .spesa-item-meta {
   font-size: 12px;
-  color: var(--text-dim);
+  color: rgba(243, 231, 196, .65); /* dark: testo crema sul giallo scuro */
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+html[data-theme="light"] .spesa-item-meta { color: rgba(0,0,0,.6); }
 .spesa-item-qty {
   font-weight: 700;
   color: var(--accent);
