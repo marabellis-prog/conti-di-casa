@@ -549,7 +549,7 @@ const SPESA_ICON_CATS = [
   { id: 'food', label: 'Cibo', icon: '🍽',
     emojis: ['🍞','🥖','🥐','🥯','🥪','🧀','🥚','🥩','🥓','🍗','🍖','🌭','🍔','🍟','🍕','🥙','🌮','🌯','🥗','🥘','🍝','🍜','🍲','🍱','🍚','🍙','🍘','🍢','🍡','🥟','🍤','🍣','🍿','🥫','🧂','🫙','🥣','🍫','🍬','🍭','🍮','🍡','🍯','🍰','🎂','🧁','🍩','🍪','🥧','🍦','🍨','🍧'] },
   { id: 'fruit', label: 'Frutta & Verdura', icon: '🥕',
-    emojis: ['🍎','🍏','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶','🫑','🌽','🥕','🫒','🧄','🧅','🥔','🍠','🫘','🫛','🌰','🍄'] },
+    emojis: ['🍎','🍏','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶','🫑','🌽','🥕','🫒','🧄','🧅','🥔','🍠','🫘','🫛','🌰','🥜','🍄'] },
   { id: 'drinks', label: 'Bevande', icon: '🥤',
     emojis: ['💧','🥛','☕','🫖','🍵','🧃','🥤','🧋','🍶','🍾','🍷','🥂','🍺','🍻','🥃','🍸','🍹','🧉'] },
   { id: 'home', label: 'Casa & Pulizia', icon: '🧼',
@@ -673,7 +673,117 @@ const SPESA_KEYWORD_ICONS = [
   ['carica', '🔌'], ['cavo', '🔌'], ['cavi', '🔌'], ['cuffi', '🎧'],
   ['auricola', '🎧'], ['cellular', '📱'], ['telefono', '📱'], ['computer', '💻'],
   // Sport / hobby
-  ['palla', '⚽'], ['pallone', '⚽'], ['scarpe sport', '👟'], ['tute', '🦺']
+  ['palla', '⚽'], ['pallone', '⚽'], ['scarpe sport', '👟'], ['tute', '🦺'],
+
+  // ── ESPANSIONI ──────────────────────────────────────────────
+  // Frutta secca / snack salati
+  ['arachid', '🥜'], ['arachide', '🥜'], ['noccioline', '🥜'], ['noccioli', '🥜'],
+  ['frutta sec', '🌰'], ['frutta secca', '🌰'], ['mandorl', '🌰'], ['nocciol', '🌰'],
+  ['pistacch', '🌰'], ['anacardi', '🌰'], ['pinoli', '🌰'], ['semi di gira', '🌻'],
+  ['semi zucca', '🎃'], ['noce di cocco', '🥥'],
+
+  // Cibo italiano comune
+  ['pizza', '🍕'], ['margherita', '🍕'], ['focacc', '🥖'], ['focaccia', '🥖'],
+  ['bruschett', '🥖'], ['crostin', '🥖'], ['piad', '🌮'], ['arancin', '🍙'],
+  ['suppli', '🍙'], ['raviol', '🥟'], ['tortellin', '🥟'], ['agnolott', '🥟'],
+  ['cannellon', '🍝'], ['lasagn', '🍝'], ['crepes', '🥞'], ['pancake', '🥞'],
+  ['pretzel', '🥨'], ['bagel', '🥯'], ['orecchiett', '🍝'], ['farfall', '🍝'],
+
+  // Pesce specifico
+  ['branzin', '🐟'], ['spigol', '🐟'], ['orat', '🐟'], ['trot', '🐟'],
+  ['sardin', '🐟'], ['acciugh', '🐟'], ['alic', '🐟'], ['baccala', '🐟'],
+  ['stoccafisso', '🐟'], ['platess', '🐟'], ['ostrich', '🦪'],
+  ['ricci di mare', '🦪'], ['cernia', '🐟'], ['nasell', '🐟'],
+
+  // Carne specifica
+  ['macinat', '🥩'], ['ossobuc', '🍖'], ['spezzatin', '🍖'], ['filetto', '🥩'],
+  ['costat', '🥩'], ['vitello', '🥩'], ['agnello', '🍖'], ['coniglio', '🥩'],
+  ['anatra', '🍗'], ['oca', '🍗'], ['quaglia', '🍗'], ['petto di pollo', '🍗'],
+  ['cotechino', '🌭'], ['zampone', '🌭'], ['guancial', '🥓'], ['pancetta', '🥓'],
+  ['lardo', '🥓'], ['bresaola', '🥓'], ['coppa', '🥓'],
+
+  // Frutta extra
+  ['prugn', '🍑'], ['susina', '🍑'], ['bergamott', '🍋'], ['pompelm', '🍊'],
+  ['mandarin', '🍊'], ['clementin', '🍊'], ['kumquat', '🍊'], ['cedri', '🍋'],
+  ['frutti di bosc', '🫐'], ['ribes', '🫐'], ['more', '🫐'], ['avocado', '🥑'],
+  ['datter', '🌴'], ['feijoa', '🥝'], ['fragoline', '🍓'],
+
+  // Verdura extra
+  ['pomodorin', '🍅'], ['ciliegin', '🍅'], ['pachin', '🍅'], ['datterin', '🍅'],
+  ['friggitell', '🫑'], ['jalapeno', '🌶'], ['chili', '🌶'], ['curcum', '🌶'],
+  ['carciof', '🥬'], ['bietola', '🥬'], ['bietole', '🥬'], ['catalogn', '🥬'],
+  ['cima di rapa', '🥬'], ['rape', '🥕'], ['ravanell', '🥕'], ['topinambur', '🥔'],
+  ['radicchio', '🥬'], ['scarol', '🥬'], ['valeriana', '🥬'], ['indivia', '🥬'],
+  ['barbabietol', '🥕'], ['cetriolin', '🥒'],
+
+  // Erbe aromatiche
+  ['basilico', '🌿'], ['prezzemol', '🌿'], ['origano', '🌿'], ['timo', '🌿'],
+  ['rosmarin', '🌿'], ['salvia', '🌿'], ['erbe', '🌿'], ['erbett', '🌿'],
+  ['alloro', '🌿'], ['menta', '🌿'], ['santoreggi', '🌿'], ['maggioran', '🌿'],
+  ['edera', '🌿'], ['borragine', '🌿'], ['dragoncello', '🌿'],
+
+  // Spezie
+  ['cannella', '🧂'], ['noce moscat', '🌰'], ['chiodi di garof', '🌰'],
+  ['zafferano', '🌾'], ['paprika', '🌶'], ['cumino', '🌶'], ['anice', '🌾'],
+  ['vaniglia', '🍦'],
+
+  // Dolci/desserts italiani
+  ['crostat', '🥧'], ['bigne', '🍰'], ['profiterol', '🍰'], ['tiramisu', '🍰'],
+  ['panna cott', '🍮'], ['crema', '🍮'], ['mascarpon', '🧀'], ['savoiard', '🍪'],
+  ['pavesin', '🍪'], ['amarett', '🍪'], ['baci', '🍫'], ['gianduiott', '🍫'],
+  ['pralin', '🍫'], ['liquirizia', '🍬'], ['gomma', '🍬'], ['nutella', '🍫'],
+  ['kinder', '🍫'], ['marshmallow', '🍬'], ['confett', '🍬'],
+
+  // Bevande extra
+  ['aranciat', '🥤'], ['chinott', '🥤'], ['gazzos', '🥤'], ['frappe', '🥤'],
+  ['frullat', '🥤'], ['centrifug', '🥤'], ['estratto', '🥤'], ['smoothie', '🥤'],
+  ['orzo', '☕'], ['ginseng', '☕'], ['camomilla', '🍵'], ['decaffeinato', '☕'],
+  ['the verde', '🍵'], ['mojito', '🍹'], ['negroni', '🥃'], ['aperol', '🥂'],
+  ['campari', '🍷'],
+
+  // Pulizia / casa
+  ['spugna', '🧽'], ['spugne', '🧽'], ['ammoniaca', '🧴'], ['bicarbonato', '🥣'],
+  ['alcool', '🧴'], ['anticalcar', '🧴'], ['lavavetri', '🧴'], ['lavapiatt', '🧴'],
+  ['sgrassator', '🧴'], ['profuma', '🧴'], ['ammorbidente', '🧴'],
+  ['pattumiera', '🗑'], ['sacchi della spazz', '🗑'], ['sacchetti', '🛍'],
+  ['pellicola', '🧻'], ['carta forno', '🧻'], ['stagnola', '🧻'], ['alluminio', '🧻'],
+  ['stuzzicadent', '🪥'], ['stoviglie', '🍽'], ['piatti', '🍽'],
+
+  // Igiene / bagno
+  ['bagnoschiuma', '🧴'], ['crema corpo', '🧴'], ['crema viso', '🧴'],
+  ['burro cacao', '🧴'], ['assorbent', '🧻'], ['tampon', '🧻'], ['carta velina', '🧻'],
+  ['filo interden', '🪥'], ['collutori', '🪥'], ['cotone idro', '🧻'],
+  ['cerott', '🩹'], ['amuchin', '🧴'], ['disinfettant', '🧴'],
+
+  // Salute
+  ['medicin', '💊'], ['farmac', '💊'], ['tachipirin', '💊'], ['nurofen', '💊'],
+  ['vitamin', '💊'], ['integratori', '💊'], ['probiotic', '💊'], ['sciroppo', '💊'],
+  ['aerosol', '🩺'], ['termomet', '🌡'], ['cerotti', '🩹'],
+
+  // Casa / cancelleria
+  ['penne biro', '🖊'], ['evidenziator', '🖍'], ['matita', '✏️'], ['gomma cancell', '✏️'],
+  ['righello', '📏'], ['nastro adesivo', '🪛'], ['post-it', '📒'], ['post it', '📒'],
+  ['quaderno', '📓'], ['agenda', '📒'], ['calendar', '📅'],
+
+  // Animali specifico
+  ['crocchett', '🐾'], ['lettier', '🐾'], ['guinzagli', '🐕'], ['ciotol', '🍽'],
+
+  // Bimbi specifici
+  ['pannolin', '👶'], ['salviettin', '🧻'], ['biberon', '🍼'], ['ciuccio', '👶'],
+  ['omogeneizz', '🍼'], ['latte in polver', '🍼'], ['pappa', '🍼'],
+
+  // Auto / esterno
+  ['benzin', '⛽'], ['gasoli', '⛽'], ['carburant', '⛽'], ['auto', '🚗'],
+  ['biciclett', '🚴'], ['bici', '🚴'], ['moto', '🏍'],
+
+  // Bricolage extra
+  ['viti', '🔩'], ['chiod', '🔨'], ['avvitator', '🪛'], ['trapan', '🔧'],
+  ['silicone', '🧴'], ['colla', '🧴'], ['nastro', '📏'], ['vernice', '🎨'],
+
+  // Stagione / vario
+  ['vacanze', '🏖'], ['mare', '🏖'], ['piscina', '🏊'], ['montagna', '⛰'],
+  ['ombrellone', '⛱'], ['sdraio', '🏖'], ['creme solar', '🧴'], ['solar', '☀'],
+  ['costume', '👙'], ['abbronzante', '🧴'], ['dopo sole', '🧴']
 ];
 
 // Smart match: priorità per token più lungo o keyword più specifica.
