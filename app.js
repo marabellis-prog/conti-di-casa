@@ -683,11 +683,11 @@ function spesaIconForName(name) {
 }
 
 // Restituisce fino a `max` emoji suggerite per il nome, ordinate per
-// specificità. Match bidirezionale (con minimo 3 caratteri per il prefix):
-// - nome contiene keyword (es. "pane integrale" matcha 'pane' → 🍞)
-// - keyword inizia col nome (es. "mel" matcha 'melon','melanzan','mel' →
-//   🍈, 🍆, 🍎)
-// Priorità (score): keyword più lunga = match più specifico = prima posizione.
+// specificità. Match PROMISCUO (stessa logica del modal selettore):
+// - nome contiene keyword OVUNQUE (es. "pane integrale" matcha 'pane' → 🍞)
+// - keyword contiene nome OVUNQUE (es. "mel" matcha 'mel','melon',
+//   'melanzan','caramell','marmellat' → 🍎 🍈 🍆 🍬 🍯)
+// Priorità (score): match diretto (nome ⊇ kw) > kw più lunga > prefix.
 const SPESA_MIN_QUERY_LEN = 3;
 function spesaIconSuggestions(name, max) {
   if (max == null) max = 5;
@@ -697,11 +697,12 @@ function spesaIconSuggestions(name, max) {
   const matches = [];
   const seen = new Set();
   for (const [kw, ic] of SPESA_KEYWORD_ICONS) {
-    const nameContainsKw = n.indexOf(kw) !== -1;
-    const kwStartsWithName = kw.indexOf(n) === 0; // prefix-match: utente sta digitando
-    if ((nameContainsKw || kwStartsWithName) && !seen.has(ic)) {
-      // Score: match diretto (nome ⊇ kw) ha priorità maggiore del prefix-match
-      const score = (nameContainsKw ? 100 : 0) + kw.length;
+    const nameContainsKw = n.indexOf(kw) !== -1;    // nome contiene kw
+    const kwContainsName = kw.indexOf(n) !== -1;    // kw contiene nome (anywhere)
+    if ((nameContainsKw || kwContainsName) && !seen.has(ic)) {
+      // Score: nome⊇kw +100, prefix-match +20 (kw inizia con nome), poi kw.length
+      const isPrefix = kw.indexOf(n) === 0;
+      const score = (nameContainsKw ? 100 : 0) + (isPrefix ? 20 : 0) + kw.length;
       matches.push({ kw, ic, score });
       seen.add(ic);
     }
