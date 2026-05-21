@@ -931,10 +931,23 @@ function updateSpesaEditIcon(icon) {
 }
 
 function onSpesaEditNomeInput() {
-  if (_spesaEditState.iconaManual) return;
   const nome = D.spesaEditNome ? D.spesaEditNome.value : '';
   const suggestions = spesaIconSuggestions(nome, 5);
-  updateSpesaEditIcons(suggestions);
+  const currentIcon = _spesaEditState.icone && _spesaEditState.icone[0];
+  // L'icona corrente è ancora rilevante per il nuovo nome?
+  // (cioè: appare ancora tra i suggerimenti del nome corrente)
+  const stillRelevant = suggestions.indexOf(currentIcon) !== -1;
+  if (_spesaEditState.iconaManual && stillRelevant) {
+    // L'utente aveva scelto manualmente E la scelta è ancora coerente
+    // col nome → tengo l'icona al centro e aggiorno solo i laterali
+    const lateral = suggestions.filter(e => e !== currentIcon).slice(0, 4);
+    updateSpesaEditIcons([currentIcon].concat(lateral));
+  } else {
+    // Il nome è cambiato in modo significativo (es. pomodori → kiwi):
+    // l'icona attuale non matcha più → reset manuale e ricalcolo
+    _spesaEditState.iconaManual = false;
+    updateSpesaEditIcons(suggestions);
+  }
 }
 
 // Swap di una icona laterale col centro: l'utente clicca un side → la
