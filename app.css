@@ -62,6 +62,62 @@ html[data-theme="light"] {
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* Preview Lista della Spesa nel widget Home (primi 3 "da prendere") */
+.mc-spesa-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.mc-spesa-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text);
+}
+.mc-spesa-row-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.mc-spesa-row-icon img.emoji { width: 14px; height: 14px; }
+.mc-spesa-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.mc-spesa-row-qty {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.mc-spesa-more {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-align: center;
+  padding-top: 2px;
+}
+.mc-spesa-empty {
+  font-size: 13px;
+  color: var(--text-faint);
+  font-style: italic;
+  text-align: center;
+  padding: 4px 0;
+}
+
 /* ─── LISTA DELLA SPESA ──────────────────────────────────── */
 .spesa-section { margin-bottom: 18px; }
 .spesa-section-title {

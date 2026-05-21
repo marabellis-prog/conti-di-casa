@@ -121,14 +121,17 @@
           </div>
         </div>
 
-        <div class="module-card module-soon" data-mod="spesa">
+        <div class="module-card module-spesa" data-mod="spesa">
           <span class="mc-drag" title="Trascina per riordinare">⋮⋮</span>
           <div class="mc-header">
             <span class="mc-icon">🛒</span>
             <span class="mc-title">Lista della spesa</span>
-            <span class="mc-soon">presto</span>
+            <span class="mc-period" id="homeSpesaCount"></span>
+            <span class="mc-go">›</span>
           </div>
-          <div class="mc-body soon">Cosa manca a casa, condiviso in tempo reale</div>
+          <div class="mc-body">
+            <div id="homeSpesaPreview" class="mc-spesa-preview"></div>
+          </div>
         </div>
 
         <div class="module-card module-soon" data-mod="todo">

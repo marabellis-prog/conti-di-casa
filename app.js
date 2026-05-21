@@ -115,6 +115,7 @@ function cacheDOM() {
    'spesaListToBuy','spesaListBought','spesaCountToBuy','spesaCountBought',
    'modalSpesa','spesaEditTitle','spesaEditIconBtn','spesaEditNome','spesaEditQtyMinus','spesaEditQtyValue','spesaEditQtyPlus','spesaEditNote','spesaEditSave','spesaEditDelete',
    'homeContiDonut','homeContiSaldo','homeContiSubtle','homeContiPeriod','goToList','goToCategorie',
+   'homeSpesaPreview','homeSpesaCount',
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap',
    'carouselTrack','carouselPrev','carouselNext','carouselTitle','carouselDots',
    'trendFrom','trendTo','trend3mWrap',
@@ -1385,6 +1386,33 @@ function renderHomeGestione() {
     } else {
       D.homeContiDonut.innerHTML = '<div style="width:100px;height:100px;display:grid;place-items:center;color:var(--text-faint);font-size:11px;text-align:center">Nessuna<br>uscita</div>';
     }
+  }
+
+  // Widget Lista della Spesa: primi 3 elementi "da prendere" + contatore
+  if (D.homeSpesaPreview) {
+    const items = (S.spesa || []).slice().sort((a, b) => (a.ordine || 0) - (b.ordine || 0));
+    const toBuy = items.filter(x => !x.preso);
+    const preview = toBuy.slice(0, 3);
+    if (D.homeSpesaCount) {
+      D.homeSpesaCount.textContent = toBuy.length ? (toBuy.length + ' da prendere') : 'lista vuota';
+    }
+    if (!toBuy.length) {
+      D.homeSpesaPreview.innerHTML = '<div class="mc-spesa-empty">Nessun elemento da prendere</div>';
+    } else {
+      let html = preview.map(it => {
+        const qty = (it.quantita && it.quantita > 1) ? '<span class="mc-spesa-row-qty">×' + it.quantita + '</span>' : '';
+        return '<div class="mc-spesa-row">' +
+                 '<span class="mc-spesa-row-icon">' + (it.icona || '🛒') + '</span>' +
+                 '<span class="mc-spesa-row-name">' + esc(it.nome || '') + '</span>' +
+                 qty +
+               '</div>';
+      }).join('');
+      if (toBuy.length > 3) {
+        html += '<div class="mc-spesa-more">+ ' + (toBuy.length - 3) + ' altri</div>';
+      }
+      D.homeSpesaPreview.innerHTML = html;
+    }
+    twemojify(D.homeSpesaPreview);
   }
 }
 
@@ -4455,14 +4483,15 @@ function bindEvents() {
     });
   }
   // Home Gestione Casa: tap su widget moduli
+  // Il click su qualsiasi parte della card apre il modulo, TRANNE che sul
+  // drag handle (.mc-drag) che serve per riordinare i widget.
   $$('.module-card').forEach(card => {
-    card.addEventListener('click', () => {
+    card.addEventListener('click', e => {
+      if (e.target && e.target.closest('.mc-drag')) return; // ignora drag handle
       const mod = card.getAttribute('data-mod');
-      if (mod === 'conti') {
-        switchView('conti');
-      } else {
-        toast('Modulo in arrivo', 'info');
-      }
+      if (mod === 'conti')      switchView('conti');
+      else if (mod === 'spesa') switchView('spesa');
+      else                      toast('Modulo in arrivo', 'info');
     });
   });
   // Modulo Conti: pulsanti per andare a sotto-pagine
