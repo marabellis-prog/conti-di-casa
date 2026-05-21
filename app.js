@@ -759,18 +759,21 @@ function renderIconPickerGrid() {
         emojis = cat ? cat.emojis : [];
       }
     } else {
-      // Match coerente con spesaIconSuggestions: keyword inizia con query
-      // OR query contiene keyword (NO substring middle che produceva troppi
-      // falsi positivi)
+      // Ricerca PROMISCUA: la kw matcha se contiene la query OVUNQUE
+      // (substring middle/end) O se la query contiene la kw. Questo dà più
+      // risultati rispetto all'auto-suggestion sul nome che è più restrittiva.
+      // Es. "mel" matcha 'mel', 'melon', 'melanzan'; "mele" matcha 'mel'.
+      // Niente fallback "show all": se non c'è nessun match, mostra empty.
       const found = new Set();
       SPESA_KEYWORD_ICONS.forEach(([kw, ic]) => {
-        if (kw.indexOf(q) === 0 || q.indexOf(kw) !== -1) found.add(ic);
+        if (kw.indexOf(q) !== -1 || q.indexOf(kw) !== -1) found.add(ic);
       });
       // Match anche la label della categoria (es. "frutta" → tutte le emoji
-      // della categoria Frutta&Verdura)
+      // della categoria Frutta&Verdura). Substring anche qui per essere
+      // permissivi (es. "verdu" matcha "Frutta & Verdura")
       SPESA_ICON_CATS.forEach(c => {
         const labLower = c.label.toLowerCase();
-        if (labLower === q || labLower.indexOf(q) === 0) {
+        if (labLower.indexOf(q) !== -1) {
           c.emojis.forEach(e => found.add(e));
         }
       });
