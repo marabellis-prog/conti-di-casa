@@ -573,8 +573,16 @@ function renderConti() {
       color: MACRO_COLORS[macroId] || '#666',
       macroId: macroId,
       onClick: function () {
+        // Slide "Uscite per categoria": vai alla lista con periodo = SOLO
+        // mese attualmente selezionato in alto (dal 1° all'ultimo giorno).
+        // listPeriod='current' fa sì che getListPeriodRange usi S.currentMonth.
         S.donutFilter = { type: 'macro', value: macroId };
         S.listFilter = 'uscita';
+        S.filtersCats = [];
+        S.filtersAutori = [];
+        S.listPeriod = 'current';
+        S.listFrom = null;
+        S.listTo = null;
         switchView('list');
       }
     };
@@ -735,17 +743,18 @@ async function renderTrend3m() {
           points,
           total,
           onClick: function () {
+            // Slide "Andamento mesi": vai alla lista con periodo = range
+            // del trend selezionato nei date picker (S.trendRange ora è
+            // {from:'YYYY-MM-DD', to:'YYYY-MM-DD'} → uso direttamente)
             S.donutFilter = { type: 'macro', value: macroId };
             S.listFilter = 'uscita';
-            // Imposta il filtro periodo della lista al range del trend corrente
+            S.filtersCats = [];
+            S.filtersAutori = [];
             const tr = S.trendRange;
             if (tr && tr.from && tr.to) {
               S.listPeriod = 'custom';
-              const fy = tr.from.anno, fm = String(tr.from.mese).padStart(2, '0');
-              const ty = tr.to.anno, tm = String(tr.to.mese).padStart(2, '0');
-              const lastDay = new Date(ty, tr.to.mese, 0).getDate();
-              S.listFrom = fy + '-' + fm + '-01';
-              S.listTo   = ty + '-' + tm + '-' + String(lastDay).padStart(2, '0');
+              S.listFrom = tr.from;
+              S.listTo   = tr.to;
             }
             switchView('list');
           }
