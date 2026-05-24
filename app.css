@@ -752,20 +752,28 @@ html[data-theme="light"] {
 .scad-cal-cell .day-num {
   font-size: 13px;
   font-weight: 700;
-  color: #dc2626;                /* numeri del giorno in ROSSO (stile calendario italiano) */
+  color: var(--text);            /* numeri normali col tema (feriali) */
   font-variant-numeric: tabular-nums;
   text-align: left;
   line-height: 1;
   padding: 1px 1px 2px;
 }
-/* Domeniche: sfondo giallino (calendario classico italiano) */
-.scad-cal-cell:nth-child(7n) {
+/* Domeniche E festività italiane: sfondo giallino + numero rosso
+   (stile calendario classico italiano) */
+.scad-cal-cell:nth-child(7n),
+.scad-cal-cell.is-festivo {
   background: #fef9c3;
 }
-[data-theme="dark"] .scad-cal-cell:nth-child(7n) {
+.scad-cal-cell:nth-child(7n) .day-num,
+.scad-cal-cell.is-festivo .day-num {
+  color: #dc2626;
+}
+[data-theme="dark"] .scad-cal-cell:nth-child(7n),
+[data-theme="dark"] .scad-cal-cell.is-festivo {
   background: rgba(252, 211, 77, .22);
 }
-.scad-cal-cell:nth-child(7n).empty {
+.scad-cal-cell:nth-child(7n).empty,
+.scad-cal-cell.is-festivo.empty {
   background: var(--bg);         /* override: empty cells non devono essere gialle */
 }
 .scad-cal-cell .day-dots {
@@ -789,6 +797,13 @@ html[data-theme="light"] {
 .scad-cal-cell .day-dot img.emoji {
   width: 24px;
   height: 24px;
+}
+/* Icona scadenza completata nel calendario: b/n + più trasparente */
+.scad-cal-cell .day-dot.is-fatto {
+  opacity: .55;
+}
+.scad-cal-cell .day-dot.is-fatto img.emoji {
+  filter: grayscale(1) brightness(1.02);
 }
 /* Quando ci sono 2 icone, riduci leggermente; con 3+ ancora di più */
 .scad-cal-cell .day-dots:has(.day-dot:nth-child(2)) .day-dot       { font-size: 17px; }

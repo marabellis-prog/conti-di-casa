@@ -2149,6 +2149,60 @@ function _todayStr() {
   return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
 }
 
+// ─── FESTIVITÀ ITALIANE ─────────────────────────────────────
+// Algoritmo di Gauss/Computus per calcolare la Pasqua (gregoriana).
+// Restituisce {anno, mese (1-12), giorno (1-31)}.
+function _easterSunday(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31); // 3 = marzo, 4 = aprile
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return { anno: year, mese: month, giorno: day };
+}
+
+// Cache per anno → Set di 'YYYY-MM-DD' festivi italiani
+const _holidayCache = {};
+function italianHolidaysSet(year) {
+  if (_holidayCache[year]) return _holidayCache[year];
+  const set = new Set();
+  const add = (m, d) => set.add(year + '-' + String(m).padStart(2,'0') + '-' + String(d).padStart(2,'0'));
+  // Festività fisse italiane
+  add(1, 1);   // Capodanno
+  add(1, 6);   // Epifania
+  add(4, 25);  // Festa della Liberazione
+  add(5, 1);   // Festa del Lavoro
+  add(6, 2);   // Festa della Repubblica
+  add(8, 15);  // Ferragosto (Assunzione)
+  add(11, 1);  // Ognissanti
+  add(12, 8);  // Immacolata Concezione
+  add(12, 25); // Natale
+  add(12, 26); // Santo Stefano
+  // Variabili: Pasqua + Lunedì dell'Angelo (Pasquetta)
+  const easter = _easterSunday(year);
+  add(easter.mese, easter.giorno);
+  // Pasquetta = Pasqua + 1 giorno
+  const pasquetta = new Date(easter.anno, easter.mese - 1, easter.giorno + 1);
+  add(pasquetta.getMonth() + 1, pasquetta.getDate());
+  _holidayCache[year] = set;
+  return set;
+}
+
+function isItalianHoliday(ds) {
+  if (!ds) return false;
+  const [y] = ds.split('-');
+  return italianHolidaysSet(Number(y)).has(ds);
+}
+
 // Helper: numero giorni di distanza tra due 'YYYY-MM-DD' (b - a)
 function _daysBetween(aStr, bStr) {
   const a = new Date(aStr + 'T00:00:00');
@@ -2221,10 +2275,17 @@ function fmtScadDataShort(s) {
 // ─── RENDER LISTA ────────────────────────────────────────────
 function renderScadenzeList() {
   if (!D.scadenzeListContent) return;
-  const items = (S.scadenze || []).slice();
+  const nowMs = Date.now();
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  // Filtra fuori le scadenze completate da più di 1 giorno
+  const items = (S.scadenze || []).filter(it => {
+    if (!it.fatto) return true;
+    if (!it.completato_at) return true; // se manca timestamp, mostra (legacy)
+    const age = nowMs - new Date(it.completato_at).getTime();
+    return age < ONE_DAY_MS;             // mostra solo se completata < 24h fa
+  });
   // Calcola data effettiva (next occurrence) per ogni item
   items.forEach(it => { it._nextDate = nextOccurrence(it); });
-  // Filtra fuori i fatti non-ricorrenti molto passati? No, li teniamo nella loro sezione
   items.sort((a, b) => {
     const da = a._nextDate || '9999-12-31';
     const db = b._nextDate || '9999-12-31';
@@ -2453,6 +2514,7 @@ function renderScadenzeCal() {
     const cls = ['scad-cal-cell'];
     if (ds === today) cls.push('today');
     if (S.scadCalSelectedDay === ds) cls.push('selected');
+    if (isItalianHoliday(ds)) cls.push('is-festivo');
     if (items.length) {
       // priorità colore: past > today > soon > generic
       let pri = 'has-scad';
@@ -2468,8 +2530,11 @@ function renderScadenzeCal() {
       }
       cls.push(pri);
     }
-    // Mostra fino a 3 icone come dot, poi +N
-    const dotsHtml = items.slice(0, 3).map(x => '<span class="day-dot">' + (x.icona || '📅') + '</span>').join('');
+    // Mostra fino a 3 icone come dot, poi +N. Le scadenze fatte → b/n.
+    const dotsHtml = items.slice(0, 3).map(x => {
+      const cls = 'day-dot' + (x.fatto ? ' is-fatto' : '');
+      return '<span class="' + cls + '">' + (x.icona || '📅') + '</span>';
+    }).join('');
     const moreHtml = items.length > 3 ? '<span class="day-more">+' + (items.length - 3) + '</span>' : '';
     html += '<div class="' + cls.join(' ') + '" data-day="' + ds + '">' +
               '<div class="day-num">' + d + '</div>' +
