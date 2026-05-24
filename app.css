@@ -299,6 +299,12 @@ html[data-theme="light"] {
   text-shadow:
     0 0 1px rgba(243,236,207,.45),
     0 1px 1px rgba(0,0,0,.25);
+  /* inline-block + max-width:100% così il box si restringe esattamente
+     attorno al testo (per posizionare la riga di cancellazione lunga
+     quanto la scritta), mantenendo ellipsis se il testo è troppo lungo */
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
 }
 .todo-item-meta {
   font-family: var(--chalk-font);
@@ -330,13 +336,14 @@ html[data-theme="light"] {
   background: rgba(243, 236, 207, .08);
   border-color: rgba(243, 236, 207, .22);
 }
-.todo-item.fatto .todo-item-body { position: relative; }
-/* La "linea col gesso" tagliata sopra il nome — orizzontale e sottile */
-.todo-item.fatto .todo-item-body::after {
+/* La "linea col gesso" lunga ESATTAMENTE come il testo (non più),
+   posizionata sopra il nome che è inline-block (vedi sopra) */
+.todo-item.fatto .todo-item-name { position: relative; }
+.todo-item.fatto .todo-item-name::after {
   content: '';
   position: absolute;
-  left: -2px;
-  right: 10px;
+  left: 0;
+  right: 0;
   top: 50%;
   height: 2px;
   background: linear-gradient(
