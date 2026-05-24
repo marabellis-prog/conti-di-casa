@@ -560,70 +560,116 @@ html[data-theme="light"] {
   padding: 4px 0;
 }
 .scad-cal-weekdays > div.we { color: var(--accent); }
+/* Grid stile "calendario da appendere": celle quadrate con bordo netto
+   e ombre delicate, come un calendario stampato che pende dal muro. */
 .scad-cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 0;                        /* niente gap: le celle sono contigue come un foglio */
   background: var(--card);
-  border-radius: 14px;
-  padding: 6px;
-  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0;
+  border: 2px solid var(--text);   /* cornice marcata, da calendario stampato */
+  overflow: hidden;
+  box-shadow:
+    0 4px 12px rgba(0,0,0,.12),
+    0 1px 3px rgba(0,0,0,.08);
 }
 .scad-cal-cell {
-  aspect-ratio: 1;
-  border-radius: 8px;
+  aspect-ratio: 1;               /* quadrate perfette */
   background: var(--bg);
-  border: 1px solid transparent;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-start;
-  padding: 4px 2px;
+  padding: 3px 4px 2px;
   cursor: pointer;
   position: relative;
-  transition: background .15s ease, border-color .15s ease;
+  transition: background .15s ease, transform .12s ease;
   overflow: hidden;
-  min-height: 44px;
+  min-height: 52px;
 }
-.scad-cal-cell.empty { visibility: hidden; }
+/* Rimuove i bordi destri dell'ultima colonna e i bordi sotto dell'ultima riga */
+.scad-cal-cell:nth-child(7n) { border-right: none; }
+.scad-cal-cell:nth-last-child(-n+7) { border-bottom: none; }
+.scad-cal-cell.empty {
+  visibility: hidden;
+  pointer-events: none;
+}
 .scad-cal-cell.other-month { opacity: .35; }
 .scad-cal-cell .day-num {
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
+  font-weight: 700;
+  color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+  text-align: left;
+  line-height: 1;
+  padding: 1px 1px 2px;
 }
 .scad-cal-cell .day-dots {
   display: flex;
-  gap: 2px;
-  margin-top: 2px;
+  gap: 1px;
+  margin: 0 auto;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
+  flex: 1;
+  width: 100%;
+  padding: 1px 0;
 }
 .scad-cal-cell .day-dot {
-  font-size: 9px;
+  font-size: 20px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
-.scad-cal-cell .day-dot img.emoji { width: 11px; height: 11px; }
+.scad-cal-cell .day-dot img.emoji {
+  width: 24px;
+  height: 24px;
+}
+/* Quando ci sono 2 icone, riduci leggermente; con 3+ ancora di più */
+.scad-cal-cell .day-dots:has(.day-dot:nth-child(2)) .day-dot       { font-size: 17px; }
+.scad-cal-cell .day-dots:has(.day-dot:nth-child(2)) .day-dot img.emoji { width: 20px; height: 20px; }
+.scad-cal-cell .day-dots:has(.day-dot:nth-child(3)) .day-dot       { font-size: 14px; }
+.scad-cal-cell .day-dots:has(.day-dot:nth-child(3)) .day-dot img.emoji { width: 16px; height: 16px; }
 .scad-cal-cell .day-more {
   font-size: 9px;
   font-weight: 700;
   color: var(--text-faint);
-  margin-top: 1px;
+  line-height: 1;
+  padding-left: 2px;
+  align-self: flex-end;
 }
 .scad-cal-cell:hover {
   background: var(--hover);
-  border-color: var(--border);
 }
 .scad-cal-cell.today {
-  border-color: var(--accent);
-  background: rgba(var(--accent-rgb, 100, 80, 230), .12);
+  background: rgba(var(--accent-rgb, 100, 80, 230), .18);
 }
-.scad-cal-cell.today .day-num { color: var(--accent); font-weight: 800; }
-.scad-cal-cell.has-scad      { background: rgba(var(--accent-rgb, 100, 80, 230), .14); }
+.scad-cal-cell.today .day-num {
+  color: var(--accent);
+  font-weight: 900;
+  font-size: 14px;
+}
+.scad-cal-cell.has-scad      { background: rgba(var(--accent-rgb, 100, 80, 230), .10); }
 .scad-cal-cell.has-past      { background: rgba(220, 38, 38, .14); }
 .scad-cal-cell.has-soon      { background: rgba(251, 191, 36, .18); }
-.scad-cal-cell.selected      { border-color: var(--accent); border-width: 2px; transform: scale(1.04); z-index: 2; }
+.scad-cal-cell.selected {
+  background: var(--accent);
+  z-index: 2;
+  box-shadow: 0 0 0 2px var(--accent) inset, 0 0 0 4px var(--bg) inset;
+}
+.scad-cal-cell.selected .day-num { color: #fff; }
+/* Domenica / Sabato: leggera tinta da calendario stampato */
+.scad-cal-cell:nth-child(7n)   .day-num,  /* domenica (7° col) */
+.scad-cal-cell:nth-child(7n-1) .day-num   /* sabato (6° col) */
+{
+  color: var(--accent);
+}
+.scad-cal-cell.today.is-we .day-num { color: #fff; }
 .scad-cal-day-details {
   background: var(--card);
   border-radius: 14px;
