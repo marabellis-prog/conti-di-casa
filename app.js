@@ -19,7 +19,8 @@ const T = {
   VER: 'cdc_app_version',
   USERS: 'cdc_authorized_users',
   SPESA: 'cdc_lista_spesa',
-  TODO: 'cdc_lista_todo'
+  TODO: 'cdc_lista_todo',
+  SCADENZE: 'cdc_scadenze'
 };
 const OWNER_EMAIL = 'marabelli.s@gmail.com';
 
@@ -34,7 +35,8 @@ const LS = {
   LAST_TIPO: 'cdc-last-tipo',
   LAST_MONTH: 'cdc-last-month',
   SPESA: 'cdc-spesa',
-  TODO: 'cdc-todo'
+  TODO: 'cdc-todo',
+  SCADENZE: 'cdc-scadenze'
 };
 
 // Tavolozza colori per categorie
@@ -105,6 +107,11 @@ const S = {
   todo: [],                  // array di item {id, nome, icona, note, scadenza, fatto, ordine}
   editTodoId: null,
   editSpesaId: null,         // id dell'item correntemente in modifica (null = nuovo)
+  // Scadenze
+  scadenze: [],              // array di item {id, titolo, icona, data, anticipo_giorni, ricorrenza, note, fatto, ordine}
+  editScadenzaId: null,
+  scadCalCursor: null,       // {anno, mese} mese visualizzato in vista calendario
+  scadCalSelectedDay: null,  // 'YYYY-MM-DD' giorno selezionato per dettaglio
   // pending tx tmp ids
   pendingTxIds: new Set()
 };
@@ -122,6 +129,14 @@ function cacheDOM() {
    'homeTodoPreview','homeTodoCount',
    'modalTodo','todoEditTitle','todoEditIconBtn','todoEditNome','todoEditScadenza','todoEditNote','todoEditSave','todoEditDelete',
    'modalClearTodo',
+   // Scadenze
+   'view-scadenze-list','view-scadenze-cal',
+   'scadenzeListContent',
+   'scadCalPrev','scadCalNext','scadCalTitle','scadCalGrid','scadCalDayDetails','scadCalDayTitle','scadCalDayList',
+   'homeScadenzePreview','homeScadenzeCount',
+   'modalScadenza','scadenzaEditTitle','scadenzaEditIconBtn','scadenzaEditTitolo','scadenzaEditData','scadenzaEditNote','scadenzaEditSave','scadenzaEditDelete',
+   'scadenzaAnticipoChips','scadenzaRicorrenzaChips',
+   'modalClearScadenze',
    'modalIconPicker','iconPickerSearch','iconPickerCategories','iconPickerGrid',
    'homeContiDonut','homeContiSaldo','homeContiSubtle','homeContiPeriod','goToList','goToCategorie',
    'homeSpesaPreview','homeSpesaCount',
@@ -375,6 +390,7 @@ function loadLocalCache() {
   try { S.budgets = JSON.parse(localStorage.getItem(LS.BUDGETS) || '[]'); } catch { S.budgets = []; }
   try { S.spesa = JSON.parse(localStorage.getItem(LS.SPESA) || '[]'); } catch { S.spesa = []; }
   try { S.todo  = JSON.parse(localStorage.getItem(LS.TODO)  || '[]'); } catch { S.todo  = []; }
+  try { S.scadenze = JSON.parse(localStorage.getItem(LS.SCADENZE) || '[]'); } catch { S.scadenze = []; }
   try {
     const p = JSON.parse(localStorage.getItem(LS.PREFS) || 'null');
     if (p) S.prefs = Object.assign(S.prefs, p);
@@ -387,6 +403,7 @@ function saveLocalCache() {
   localStorage.setItem(LS.BUDGETS, JSON.stringify(S.budgets));
   localStorage.setItem(LS.SPESA, JSON.stringify(S.spesa));
   localStorage.setItem(LS.TODO,  JSON.stringify(S.todo));
+  localStorage.setItem(LS.SCADENZE, JSON.stringify(S.scadenze));
   localStorage.setItem(LS.PREFS, JSON.stringify(S.prefs));
   localStorage.setItem(LS.TS, String(S.ts));
 }
@@ -405,20 +422,22 @@ async function reloadAll() {
   const cutoff = new Date(now.getFullYear(), now.getMonth() - 2, 1);
   const cutoffStr = cutoff.getFullYear() + '-' + String(cutoff.getMonth()+1).padStart(2,'0') + '-01';
 
-  const [cats, tx, budgets, prefsRows, verRows, spesa, todo] = await Promise.all([
+  const [cats, tx, budgets, prefsRows, verRows, spesa, todo, scadenze] = await Promise.all([
     supaFetch(T.CATS + '?select=*&order=ordine.asc,id.asc'),
     supaFetch(T.TX + '?select=*&data=gte.' + cutoffStr + '&order=data.desc,id.desc'),
     supaFetch(T.BUDGET + '?select=*&anno=eq.' + now.getFullYear()),
     supaFetch(T.PREFS + '?select=dati&id=eq.1'),
     supaFetch(T.VER + '?select=sha&id=eq.1'),
     supaFetch(T.SPESA + '?select=*&order=ordine.asc,created_at.asc'),
-    supaFetch(T.TODO + '?select=*&order=ordine.asc,created_at.asc')
+    supaFetch(T.TODO + '?select=*&order=ordine.asc,created_at.asc'),
+    supaFetch(T.SCADENZE + '?select=*&order=data.asc,id.asc')
   ]);
   S.cats = cats || [];
   S.tx = tx || [];
   S.budgets = budgets || [];
   S.spesa = spesa || [];
   S.todo  = todo  || [];
+  S.scadenze = scadenze || [];
   if (prefsRows && prefsRows[0] && prefsRows[0].dati) {
     S.prefs = Object.assign(S.prefs, prefsRows[0].dati);
   }
@@ -462,6 +481,7 @@ function renderAll() {
   try { renderCatView();       } catch (e) { console.warn('[renderAll] renderCatView',       e); }
   try { renderSpesa();         } catch (e) { console.warn('[renderAll] renderSpesa',         e); }
   try { renderTodo();          } catch (e) { console.warn('[renderAll] renderTodo',          e); }
+  try { renderScadenzeList();  } catch (e) { console.warn('[renderAll] renderScadenzeList',  e); }
   try { renderSettings();      } catch (e) { console.warn('[renderAll] renderSettings',      e); }
 }
 
@@ -558,35 +578,84 @@ async function ensureMonthLoaded() {
 // Categorie del selettore icone (modal). Ogni categoria ha un set di emoji.
 // Le keyword sotto fanno match ANCHE su radici/prefissi (es. "natalin" → 🎄
 // per matchare "natalini, natalino, natalina, natale").
-// ─── ICONE TODO: categorie + keyword map ────────────────────
-// Categorie ottimizzate per azioni "cose da fare" (chiamate, pagamenti,
-// commissioni, manutenzione, salute, ufficio, viaggi, comunicazione, ecc.)
-const TODO_ICON_CATS = [
-  { id: 'casa', label: 'Casa & Manutenzione', icon: '🏠',
-    emojis: ['🏠','🏡','🛏','🛋','🚪','🪟','🚿','🛁','🚽','🪥','🪑','🖼','🧹','🧺','🧼','🪣','🧴','🪒','🪞','📺','🛜','🔌','💡','🔋','🚨','🔔','🗝','🔑','🧯','🪜','🪤','🐜'] },
-  { id: 'fix', label: 'Riparazioni & Bricolage', icon: '🔧',
-    emojis: ['🔨','🛠','🔧','🪛','🔩','⚙️','🪚','🪜','🧰','🧲','📏','📐','✂️','🩹','📦','📐','🪞','🚿','🔍','🪤','⛓','🪧'] },
-  { id: 'office', label: 'Ufficio & Documenti', icon: '📋',
-    emojis: ['📋','📑','📄','📃','✏️','🖊','🖋','✒️','📨','📬','📭','📮','💼','🪪','🧾','📂','📁','📊','📈','📉','📌','📎','🖇','🗂','📰','⚖️','🏛','🪧','📝'] },
-  { id: 'money', label: 'Banca & Soldi', icon: '🏦',
-    emojis: ['🏦','💳','💰','💸','💵','💴','💶','💷','🪙','💹','📈','📉','🧾','🤝','💼'] },
+// ─── ICONE UNIFICATE: una marea, condivise da tutti i moduli ─
+// Spesa / ToDo / Scadenze attingono dallo stesso pool gigante.
+// ~34 categorie tematiche, ~750+ emoji totali.
+const ALL_ICON_CATS = [
+  { id: 'food', label: 'Cibo & Cucina', icon: '🍽',
+    emojis: ['🍞','🥖','🥐','🥯','🥪','🍕','🍝','🍜','🍲','🍱','🥟','🍣','🍤','🥘','🥗','🌮','🌯','🥙','🍔','🍟','🌭','🥨','🧇','🥞','🍳','🍿','🥫','🥣','🍚','🍙','🍘','🍢','🍡','🥠','🫔','🍛','🍴','🥄','🔪','🍽','🥢','🧑‍🍳'] },
+  { id: 'fruit', label: 'Frutta', icon: '🍎',
+    emojis: ['🍎','🍏','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🌰','🥜','🍇'] },
+  { id: 'veg', label: 'Verdura', icon: '🥦',
+    emojis: ['🥦','🥬','🥒','🌶','🫑','🌽','🥕','🫒','🧄','🧅','🥔','🍠','🫘','🫛','🍄','🌽','🫚','🫛'] },
+  { id: 'drinks', label: 'Bevande', icon: '🥤',
+    emojis: ['💧','🥛','☕','🫖','🍵','🧃','🥤','🧋','🍶','🍾','🍷','🥂','🍺','🍻','🥃','🍸','🍹','🧉'] },
+  { id: 'sweet', label: 'Dolci & Dessert', icon: '🍰',
+    emojis: ['🍫','🍬','🍭','🍮','🍯','🍰','🎂','🧁','🍩','🍪','🥧','🍦','🍨','🍧','🌰','🍡'] },
+  { id: 'meat', label: 'Carne & Pesce', icon: '🥩',
+    emojis: ['🥩','🥓','🍗','🍖','🌭','🍔','🐟','🐠','🐡','🦐','🦑','🦞','🦀','🐙','🦪','🍤','🍣','🥚'] },
+  { id: 'dairy', label: 'Latticini & Uova', icon: '🧀',
+    emojis: ['🧀','🥚','🥛','🧈','🍳','🥞','🍶'] },
+  { id: 'home', label: 'Casa & Arredo', icon: '🏠',
+    emojis: ['🏠','🏡','🛏','🛋','🚪','🪟','🪑','🖼','🪞','📺','💡','🕯','🛁','🚽','🚿','🛜','🔌','🔋','🗝','🔑','🪜','🪤','🛟','🪧','🪟'] },
+  { id: 'clean', label: 'Pulizia & Bagno', icon: '🧼',
+    emojis: ['🧹','🧺','🧻','🧴','🧼','🪣','🧽','🪥','🪒','🧯','🗑','♻️','🚿','🛁','🚽','🚰','🪠'] },
   { id: 'health', label: 'Salute & Medico', icon: '🩺',
-    emojis: ['🏥','💊','💉','🩺','🩹','🩼','🦷','👓','😷','🌡','🫀','🩸','🧬','🧠','👁','👂','👃','🦴','🦷','🪥','🧪','🔬','🩻','🤧','🤒','🤕'] },
-  { id: 'family', label: 'Famiglia & Amici', icon: '👨‍👩‍👧',
-    emojis: ['👨‍👩‍👧','👨‍👩‍👦','👨‍👨‍👧','👶','🧒','👦','👧','🧑','👴','👵','🤝','💌','💝','🎂','🎁','🎈','🎉','🎊','🥳','💐','🌹','💍'] },
+    emojis: ['💊','🩹','🩺','💉','🌡','🩼','🦷','👓','😷','🏥','🩸','💓','🧬','🦴','🧠','🫀','🫁','🩻','🧪','🔬','🤧','🤒','🤕','🥽','🚑','🆘','👁','👂','👃','🦷','🦠','🧫','⚕️'] },
+  { id: 'baby', label: 'Bambini', icon: '👶',
+    emojis: ['👶','🍼','🧸','🧷','🎈','🪀','🍭','🎀','🪅','🛒','🦄','🎂'] },
+  { id: 'family', label: 'Persone & Famiglia', icon: '👨‍👩‍👧',
+    emojis: ['👨‍👩‍👧','👨‍👩‍👦','👨‍👨‍👧','👫','👬','👭','👶','🧒','👦','👧','🧑','👨','👩','👴','👵','🤝','💌','💝','🎂','🎁','🤰','🤱','🤵','👰','💑','💏','🧑‍🤝‍🧑','👯','🧜'] },
   { id: 'pets', label: 'Animali', icon: '🐾',
-    emojis: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🐤','🦆','🦅','🐝','🦋','🐌','🐞','🐢','🐍','🦎','🐠','🐟','🐡','🦈','🐙','🦀','🦐','🦞','🐚','🐾','🦴','🐕','🐩','🐈'] },
-  { id: 'work', label: 'Lavoro & Studio', icon: '💼',
-    emojis: ['💼','💻','🖥','⌨️','🖱','🖨','📱','☎️','📞','📧','📨','🗓','📅','📆','⏰','⌛','⏳','📊','📈','📌','📎','🖇','📝','📚','📖','✏️','🎓','🏫','✒️','🖊','🖍','📐','📏','🔬','🔭','🧮','🪧'] },
-  { id: 'travel', label: 'Viaggi & Trasporti', icon: '✈️',
-    emojis: ['✈️','🛬','🛫','🚂','🚆','🚄','🚅','🚇','🚌','🚏','🚗','🚙','🚕','🚙','🛻','🚚','🚛','🚜','🏍','🛵','🛴','🚲','⛵','🚤','🛥','🛳','⛴','🚢','🏨','🏖','🏝','🏔','⛰','🗺','🧭','🎒','🧳','🎫','🛂','🛃','🛄','🛅','🪪'] },
-  { id: 'shop', label: 'Spese & Commissioni', icon: '🛒',
-    emojis: ['🛒','🛍','🛒','💵','🧾','🏪','🏬','🏤','🏣','📦','📮','📭','📬','💳'] },
-  { id: 'hobby', label: 'Tempo libero & Hobby', icon: '🎨',
-    emojis: ['🎭','🎨','🎬','📷','📸','🎵','🎶','🎼','🎤','🎧','🎮','🕹','🎲','🎳','🎯','🎸','🎹','🥁','🎺','🎻','🪕','♟','🃏','🀄','🎴','⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏓','🏸','🥏','⛳','🏊','🚴','🚵','🏋️','🤸','🧘','🛹','🛼','🎿','⛷','🏂','🏄','⛸','🥌','🥋','🥊','🤿','🏹','🎣'] },
+    emojis: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🐤','🦆','🦅','🐝','🦋','🐌','🐞','🐢','🐍','🦎','🐠','🐟','🐡','🦈','🐙','🦀','🦐','🦞','🐚','🐾','🦴','🐕','🐩','🐈','🐴','🐎','🦄','🦏','🐂','🐃','🦒','🐘','🦬','🦛','🦓','🦘','🦔','🦦','🦫','🦥','🦨','🦡'] },
+  { id: 'plants', label: 'Piante & Natura', icon: '🪴',
+    emojis: ['🪴','🌱','🌿','🍀','🍃','🌳','🌲','🌴','🌵','🌾','🍂','🍁','☘','🌹','🌷','🌺','🌸','🌼','🌻','🪷','💐','🌱'] },
+  { id: 'weather', label: 'Meteo & Stagioni', icon: '☀️',
+    emojis: ['☀','⛅','☁','🌧','⛈','🌩','❄','☃','⛄','🌨','🌬','🌫','🌪','🌈','🌤','🌥','🌦','💨','🌡','☔','💧','🔥','💦','🌊','⚡','🌙','⭐','🌟','✨','💫','🌍','🌎','🌏','🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘','🌚','🌛','🌜'] },
+  { id: 'tools', label: 'Bricolage & Utensili', icon: '🛠',
+    emojis: ['🛠','🔨','🔧','🪛','🔩','⚙️','🪚','🪜','📏','📐','✂️','🧰','🧲','🪤','⛓','🪓','⚒','🗜','🧱','🪟'] },
+  { id: 'office', label: 'Ufficio & Documenti', icon: '📋',
+    emojis: ['📋','📑','📄','📃','✏️','🖊','🖋','✒️','📨','📬','📭','📮','💼','🪪','🧾','📂','📁','📊','📈','📉','📌','📎','🖇','🗂','📰','📝','📒','📓','📔','📕','📗','📘','📙','📚','📖','🖍','🖌','🪧','⚖️','🏛'] },
+  { id: 'money', label: 'Banca & Soldi', icon: '💰',
+    emojis: ['🏦','💳','💰','💸','💵','💴','💶','💷','🪙','💹','📈','📉','🧾','🤝','💼','💎','🏧','🪪'] },
+  { id: 'tech', label: 'Tecnologia', icon: '📱',
+    emojis: ['📱','💻','⌨️','🖱','🖥','🖨','📷','📸','🎧','🔋','🔌','💾','💿','📀','📻','🎮','🕹','📺','💡','📡','📞','☎️','🔭','🔬','📠','📟','📹','🎥','🛰','🤖','🧮'] },
+  { id: 'travel', label: 'Viaggi', icon: '✈️',
+    emojis: ['✈','🛫','🛬','🛩','🛳','⛴','⛵','🚢','🚤','🛥','🛶','🏨','🗺','🧭','🎫','🛂','🛃','🛄','🛅','🪪','🏖','🏝','🏔','⛰','🌋','🗽','🎢','🎡','🎠','🛝','🎪','🗿','🏞','🏜','🌅','🌄','🌇'] },
+  { id: 'transport', label: 'Trasporti', icon: '🚗',
+    emojis: ['🚗','🚙','🚕','🚖','🛻','🚚','🚛','🚜','🏍','🛵','🛴','🚲','🚂','🚆','🚄','🚅','🚇','🚌','🚏','🚦','🚥','⛽','🅿','🛞','🛣','🛤','🚉','🚊','🚞','🚝','🚟','🚎','🚍','🚘'] },
+  { id: 'buildings', label: 'Edifici & Luoghi', icon: '🏛',
+    emojis: ['🏠','🏡','🏢','🏣','🏤','🏥','🏦','🏪','🏬','🏭','🏯','🏰','🕌','⛪','🕍','🛕','🏛','⛩','🏗','🏚','🏘','🏟','🏨','💒','🗼','🗽','🌁','🌆','🌃'] },
+  { id: 'clothes', label: 'Abbigliamento', icon: '👕',
+    emojis: ['👕','👖','👗','👘','👙','👚','👔','👞','👟','🥾','👢','👠','👡','🩴','🧢','🎩','👒','🧣','🧤','🧦','🩲','🩳','🥼','🥋','🦺','👜','👛','👝','🎒','🕶','👓','💍','💄','💼','🪖','🥻','🩱'] },
+  { id: 'gifts', label: 'Regali & Feste', icon: '🎁',
+    emojis: ['🎁','🎀','🎂','🎈','🎊','🎉','🥳','🎆','🎇','🎄','🌟','⭐','🕯','🎃','🐰','🥚','💝','🍾','🥂','🪅','🪩','🎭','🎨','🎤','🧧','🎏','🎎','🎐','🎑','🪔'] },
+  { id: 'sport', label: 'Sport', icon: '⚽',
+    emojis: ['⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','⛳','🥅','🏹','🎣','🛹','🛼','🎿','⛷','🏂','🏊','🚴','🚵','🏋️','🤸','🧘','⛸','🥌','🥋','🥊','🤿','🤺','🪂','⛹','🏇','🏌','🤾','🤽','🤼','🏃','🚶','🧗'] },
+  { id: 'hobby', label: 'Hobby & Giochi', icon: '🎮',
+    emojis: ['🎨','🎬','🎤','🎧','🎮','🕹','🎲','🎳','🎯','🃏','🀄','🎴','🧩','♟','🪅','🪀','🧶','🧵','🪡','📷','📸','📹','🎥','🎞','🖼','🪆','🪄'] },
+  { id: 'music', label: 'Musica', icon: '🎵',
+    emojis: ['🎵','🎶','🎼','🎷','🎺','🎸','🪕','🎻','🥁','🪘','🎹','🎤','🎧','🎙','📯','🪗','📻','🔊','🔇','🔈','🔉','📣','📢'] },
+  { id: 'school', label: 'Scuola & Studio', icon: '🎓',
+    emojis: ['🏫','🎓','📚','📖','✏','🖊','📓','📕','📒','📐','📏','✒','🖍','📝','🪧','🔬','🔭','🧮','👨‍🏫','👩‍🏫','👨‍🎓','👩‍🎓','📔','📗','📘','📙','📜','🧪'] },
+  { id: 'work', label: 'Lavoro', icon: '💼',
+    emojis: ['💼','💻','🖥','📊','📈','📉','📞','📧','📅','📆','⏰','⌛','⏳','🪪','🤝','📋','📑','👔','🏢','⚙️','🧑‍💼','👨‍💼','👩‍💼','👨‍⚕️','👩‍⚕️','👨‍🔬','👩‍🔬','👨‍🌾','👩‍🌾','👨‍🍳','👩‍🍳','👨‍🚒','👩‍🚒','👮','🕵','💂','🥷','🤵'] },
+  { id: 'shop', label: 'Shopping', icon: '🛒',
+    emojis: ['🛒','🛍','🧾','💳','💰','🏪','🏬','🏤','🏣','📦','📮','📭','📬','🪙','🏷','🎫','🎟','🔖'] },
   { id: 'comm', label: 'Comunicazione', icon: '📞',
-    emojis: ['📞','📱','📟','📠','📧','✉️','📨','📤','📥','📩','💬','🗨','🗯','💭','📢','📣','📯','🔔','🔕','📡','📺','📻','🎙','🎤','🪧','📷','📸','📹','🎥','🎬'] }
+    emojis: ['📞','📱','📟','📠','📧','✉','📨','📤','📥','📩','💬','🗨','🗯','💭','📢','📣','📯','🔔','🔕','📡','📺','📻','📰','💌','📩','📤','📥','📦','📫','📪','📬','📭'] },
+  { id: 'religion', label: 'Religione', icon: '⛪',
+    emojis: ['⛪','✝','✡','☪','☸','🕉','☯','🙏','📿','🕌','🕍','🛕','🪔','🕯','⛩','👼','😇','👑','💒','⚱️','🪦','🕊'] },
+  { id: 'safety', label: 'Sicurezza & Emergenza', icon: '🚨',
+    emojis: ['🚨','🚓','🚑','🚒','🚔','🧯','🚧','⚠','⛔','🚫','🛑','📴','🆘','♨','☢','☣','🚷','🚭','🚳','🚯','🚱','🚹','🚺','🛂','🛅','🛡','🔐','🔒','🔓','🔏','🔑','🗝'] },
+  { id: 'symbols', label: 'Simboli', icon: '⭐',
+    emojis: ['⭐','🌟','✨','💫','⚡','🔥','💥','💢','💯','✅','❌','⭕','❗','❓','♻','✔','✖','➕','➖','➗','✳','✴','❇','❎','🔴','🟢','🔵','🟡','🟠','🟣','⚪','⚫','🟤','🔶','🔷','🔸','🔹','🔺','🔻','▶','◀','⬆','⬇','⬅','➡','↗','↘','↙','↖','↕','↔','🔃','🔄','🔼','🔽','🆗','🆕','🆒','🆙','🆓','🆖','🔠','🔡','🔢','🔣','💠','♾','♂','♀'] },
+  { id: 'time', label: 'Tempo & Calendario', icon: '⏰',
+    emojis: ['⌚','⌛','⏰','⏱','⏲','🕰','🌅','🌄','🌇','🌆','🌃','🌉','🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚','🕛','📅','📆','🗓','📇','🗒','🗓','⏳','⏱','⌛'] }
 ];
+
+// Alias retro-compat: tutti i moduli usano lo stesso pool gigantesco.
+const TODO_ICON_CATS = ALL_ICON_CATS;
 
 // Keyword TODO: azioni comuni (chiamare, pagare, prenotare, riparare...)
 // Match identico a quello della spesa: substring anywhere bidirezionale.
@@ -934,7 +1003,8 @@ function todoIconSuggestions(name, max) {
   if (!n || n.length < SPESA_MIN_QUERY_LEN) return ['📝'];
   const matches = [];
   const seen = new Set();
-  for (const [kw, ic] of TODO_KEYWORD_ICONS) {
+  // Attinge dal pool UNIFICATO ALL_KEYWORD_ICONS: spesa+todo+scadenze.
+  for (const [kw, ic] of ALL_KEYWORD_ICONS) {
     const nameContainsKw = n.indexOf(kw) !== -1;
     const kwContainsName = kw.indexOf(n) !== -1;
     if ((nameContainsKw || kwContainsName) && !seen.has(ic)) {
@@ -954,32 +1024,8 @@ function todoIconForName(name) {
   return s[0] || '📝';
 }
 
-const SPESA_ICON_CATS = [
-  { id: 'food', label: 'Cibo', icon: '🍽',
-    emojis: ['🍞','🥖','🥐','🥯','🥪','🧀','🥚','🥩','🥓','🍗','🍖','🌭','🍔','🍟','🍕','🥙','🌮','🌯','🥗','🥘','🍝','🍜','🍲','🍱','🍚','🍙','🍘','🍢','🍡','🥟','🍤','🍣','🍿','🥫','🧂','🫙','🥣','🍫','🍬','🍭','🍮','🍡','🍯','🍰','🎂','🧁','🍩','🍪','🥧','🍦','🍨','🍧'] },
-  { id: 'fruit', label: 'Frutta & Verdura', icon: '🥕',
-    emojis: ['🍎','🍏','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶','🫑','🌽','🥕','🫒','🧄','🧅','🥔','🍠','🫘','🫛','🌰','🥜','🍄'] },
-  { id: 'drinks', label: 'Bevande', icon: '🥤',
-    emojis: ['💧','🥛','☕','🫖','🍵','🧃','🥤','🧋','🍶','🍾','🍷','🥂','🍺','🍻','🥃','🍸','🍹','🧉'] },
-  { id: 'home', label: 'Casa & Pulizia', icon: '🧼',
-    emojis: ['🧹','🧺','🧻','🧴','🧼','🪣','🧽','🪥','🪒','🧯','🛏','🛋','🚪','🪟','🪑','🖼','📺','🔌','💡','🔋','🕯','🧯','🗝','🔑','🔨','🛠','🪚','🔩','⚙️','🪛'] },
-  { id: 'health', label: 'Salute', icon: '💊',
-    emojis: ['💊','🩹','🩺','💉','🌡','🧴','🧻','🪥','🧼','🩼','🦷','👓','🥽','😷'] },
-  { id: 'baby', label: 'Bimbi & Animali', icon: '👶',
-    emojis: ['👶','🍼','🧸','🧷','🎈','🪀','🎁','🐶','🐱','🐹','🐰','🐦','🐟','🦴','🐾'] },
-  { id: 'tech', label: 'Tecnologia', icon: '📱',
-    emojis: ['📱','💻','⌨️','🖱','🖥','🖨','📷','📸','🎧','🔋','🔌','💾','💿','📀','📻','🎮','🕹','📺','💡','📡','📞','☎️','🔭','🔬'] },
-  { id: 'clothes', label: 'Abbigliamento', icon: '👕',
-    emojis: ['👕','👖','👗','👘','👙','👚','👔','👞','👟','🥾','👢','👠','👡','🩴','🧢','🎩','👒','🧣','🧤','🧦','🩲','🩳','🥼','🥋','🦺','👜','👛','👝','🎒','🕶','👓','💍','💄','💼'] },
-  { id: 'gifts', label: 'Regali & Feste', icon: '🎁',
-    emojis: ['🎁','🎀','🎂','🎈','🎊','🎉','🥳','🎆','🎇','🎄','🌟','⭐','🕯','🎃','🐰','🥚','💝','💐','🌹','🌷','🌺','🌸','🌼','🍾','🥂','🪅','🪩','🎭','🎨'] },
-  { id: 'nature', label: 'Natura & Giardino', icon: '🪴',
-    emojis: ['🪴','🌱','🌿','🍀','🍃','🌳','🌲','🌴','🌵','🌾','🌻','🌼','🌷','🌹','🌺','💐','🌸','☘','🍂','🍁'] },
-  { id: 'tools', label: 'Bricolage & Sport', icon: '🛠',
-    emojis: ['🛠','🔨','🔧','🪛','🔩','⚙️','🪚','🪜','📏','📐','✂️','🧰','🧲','🪤','⚽','🏀','🏈','⚾','🎾','🏐','🥎','🏓','🏸','🥏','⛳','🥅','🏹','🎣','🛹','🛼','🎿','⛷','🏂','🏊','🚴','🚵','🏋️','🤸','⛸'] },
-  { id: 'other', label: 'Altro', icon: '✨',
-    emojis: ['🛒','📦','📨','💸','💰','📚','📖','📓','📒','📕','✏️','🖊','🖋','🪪','🔑','🗝','🎫','🎟','📅','📆','⏰','🛍','🎒','💼'] }
-];
+// Alias retro-compat: tutti i moduli usano lo stesso pool gigantesco ALL_ICON_CATS.
+const SPESA_ICON_CATS = ALL_ICON_CATS;
 
 // Mappa keyword → emoji per suggerimento automatico icona dal nome elemento.
 // Match smart: split in parole, prefisso 4+ char, la più specifica vince.
@@ -1195,6 +1241,60 @@ const SPESA_KEYWORD_ICONS = [
   ['costume', '👙'], ['abbronzante', '🧴'], ['dopo sole', '🧴']
 ];
 
+// ─── KEYWORD UNIFICATE per SCADENZE (extra rispetto a spesa+todo) ──
+// Ricorrenze tipiche, eventi, rinnovi documenti, festività.
+const SCADENZA_KEYWORD_ICONS_EXTRA = [
+  // Festività italiane
+  ['epifania', '✨'], ['befana', '🧹'], ['carnevale', '🎭'],
+  ['pasqua', '🐰'], ['pasquetta', '🐰'], ['25 aprile', '🇮🇹'],
+  ['liberazione', '🇮🇹'], ['lavoratori', '⚒'], ['festa repubblic', '🇮🇹'],
+  ['ferragosto', '🏖'], ['ognissanti', '⚱'], ['immacolata', '⛪'],
+  ['natale', '🎄'], ['santo stefano', '🎄'], ['capodanno', '🥂'],
+  ['san valentin', '💝'], ['festa donna', '💐'], ['festa pap', '👨'],
+  ['festa mamm', '👩'], ['halloween scaden', '🎃'],
+
+  // Ricorrenze ricorrenti
+  ['scadenza patente', '🪪'], ['scadenza carta', '🪪'], ['scadenza passap', '🛂'],
+  ['scadenza assicur', '🛡'], ['scadenza bollo', '🚗'], ['scadenza revis', '🚗'],
+  ['scadenza contratt', '📑'], ['rinnovo contratto', '📑'], ['scaden affitto', '🏠'],
+  ['scadenza certific', '📑'], ['rinnovo certific', '📑'],
+  ['scadenza farmaco', '💊'], ['scadenza ricetta', '📑'], ['scaden visita', '🩺'],
+
+  // Eventi personali
+  ['compleanno', '🎂'], ['compleanno mio', '🎂'], ['anniversari', '💐'],
+  ['nozze', '💍'], ['matrimon', '💍'], ['onomastico', '🎉'],
+  ['battesim', '👼'], ['comunione', '👼'], ['cresima', '👼'],
+  ['laurea', '🎓'], ['diploma', '🎓'], ['maturit', '🎓'],
+  ['funerale', '⚱'], ['cimitero', '🪦'], ['ricorrenza famiglia', '💐'],
+
+  // Banche / pagamenti scaduti
+  ['scadenza rata', '💸'], ['scadenza mutuo', '🏦'], ['scadenza prestit', '🏦'],
+  ['scadenza f24', '🧾'], ['scadenza tasse', '💰'], ['scadenza iva', '🧾'],
+  ['scadenza imu', '🏠'], ['scadenza tari', '🗑'], ['scadenza bollett', '🧾'],
+
+  // Lavoro / progetti
+  ['consegna progetto', '📑'], ['consegna lavoro', '💼'], ['deadline', '⏰'],
+  ['data limite', '⏰'], ['entro il', '⏰'], ['promemoria', '🔔'],
+  ['evento', '🎉'], ['scadenza fattur', '🧾'], ['scadenza ordine', '📦'],
+
+  // Salute
+  ['controllo medico', '🩺'], ['visita controllo', '🩺'], ['richiamo vaccin', '💉'],
+  ['scadenza farmaco', '💊'], ['scadenza prescriz', '📑'],
+
+  // Auto
+  ['cambio gomme', '🛞'], ['cambio olio', '🛢'], ['scadenza tagliando', '🔧'],
+
+  // Casa
+  ['scadenza affitto', '🏠'], ['rinnovo contratto luce', '⚡'],
+  ['rinnovo contratto gas', '🔥'], ['scadenza condominio', '🏢']
+];
+
+// Tutte le keyword unite: Spesa + ToDo + Scadenze.
+// Usata da TUTTI i moduli per suggerimenti e ricerca nel picker.
+const ALL_KEYWORD_ICONS = SPESA_KEYWORD_ICONS
+  .concat(TODO_KEYWORD_ICONS)
+  .concat(SCADENZA_KEYWORD_ICONS_EXTRA);
+
 // Smart match: priorità per token più lungo o keyword più specifica.
 function spesaIconForName(name) {
   const s = spesaIconSuggestions(name, 1);
@@ -1215,7 +1315,8 @@ function spesaIconSuggestions(name, max) {
   if (!n || n.length < SPESA_MIN_QUERY_LEN) return ['🛒'];
   const matches = [];
   const seen = new Set();
-  for (const [kw, ic] of SPESA_KEYWORD_ICONS) {
+  // Attinge dal pool UNIFICATO ALL_KEYWORD_ICONS: spesa+todo+scadenze.
+  for (const [kw, ic] of ALL_KEYWORD_ICONS) {
     const nameContainsKw = n.indexOf(kw) !== -1;    // nome contiene kw
     const kwContainsName = kw.indexOf(n) !== -1;    // kw contiene nome (anywhere)
     if ((nameContainsKw || kwContainsName) && !seen.has(ic)) {
@@ -1232,13 +1333,28 @@ function spesaIconSuggestions(name, max) {
   return out;
 }
 
-// ─── MODAL SELETTORE ICONE (condiviso Spesa/Todo) ───────────
+// Helper unificati per scadenze (alias delle versioni spesa con default emoji diversa)
+function scadenzaIconForName(name) {
+  const s = spesaIconSuggestions(name, 1);
+  return (s && s[0] && s[0] !== '🛒') ? s[0] : '📅';
+}
+function scadenzaIconSuggestions(name, max) {
+  const s = spesaIconSuggestions(name, max);
+  // Sostituisce il default '🛒' con '📅' più appropriato per scadenze
+  if (s.length === 1 && s[0] === '🛒') return ['📅'];
+  return s;
+}
+
+// ─── MODAL SELETTORE ICONE (condiviso Spesa/Todo/Scadenze) ──
+// Tutti i moduli pescano dallo stesso pool ALL_ICON_CATS / ALL_KEYWORD_ICONS.
+// `_iconPickerCtx` serve solo a sapere quale state (spesa/todo/scadenza)
+// aggiornare quando l'utente sceglie un'emoji.
 let _iconPickerCat = 'all'; // 'all' o id di categoria attiva
 let _iconPickerSearch = '';
-let _iconPickerCtx = 'spesa'; // 'spesa' o 'todo' — quale mappa usare
+let _iconPickerCtx = 'spesa'; // 'spesa' | 'todo' | 'scadenza'
 
 function openIconPicker(ctx) {
-  _iconPickerCtx = (ctx === 'todo') ? 'todo' : 'spesa';
+  _iconPickerCtx = (ctx === 'todo' || ctx === 'scadenza') ? ctx : 'spesa';
   _iconPickerCat = 'all';
   _iconPickerSearch = '';
   if (D.iconPickerSearch) D.iconPickerSearch.value = '';
@@ -1248,12 +1364,8 @@ function openIconPicker(ctx) {
   setTimeout(() => { if (D.iconPickerSearch) D.iconPickerSearch.focus(); }, 60);
 }
 
-function _iconPickerCatsArr() {
-  return _iconPickerCtx === 'todo' ? TODO_ICON_CATS : SPESA_ICON_CATS;
-}
-function _iconPickerKwArr() {
-  return _iconPickerCtx === 'todo' ? TODO_KEYWORD_ICONS : SPESA_KEYWORD_ICONS;
-}
+function _iconPickerCatsArr() { return ALL_ICON_CATS; }
+function _iconPickerKwArr()   { return ALL_KEYWORD_ICONS; }
 
 function renderIconPickerCats() {
   if (!D.iconPickerCategories) return;
@@ -1311,9 +1423,11 @@ function renderIconPickerGrid() {
     D.iconPickerGrid.innerHTML = '<div class="icon-picker-empty">Nessuna icona trovata per "' + esc(q) + '"</div>';
     return;
   }
-  const cur = (_iconPickerCtx === 'todo')
-    ? (_todoEditState && _todoEditState.icona)
-    : (_spesaEditState && _spesaEditState.icona);
+  // Icona "selezionata" = quella centrale (slot 0) dello state attivo
+  let cur = null;
+  if (_iconPickerCtx === 'todo')          cur = _todoEditState && _todoEditState.icone && _todoEditState.icone[0];
+  else if (_iconPickerCtx === 'scadenza') cur = _scadenzaEditState && _scadenzaEditState.icone && _scadenzaEditState.icone[0];
+  else                                     cur = _spesaEditState && _spesaEditState.icone && _spesaEditState.icone[0];
   D.iconPickerGrid.innerHTML = emojis.map(e =>
     '<button class="icon-picker-cell' + (e === cur ? ' selected' : '') + '" data-emoji="' + e + '" type="button">' +
       e +
@@ -1326,6 +1440,9 @@ function renderIconPickerGrid() {
       if (_iconPickerCtx === 'todo') {
         _todoEditState.iconaManual = true;
         updateTodoEditIcon(e);
+      } else if (_iconPickerCtx === 'scadenza') {
+        _scadenzaEditState.iconaManual = true;
+        updateScadenzaEditIcon(e);
       } else {
         _spesaEditState.iconaManual = true;
         updateSpesaEditIcon(e);
@@ -2020,6 +2137,566 @@ async function refreshTodoNow() {
   } catch (e) { /* offline o errore: niente */ }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// SCADENZE — gestione promemoria con vista lista + calendario
+// Item: {id, titolo, icona, data, anticipo_giorni, ricorrenza, note, fatto, ordine}
+// ═══════════════════════════════════════════════════════════════
+
+// Helper: data odierna come 'YYYY-MM-DD'
+function _todayStr() {
+  const t = new Date();
+  return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
+}
+
+// Helper: numero giorni di distanza tra due 'YYYY-MM-DD' (b - a)
+function _daysBetween(aStr, bStr) {
+  const a = new Date(aStr + 'T00:00:00');
+  const b = new Date(bStr + 'T00:00:00');
+  return Math.round((b - a) / 86400000);
+}
+
+// Helper: calcola la PROSSIMA occorrenza tenendo conto della ricorrenza.
+// Per scadenze 'mensile' o 'annuale' che sono passate, restituisce la prossima data.
+// Per 'no' restituisce la data originale anche se passata.
+function nextOccurrence(scad) {
+  if (!scad || !scad.data) return null;
+  const today = _todayStr();
+  let d = scad.data;
+  if (scad.ricorrenza === 'no' || !scad.ricorrenza) return d;
+  // Avanza fino a quando d >= today
+  while (d < today) {
+    const [y, m, day] = d.split('-').map(Number);
+    let ny = y, nm = m;
+    if (scad.ricorrenza === 'mensile') {
+      nm += 1;
+      if (nm > 12) { nm = 1; ny += 1; }
+    } else if (scad.ricorrenza === 'annuale') {
+      ny += 1;
+    } else break;
+    // Mantieni il giorno (se il mese non lo supporta, usa l'ultimo giorno)
+    const lastDay = new Date(ny, nm, 0).getDate();
+    const useDay = Math.min(day, lastDay);
+    d = ny + '-' + String(nm).padStart(2,'0') + '-' + String(useDay).padStart(2,'0');
+  }
+  return d;
+}
+
+// Helper: stato urgenza scadenza: 'past' | 'today' | 'soon' | 'future'
+// 'soon' = entro anticipo_giorni
+function scadStatus(scad) {
+  const nextDate = nextOccurrence(scad);
+  if (!nextDate) return 'future';
+  const today = _todayStr();
+  const diff = _daysBetween(today, nextDate);
+  const ant = (scad.anticipo_giorni != null) ? scad.anticipo_giorni : 7;
+  // Scadenze NON ricorrenti passate restano "past" (anche se fatte mostra grigio)
+  if (scad.ricorrenza === 'no' && nextDate < today) return 'past';
+  if (diff < 0) return 'past';
+  if (diff === 0) return 'today';
+  if (diff <= ant) return 'soon';
+  return 'future';
+}
+
+// Helper: formato data "Lun 12 mag 2026"
+function fmtScadDataShort(s) {
+  if (!s) return '';
+  const d = new Date(s + 'T00:00:00');
+  const giorni = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+  return giorni[d.getDay()] + ' ' + d.getDate() + ' ' + MESI_SHORT[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+// ─── RENDER LISTA ────────────────────────────────────────────
+function renderScadenzeList() {
+  if (!D.scadenzeListContent) return;
+  const items = (S.scadenze || []).slice();
+  // Calcola data effettiva (next occurrence) per ogni item
+  items.forEach(it => { it._nextDate = nextOccurrence(it); });
+  // Filtra fuori i fatti non-ricorrenti molto passati? No, li teniamo nella loro sezione
+  items.sort((a, b) => {
+    const da = a._nextDate || '9999-12-31';
+    const db = b._nextDate || '9999-12-31';
+    if (da !== db) return da < db ? -1 : 1;
+    return (a.ordine || 0) - (b.ordine || 0);
+  });
+
+  if (!items.length) {
+    D.scadenzeListContent.innerHTML = '<div class="scadenze-empty">📅 Nessuna scadenza<br><br>Tocca il <b>+</b> in alto per aggiungerne una.</div>';
+    return;
+  }
+
+  // Raggruppa per mese (YYYY-MM)
+  const groups = new Map();
+  items.forEach(it => {
+    const d = it._nextDate || '9999-12';
+    const key = d.slice(0, 7);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(it);
+  });
+  const todayMonth = _todayStr().slice(0, 7);
+
+  let html = '';
+  for (const [monthKey, group] of groups) {
+    const [y, m] = monthKey.split('-');
+    const title = MESI_FULL[Number(m) - 1] + ' ' + y;
+    const isCurrent = monthKey === todayMonth;
+    html += '<div class="scad-month-group' + (isCurrent ? ' is-current' : '') + '">';
+    html += '<h3 class="scad-month-title"><span>' + title + '</span><span class="scad-month-count">' + group.length + '</span></h3>';
+    group.forEach(it => { html += scadItemHtml(it); });
+    html += '</div>';
+  }
+  D.scadenzeListContent.innerHTML = html;
+  twemojify(D.scadenzeListContent);
+  bindScadenzeItems(D.scadenzeListContent);
+}
+
+function scadItemHtml(it) {
+  const date = it._nextDate || it.data;
+  const status = scadStatus(it);
+  const cls = ['scad-item'];
+  if (it.fatto) cls.push('is-fatto');
+  if (status === 'past')  cls.push('is-past');
+  if (status === 'today') cls.push('is-today');
+  if (status === 'soon')  cls.push('is-soon');
+  // Tags
+  let tagHtml = '';
+  if (status === 'past' && !it.fatto)  tagHtml += '<span class="scad-tag urg">In ritardo</span>';
+  if (status === 'today' && !it.fatto) tagHtml += '<span class="scad-tag urg">Oggi</span>';
+  if (status === 'soon' && !it.fatto) {
+    const diff = _daysBetween(_todayStr(), date);
+    tagHtml += '<span class="scad-tag soon">' + (diff === 1 ? 'Domani' : 'tra ' + diff + ' gg') + '</span>';
+  }
+  if (it.ricorrenza && it.ricorrenza !== 'no') {
+    tagHtml += '<span class="scad-tag ricorr">' + (it.ricorrenza === 'mensile' ? '↻ mensile' : '↻ annuale') + '</span>';
+  }
+  if (it.note) tagHtml += '<span class="scad-tag">' + esc(String(it.note).slice(0, 40)) + (it.note.length > 40 ? '…' : '') + '</span>';
+
+  const [, m, d] = date.split('-');
+  return '<div class="' + cls.join(' ') + '" data-id="' + it.id + '">' +
+           '<div class="scad-item-date">' +
+             '<div class="day">' + Number(d) + '</div>' +
+             '<div class="month">' + MESI_SHORT[Number(m) - 1] + '</div>' +
+           '</div>' +
+           '<div class="scad-item-body">' +
+             '<div class="scad-item-name"><span class="scad-icon">' + (it.icona || '📅') + '</span>' + esc(it.titolo || '') + '</div>' +
+             (tagHtml ? '<div class="scad-item-meta">' + tagHtml + '</div>' : '') +
+           '</div>' +
+           '<div class="scad-item-chevron">›</div>' +
+         '</div>';
+}
+
+function bindScadenzeItems(container) {
+  $$('.scad-item', container).forEach(row => {
+    const id = row.getAttribute('data-id');
+    row.addEventListener('click', () => openScadenzaEdit(id));
+  });
+}
+
+// ─── RENDER CALENDARIO ───────────────────────────────────────
+function renderScadenzeCal() {
+  if (!D.scadCalGrid || !S.scadCalCursor) return;
+  const { anno, mese } = S.scadCalCursor;
+  if (D.scadCalTitle) D.scadCalTitle.textContent = MESI_FULL[mese - 1] + ' ' + anno;
+
+  // Mappa giorno YYYY-MM-DD → array di scadenze
+  const byDay = new Map();
+  (S.scadenze || []).forEach(it => {
+    // Per ricorrenze, calcola tutte le occorrenze cadenti nel mese visualizzato
+    const occurrences = scadOccurrencesInMonth(it, anno, mese);
+    occurrences.forEach(d => {
+      if (!byDay.has(d)) byDay.set(d, []);
+      byDay.get(d).push(it);
+    });
+  });
+
+  // Costruisci griglia 7×N (Lun = 1)
+  const firstDay = new Date(anno, mese - 1, 1);
+  const lastDay  = new Date(anno, mese, 0).getDate();
+  // Lun=0, Mar=1, ... Dom=6
+  let weekDayFirst = firstDay.getDay() - 1;
+  if (weekDayFirst < 0) weekDayFirst = 6;
+  const today = _todayStr();
+
+  let html = '';
+  // Celle vuote prima
+  for (let i = 0; i < weekDayFirst; i++) html += '<div class="scad-cal-cell empty"></div>';
+  for (let d = 1; d <= lastDay; d++) {
+    const ds = anno + '-' + String(mese).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const items = byDay.get(ds) || [];
+    const cls = ['scad-cal-cell'];
+    if (ds === today) cls.push('today');
+    if (S.scadCalSelectedDay === ds) cls.push('selected');
+    if (items.length) {
+      // priorità colore: past > today > soon > generic
+      let pri = 'has-scad';
+      let allFatto = items.every(x => x.fatto);
+      if (!allFatto) {
+        if (ds < today) pri = 'has-past';
+        else if (ds === today) pri = 'has-past'; // oggi = urgentissimo
+        else {
+          // se almeno una è "soon" rispetto a oggi
+          const minDiff = _daysBetween(today, ds);
+          if (minDiff <= 7) pri = 'has-soon';
+        }
+      }
+      cls.push(pri);
+    }
+    // Mostra fino a 3 icone come dot, poi +N
+    const dotsHtml = items.slice(0, 3).map(x => '<span class="day-dot">' + (x.icona || '📅') + '</span>').join('');
+    const moreHtml = items.length > 3 ? '<span class="day-more">+' + (items.length - 3) + '</span>' : '';
+    html += '<div class="' + cls.join(' ') + '" data-day="' + ds + '">' +
+              '<div class="day-num">' + d + '</div>' +
+              (items.length ? '<div class="day-dots">' + dotsHtml + moreHtml + '</div>' : '') +
+            '</div>';
+  }
+  D.scadCalGrid.innerHTML = html;
+  twemojify(D.scadCalGrid);
+  // Bind click cella
+  $$('.scad-cal-cell[data-day]', D.scadCalGrid).forEach(c => {
+    c.addEventListener('click', () => {
+      S.scadCalSelectedDay = c.getAttribute('data-day');
+      renderScadenzeCal();
+      renderScadCalDayDetails(S.scadCalSelectedDay, byDay.get(S.scadCalSelectedDay) || []);
+    });
+  });
+  // Render details del giorno selezionato (o oggi se nessuno)
+  const selectedDay = S.scadCalSelectedDay || today;
+  renderScadCalDayDetails(selectedDay, byDay.get(selectedDay) || []);
+}
+
+// Restituisce le date 'YYYY-MM-DD' del mese in cui la scadenza ricorre
+function scadOccurrencesInMonth(scad, anno, mese) {
+  if (!scad || !scad.data) return [];
+  const [oy, om, od] = scad.data.split('-').map(Number);
+  if (scad.ricorrenza === 'no' || !scad.ricorrenza) {
+    return (oy === anno && om === mese) ? [scad.data] : [];
+  }
+  if (scad.ricorrenza === 'mensile') {
+    // Tutti i mesi dalla data originale in poi (e prima se data > mese cursore non includere)
+    if (anno < oy || (anno === oy && mese < om)) return [];
+    const lastDay = new Date(anno, mese, 0).getDate();
+    const useDay = Math.min(od, lastDay);
+    return [anno + '-' + String(mese).padStart(2,'0') + '-' + String(useDay).padStart(2,'0')];
+  }
+  if (scad.ricorrenza === 'annuale') {
+    if (mese !== om) return [];
+    if (anno < oy) return [];
+    const lastDay = new Date(anno, mese, 0).getDate();
+    const useDay = Math.min(od, lastDay);
+    return [anno + '-' + String(mese).padStart(2,'0') + '-' + String(useDay).padStart(2,'0')];
+  }
+  return [];
+}
+
+function renderScadCalDayDetails(day, items) {
+  if (!D.scadCalDayList || !D.scadCalDayTitle) return;
+  D.scadCalDayTitle.textContent = fmtScadDataShort(day);
+  if (!items.length) {
+    D.scadCalDayList.innerHTML = '<div class="scad-cal-day-list-empty">Nessuna scadenza in questo giorno</div>';
+    return;
+  }
+  // Inietta _nextDate per il render
+  items.forEach(it => { it._nextDate = day; });
+  D.scadCalDayList.innerHTML = items.map(scadItemHtml).join('');
+  twemojify(D.scadCalDayList);
+  bindScadenzeItems(D.scadCalDayList);
+}
+
+function shiftScadCalMonth(delta) {
+  if (!S.scadCalCursor) {
+    const t = new Date();
+    S.scadCalCursor = { anno: t.getFullYear(), mese: t.getMonth() + 1 };
+  }
+  let { anno, mese } = S.scadCalCursor;
+  mese += delta;
+  while (mese < 1) { mese += 12; anno -= 1; }
+  while (mese > 12) { mese -= 12; anno += 1; }
+  S.scadCalCursor = { anno, mese };
+  S.scadCalSelectedDay = null;
+  renderScadenzeCal();
+}
+
+// ─── MODAL Nuovo/Modifica Scadenza ───────────────────────────
+let _scadenzaEditState = { icone: ['📅'], iconaManual: false, anticipo: 7, ricorrenza: 'no' };
+
+function openScadenzaAdd() {
+  S.editScadenzaId = null;
+  _scadenzaEditState = { icone: ['📅'], iconaManual: false, anticipo: 7, ricorrenza: 'no' };
+  if (D.scadenzaEditTitle)  D.scadenzaEditTitle.textContent = 'Nuova Scadenza';
+  if (D.scadenzaEditTitolo) D.scadenzaEditTitolo.value = '';
+  if (D.scadenzaEditData)   D.scadenzaEditData.value = '';
+  if (D.scadenzaEditNote)   D.scadenzaEditNote.value = '';
+  updateScadenzaEditIcons(['📅']);
+  updateScadenzaAnticipoChips(7);
+  updateScadenzaRicorrenzaChips('no');
+  if (D.scadenzaEditDelete) D.scadenzaEditDelete.style.display = 'none';
+  openModal('modalScadenza');
+  setTimeout(() => { if (D.scadenzaEditTitolo) D.scadenzaEditTitolo.focus(); }, 80);
+}
+
+function openScadenzaEdit(idStr) {
+  const id = isNaN(Number(idStr)) ? idStr : Number(idStr);
+  const it = (S.scadenze || []).find(x => x.id === id || String(x.id) === String(id));
+  if (!it) return;
+  S.editScadenzaId = it.id;
+  _scadenzaEditState = {
+    icone: [it.icona || '📅'],
+    iconaManual: true,
+    anticipo: (it.anticipo_giorni != null) ? it.anticipo_giorni : 7,
+    ricorrenza: it.ricorrenza || 'no'
+  };
+  if (D.scadenzaEditTitle)  D.scadenzaEditTitle.textContent = 'Modifica Scadenza';
+  if (D.scadenzaEditTitolo) D.scadenzaEditTitolo.value = it.titolo || '';
+  if (D.scadenzaEditData)   D.scadenzaEditData.value = it.data || '';
+  if (D.scadenzaEditNote)   D.scadenzaEditNote.value = it.note || '';
+  updateScadenzaEditIcons(_scadenzaEditState.icone);
+  updateScadenzaAnticipoChips(_scadenzaEditState.anticipo);
+  updateScadenzaRicorrenzaChips(_scadenzaEditState.ricorrenza);
+  if (D.scadenzaEditDelete) D.scadenzaEditDelete.style.display = 'block';
+  openModal('modalScadenza');
+}
+
+function updateScadenzaEditIcons(icone) {
+  if (!Array.isArray(icone) || !icone.length) icone = ['📅'];
+  _scadenzaEditState.icone = icone.slice(0, 5);
+  if (D.scadenzaEditIconBtn) {
+    D.scadenzaEditIconBtn.innerHTML = _scadenzaEditState.icone[0];
+    twemojify(D.scadenzaEditIconBtn);
+  }
+  document.querySelectorAll('.spesa-icon-side[data-scadenza-slot]').forEach(el => {
+    const slot = Number(el.getAttribute('data-scadenza-slot'));
+    const ic = _scadenzaEditState.icone[slot];
+    if (ic) { el.hidden = false; el.innerHTML = ic; twemojify(el); }
+    else    { el.hidden = true;  el.innerHTML = ''; }
+  });
+}
+
+function updateScadenzaEditIcon(icon) {
+  if (!icon) icon = '📅';
+  const arr = _scadenzaEditState.icone.slice();
+  const existing = arr.indexOf(icon, 1);
+  if (existing > 0) arr.splice(existing, 1);
+  arr[0] = icon;
+  updateScadenzaEditIcons(arr);
+}
+
+function onScadenzaEditTitoloInput() {
+  const t = D.scadenzaEditTitolo ? D.scadenzaEditTitolo.value : '';
+  if (t.trim().length < SPESA_MIN_QUERY_LEN) return;
+  const suggestions = scadenzaIconSuggestions(t, 5);
+  const currentIcon = _scadenzaEditState.icone && _scadenzaEditState.icone[0];
+  const stillRelevant = suggestions.indexOf(currentIcon) !== -1;
+  if (_scadenzaEditState.iconaManual && stillRelevant) {
+    const lateral = suggestions.filter(e => e !== currentIcon).slice(0, 4);
+    updateScadenzaEditIcons([currentIcon].concat(lateral));
+  } else {
+    _scadenzaEditState.iconaManual = false;
+    updateScadenzaEditIcons(suggestions);
+  }
+}
+
+function swapScadenzaIcon(slot) {
+  const arr = _scadenzaEditState.icone.slice();
+  if (!arr[slot]) return;
+  const tmp = arr[0]; arr[0] = arr[slot]; arr[slot] = tmp;
+  _scadenzaEditState.iconaManual = true;
+  updateScadenzaEditIcons(arr);
+}
+
+function updateScadenzaAnticipoChips(value) {
+  _scadenzaEditState.anticipo = Number(value);
+  if (!D.scadenzaAnticipoChips) return;
+  $$('.anticipo-chip', D.scadenzaAnticipoChips).forEach(c => {
+    c.classList.toggle('active', Number(c.getAttribute('data-anticipo')) === Number(value));
+  });
+}
+
+function updateScadenzaRicorrenzaChips(value) {
+  _scadenzaEditState.ricorrenza = value;
+  if (!D.scadenzaRicorrenzaChips) return;
+  $$('.anticipo-chip', D.scadenzaRicorrenzaChips).forEach(c => {
+    c.classList.toggle('active', c.getAttribute('data-ric') === value);
+  });
+}
+
+async function saveScadenzaEdit() {
+  const titolo = D.scadenzaEditTitolo ? D.scadenzaEditTitolo.value.trim() : '';
+  const data   = D.scadenzaEditData ? D.scadenzaEditData.value : '';
+  if (!titolo) { toast('Inserisci il titolo', 'warn'); return; }
+  if (!data)   { toast('Inserisci la data', 'warn'); return; }
+  const icona = (_scadenzaEditState.icone && _scadenzaEditState.icone[0]) || scadenzaIconForName(titolo);
+  const anticipo_giorni = Number(_scadenzaEditState.anticipo) || 0;
+  const ricorrenza = _scadenzaEditState.ricorrenza || 'no';
+  const note = D.scadenzaEditNote ? D.scadenzaEditNote.value.trim() : '';
+  setBtnLoading(D.scadenzaEditSave, true);
+  try {
+    if (S.editScadenzaId == null) {
+      const maxOrd = (S.scadenze || []).reduce((m, x) => Math.max(m, x.ordine || 0), 0);
+      const payload = { titolo, icona, data, anticipo_giorni, ricorrenza, note: note || null, ordine: maxOrd + 1, fatto: false };
+      const tmpId = uuid();
+      const row = Object.assign({ id: tmpId, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, payload);
+      S.scadenze.push(row);
+      saveLocalCache();
+      _rerenderScadenze();
+      const path = T.SCADENZE + '?select=*';
+      const options = { method: 'POST', body: JSON.stringify(payload), headers: { 'Prefer': 'return=representation' } };
+      if (isOnline()) {
+        try {
+          const res = await supaFetch(path, options);
+          if (res && res[0]) {
+            const idx = S.scadenze.findIndex(x => x.id === tmpId);
+            if (idx >= 0) S.scadenze[idx] = res[0];
+            saveLocalCache();
+            _rerenderScadenze();
+          }
+        } catch { enqueue({ path, options }); }
+      } else {
+        enqueue({ path, options });
+      }
+      closeModal('modalScadenza');
+      toast('Scadenza aggiunta', 'success');
+    } else {
+      const idx = S.scadenze.findIndex(x => x.id === S.editScadenzaId);
+      const payload = { titolo, icona, data, anticipo_giorni, ricorrenza, note: note || null };
+      if (idx >= 0) S.scadenze[idx] = Object.assign({}, S.scadenze[idx], payload);
+      saveLocalCache();
+      _rerenderScadenze();
+      const path = T.SCADENZE + '?id=eq.' + S.editScadenzaId;
+      const options = { method: 'PATCH', body: JSON.stringify(payload) };
+      if (isOnline()) {
+        try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+      } else {
+        enqueue({ path, options });
+      }
+      closeModal('modalScadenza');
+      toast('Scadenza modificata', 'success');
+    }
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'salvataggio non riuscito'), 'error');
+  } finally {
+    setBtnLoading(D.scadenzaEditSave, false);
+    S.editScadenzaId = null;
+  }
+}
+
+async function deleteScadenzaEdit() {
+  if (S.editScadenzaId == null) return;
+  const ok = await confirmDlg({
+    title: 'Elimina scadenza',
+    message: 'Vuoi davvero eliminare questa scadenza? L\'azione non è reversibile.',
+    confirmLabel: 'Elimina',
+    danger: true
+  });
+  if (!ok) return;
+  setBtnLoading(D.scadenzaEditDelete, true);
+  try {
+    const id = S.editScadenzaId;
+    S.scadenze = S.scadenze.filter(x => x.id !== id);
+    saveLocalCache();
+    _rerenderScadenze();
+    const path = T.SCADENZE + '?id=eq.' + id;
+    const options = { method: 'DELETE' };
+    if (isOnline()) {
+      try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+    } else {
+      enqueue({ path, options });
+    }
+    closeModal('modalScadenza');
+    toast('Scadenza eliminata', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'eliminazione non riuscita'), 'error');
+  } finally {
+    setBtnLoading(D.scadenzaEditDelete, false);
+    S.editScadenzaId = null;
+  }
+}
+
+// Helper: re-render la view corretta (lista o calendario) + home widget
+function _rerenderScadenze() {
+  try {
+    if (S.currentView === 'scadenze-list') renderScadenzeList();
+    else if (S.currentView === 'scadenze-cal') renderScadenzeCal();
+  } catch {}
+  try { renderHomeGestione(); } catch {}
+}
+
+// ─── Pulizia scadenze ───────────────────────────────────────
+function confirmClearScadenze() {
+  if (!S.scadenze.length) { toast('Nessuna scadenza da pulire', 'info'); return; }
+  openModal('modalClearScadenze');
+}
+
+async function clearScadenzeScope(scope) {
+  const all = S.scadenze || [];
+  const today = _todayStr();
+  let items, msg;
+  if (scope === 'passed') {
+    items = all.filter(x => x.ricorrenza === 'no' && (x._nextDate || x.data) < today);
+    if (!items.length) { closeModal('modalClearScadenze'); toast('Niente scadenze passate', 'info'); return; }
+    msg = 'Eliminare le ' + items.length + ' scadenze passate (non ricorrenti)? L\'azione non è reversibile.';
+  } else if (scope === 'done') {
+    items = all.filter(x => x.fatto);
+    if (!items.length) { closeModal('modalClearScadenze'); toast('Niente scadenze fatte', 'info'); return; }
+    msg = 'Eliminare le ' + items.length + ' scadenze "fatte"? L\'azione non è reversibile.';
+  } else {
+    items = all.slice();
+    msg = 'Eliminare TUTTE le ' + items.length + ' scadenze? L\'azione non è reversibile.';
+  }
+  closeModal('modalClearScadenze');
+  const ok = await confirmDlg({
+    title: 'Conferma eliminazione',
+    message: msg,
+    confirmLabel: 'Elimina',
+    danger: true
+  });
+  if (!ok) return;
+  try {
+    const ids = items.map(x => x.id).filter(id => typeof id === 'number');
+    const toKeep = new Set(all.filter(x => !items.includes(x)).map(x => x.id));
+    S.scadenze = all.filter(x => toKeep.has(x.id));
+    saveLocalCache();
+    _rerenderScadenze();
+    if (ids.length) {
+      const path = T.SCADENZE + '?id=in.(' + ids.join(',') + ')';
+      const options = { method: 'DELETE' };
+      if (isOnline()) {
+        try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+      } else {
+        enqueue({ path, options });
+      }
+    }
+    toast('Scadenze eliminate', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'pulizia fallita'), 'error');
+  }
+}
+
+// ─── Realtime Scadenze ──────────────────────────────────────
+function onScadenzaChange(p) {
+  const ev = p.eventType;
+  if (ev === 'INSERT') {
+    if (!S.scadenze.find(x => x.id === p.new.id)) S.scadenze.push(p.new);
+  } else if (ev === 'UPDATE') {
+    const idx = S.scadenze.findIndex(x => x.id === p.new.id);
+    if (idx >= 0) S.scadenze[idx] = p.new;
+    else S.scadenze.push(p.new);
+  } else if (ev === 'DELETE') {
+    S.scadenze = S.scadenze.filter(x => x.id !== p.old.id);
+  }
+  saveLocalCache();
+  _rerenderScadenze();
+}
+
+async function refreshScadenzeNow() {
+  try {
+    const rows = await supaFetch(T.SCADENZE + '?select=*&order=data.asc,id.asc');
+    if (rows) {
+      S.scadenze = rows;
+      saveLocalCache();
+      _rerenderScadenze();
+    }
+  } catch (e) { /* offline o errore: niente */ }
+}
+
 // ─── HOME (DASHBOARD) ───────────────────────────────────────
 function txInCurrentMonth() {
   const { anno, mese } = S.currentMonth;
@@ -2622,6 +3299,61 @@ function renderHomeGestione() {
       D.homeTodoPreview.innerHTML = html;
     }
     twemojify(D.homeTodoPreview);
+  }
+
+  // Widget Scadenze: prossime 6 ordinate per data ASC (escludendo passate non ricorrenti già fatte)
+  if (D.homeScadenzePreview) {
+    const today = _todayStr();
+    const items = (S.scadenze || []).map(it => {
+      const nextDate = nextOccurrence(it);
+      return Object.assign({}, it, { _nextDate: nextDate });
+    }).filter(it => {
+      if (it.fatto && it.ricorrenza === 'no') return false;
+      // Per ricorrenti: prossima occorrenza è sempre futura/odierna
+      // Per non-ricorrenti: includi anche passate (per dare warning)
+      return !!it._nextDate;
+    }).sort((a, b) => {
+      const da = a._nextDate || '9999-12-31';
+      const db = b._nextDate || '9999-12-31';
+      return da < db ? -1 : (da > db ? 1 : 0);
+    });
+    const PREVIEW_MAX = 6;
+    const preview = items.slice(0, PREVIEW_MAX);
+    if (D.homeScadenzeCount) {
+      // Conta solo prossime entro 30 giorni o scadute
+      const imminenti = items.filter(it => {
+        const d = _daysBetween(today, it._nextDate);
+        return d <= 30;
+      });
+      D.homeScadenzeCount.textContent = imminenti.length
+        ? (imminenti.length + ' prossim' + (imminenti.length === 1 ? 'a' : 'e'))
+        : 'tutto sotto controllo';
+    }
+    if (!preview.length) {
+      D.homeScadenzePreview.innerHTML = '<div class="mc-spesa-empty">Nessuna scadenza</div>';
+    } else {
+      let html = preview.map(it => {
+        const status = scadStatus(it);
+        let pillCls = '';
+        if (status === 'past')  pillCls = ' past';
+        else if (status === 'today') pillCls = ' today';
+        else if (status === 'soon')  pillCls = ' soon';
+        const [, m, d] = (it._nextDate || it.data).split('-');
+        const pill = '<span class="mc-scad-date-pill' + pillCls + '">' + Number(d) + '/' + Number(m) + '</span>';
+        return '<div class="mc-spesa-row">' +
+                 '<span class="mc-spesa-row-icon">' + (it.icona || '📅') + '</span>' +
+                 '<span class="mc-spesa-row-text">' +
+                   pill +
+                   '<span class="mc-spesa-row-name">' + esc(it.titolo || '') + '</span>' +
+                 '</span>' +
+               '</div>';
+      }).join('');
+      if (items.length > PREVIEW_MAX) {
+        html += '<div class="mc-spesa-more">+ ' + (items.length - PREVIEW_MAX) + ' altre</div>';
+      }
+      D.homeScadenzePreview.innerHTML = html;
+    }
+    twemojify(D.homeScadenzePreview);
   }
 }
 
@@ -3787,8 +4519,18 @@ const MODULI = {
       { id: 'actAddTodo', cls: 'action-add', label: '+', aria: 'Nuovo ToDo', onClick: openTodoAdd },
       { id: 'actClearTodo', label: '🧽', caption: 'Pulisci', aria: 'Pulisci lavagna', onClick: confirmClearTodo }
     ]
+  },
+  scadenze: {
+    label: '📅 Scadenze',
+    home: 'scadenze-list',
+    hasMonthNav: false,
+    viewLabels: { 'scadenze-list': 'Lista', 'scadenze-cal': 'Calendario' },
+    getActions: (cv) => [
+      { go: 'scadenze-cal',  label: '📆', caption: 'Calendario', aria: 'Vista calendario', active: cv === 'scadenze-cal' },
+      { id: 'actAddScad', cls: 'action-add', label: '+', aria: 'Nuova scadenza', onClick: openScadenzaAdd },
+      { go: 'scadenze-list', label: '📋', caption: 'Lista',      aria: 'Vista lista',      active: cv === 'scadenze-list' }
+    ]
   }
-  // futuri moduli (scadenze) → si aggiungono qui con la stessa shape
 };
 
 function moduloOf(viewName) {
@@ -3796,12 +4538,13 @@ function moduloOf(viewName) {
   if (viewName === 'conti' || viewName === 'list' || viewName === 'cat') return 'conti';
   if (viewName === 'spesa') return 'spesa';
   if (viewName === 'todo') return 'todo';
+  if (viewName === 'scadenze-list' || viewName === 'scadenze-cal') return 'scadenze';
   return null;
 }
 
 function switchView(name) {
   S.currentView = name;
-  ['home','conti','list','cat','spesa','todo'].forEach(v => {
+  ['home','conti','list','cat','spesa','todo','scadenze-list','scadenze-cal'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.classList.toggle('active', v === name);
   });
@@ -3834,6 +4577,7 @@ function switchView(name) {
     renderHomeGestione();
     refreshSpesaNow();
     refreshTodoNow();
+    refreshScadenzeNow();
   }
   else if (name === 'conti') renderConti();
   else if (name === 'list') renderList();
@@ -3845,6 +4589,18 @@ function switchView(name) {
   else if (name === 'todo') {
     renderTodo();
     refreshTodoNow();
+  }
+  else if (name === 'scadenze-list') {
+    renderScadenzeList();
+    refreshScadenzeNow();
+  }
+  else if (name === 'scadenze-cal') {
+    if (!S.scadCalCursor) {
+      const t = new Date();
+      S.scadCalCursor = { anno: t.getFullYear(), mese: t.getMonth() + 1 };
+    }
+    renderScadenzeCal();
+    refreshScadenzeNow();
   }
   // Sincronizza monthLabel + visibilità frecce mese in base alla nuova view
   renderHeader();
@@ -5448,6 +6204,7 @@ function setupRealtime() {
     ch.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: T.VER, filter: 'id=eq.1' }, p => onVersionChange(p && p.new && p.new.sha));
     ch.on('postgres_changes', { event: '*', schema: 'public', table: T.SPESA }, p => onSpesaChange(p));
     ch.on('postgres_changes', { event: '*', schema: 'public', table: T.TODO },  p => onTodoChange(p));
+    ch.on('postgres_changes', { event: '*', schema: 'public', table: T.SCADENZE }, p => onScadenzaChange(p));
     ch.subscribe(status => { if (status === 'SUBSCRIBED') console.log('Realtime connesso'); });
     S.realtimeChannel = ch;
   } catch (e) { console.warn('Realtime init failed', e); }
@@ -5560,6 +6317,7 @@ function setupVersionWatchdog() {
       // stato vero della tabella quando torna visibile
       refreshSpesaNow();
       refreshTodoNow();
+      refreshScadenzeNow();
     }
   });
   window.addEventListener('online', () => {
@@ -5567,6 +6325,7 @@ function setupVersionWatchdog() {
     checkAppVersionNow();
     refreshSpesaNow();
     refreshTodoNow();
+    refreshScadenzeNow();
   });
   // Polling di backup: ogni 60s se la tab è visibile, controlla il SHA.
   if (_versionPollId) clearInterval(_versionPollId);
@@ -5730,6 +6489,37 @@ function bindEvents() {
   if (btnClearTodoToDo) btnClearTodoToDo.addEventListener('click', () => clearTodoScope('toDo'));
   if (btnClearTodoDone) btnClearTodoDone.addEventListener('click', () => clearTodoScope('done'));
   if (btnClearTodoAll)  btnClearTodoAll.addEventListener('click',  () => clearTodoScope('all'));
+
+  // ── Scadenze: modal bind + chips + calendario nav ──
+  if (D.scadenzaEditSave)    D.scadenzaEditSave.addEventListener('click', saveScadenzaEdit);
+  if (D.scadenzaEditDelete)  D.scadenzaEditDelete.addEventListener('click', deleteScadenzaEdit);
+  if (D.scadenzaEditTitolo)  D.scadenzaEditTitolo.addEventListener('input', onScadenzaEditTitoloInput);
+  if (D.scadenzaEditIconBtn) D.scadenzaEditIconBtn.addEventListener('click', () => openIconPicker('scadenza'));
+  $$('.spesa-icon-side[data-scadenza-slot]').forEach(el => {
+    el.addEventListener('click', () => swapScadenzaIcon(Number(el.getAttribute('data-scadenza-slot'))));
+  });
+  // Chips anticipo
+  if (D.scadenzaAnticipoChips) {
+    $$('.anticipo-chip', D.scadenzaAnticipoChips).forEach(c => {
+      c.addEventListener('click', () => updateScadenzaAnticipoChips(c.getAttribute('data-anticipo')));
+    });
+  }
+  // Chips ricorrenza
+  if (D.scadenzaRicorrenzaChips) {
+    $$('.anticipo-chip', D.scadenzaRicorrenzaChips).forEach(c => {
+      c.addEventListener('click', () => updateScadenzaRicorrenzaChips(c.getAttribute('data-ric')));
+    });
+  }
+  // Calendario nav
+  if (D.scadCalPrev) D.scadCalPrev.addEventListener('click', () => shiftScadCalMonth(-1));
+  if (D.scadCalNext) D.scadCalNext.addEventListener('click', () => shiftScadCalMonth(1));
+  // Modal scope svuotamento Scadenze
+  const btnClearScadPassed = document.getElementById('clearScadPassed');
+  const btnClearScadDone   = document.getElementById('clearScadDone');
+  const btnClearScadAll    = document.getElementById('clearScadAll');
+  if (btnClearScadPassed) btnClearScadPassed.addEventListener('click', () => clearScadenzeScope('passed'));
+  if (btnClearScadDone)   btnClearScadDone.addEventListener('click',   () => clearScadenzeScope('done'));
+  if (btnClearScadAll)    btnClearScadAll.addEventListener('click',    () => clearScadenzeScope('all'));
   if (D.iconPickerSearch) {
     D.iconPickerSearch.addEventListener('input', e => {
       _iconPickerSearch = e.target.value || '';
@@ -5750,10 +6540,11 @@ function bindEvents() {
     card.addEventListener('click', e => {
       if (e.target && e.target.closest('.mc-drag')) return; // ignora drag handle
       const mod = card.getAttribute('data-mod');
-      if (mod === 'conti')      switchView('conti');
-      else if (mod === 'spesa') switchView('spesa');
-      else if (mod === 'todo')  switchView('todo');
-      else                      toast('Modulo in arrivo', 'info');
+      if (mod === 'conti')         switchView('conti');
+      else if (mod === 'spesa')    switchView('spesa');
+      else if (mod === 'todo')     switchView('todo');
+      else if (mod === 'scadenze') switchView('scadenze-list');
+      else                         toast('Modulo in arrivo', 'info');
     });
   });
   // Modulo Conti: pulsanti per andare a sotto-pagine
@@ -5938,7 +6729,7 @@ async function init() {
   if (D.moduleActions) D.moduleActions.style.display = 'none';
   S.currentView = 'home';
   // render iniziale da cache
-  if (S.cats.length || S.tx.length || S.spesa.length || S.todo.length) {
+  if (S.cats.length || S.tx.length || S.spesa.length || S.todo.length || S.scadenze.length) {
     renderAll();
   }
   // UI di base pronta → nascondi splash subito (la sync da rete continua in background)
@@ -5949,7 +6740,7 @@ async function init() {
     if (changed) renderAll();
     else {
       // se cache vuota anche dopo sync, prova full reload
-      if (!S.cats.length && !S.tx.length && !S.spesa.length && !S.todo.length) {
+      if (!S.cats.length && !S.tx.length && !S.spesa.length && !S.todo.length && !S.scadenze.length) {
         await reloadAll();
         renderAll();
       }

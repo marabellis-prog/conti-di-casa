@@ -2,7 +2,7 @@
 // Strategia: stale-while-revalidate su risorse statiche + GET REST tabelle,
 // network-only su mutazioni (POST/PATCH/DELETE) e su update_cache (gating).
 
-const CACHE = 'conti-di-casa-v101';
+const CACHE = 'conti-di-casa-v102';
 const SUPA_HOST = 'lrvkchqvjzynfzevpqaj.supabase.co';
 const CDN_HOST = 'cdn.jsdelivr.net'; // supabase-js + twemoji
 const STATIC = [
@@ -50,7 +50,7 @@ function isSupabaseGet(req, url) {
   // app_version: rete (cambia spesso, vogliamo sempre fresco)
   if (url.pathname.includes('cdc_app_version')) return false;
   // tabelle di lettura cache-abili
-  return /\/rest\/v1\/cdc_(transazioni|categorie|budget|prefs)/.test(url.pathname);
+  return /\/rest\/v1\/cdc_(transazioni|categorie|budget|prefs|lista_spesa|lista_todo|scadenze)/.test(url.pathname);
 }
 
 self.addEventListener('fetch', e => {

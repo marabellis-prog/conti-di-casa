@@ -151,14 +151,17 @@
           </div>
         </div>
 
-        <div class="module-card module-soon" data-mod="scadenze">
+        <div class="module-card module-scadenze" data-mod="scadenze">
           <span class="mc-drag" title="Trascina per riordinare">⋮⋮</span>
           <div class="mc-header">
             <span class="mc-icon">📅</span>
             <span class="mc-title">Scadenze</span>
-            <span class="mc-soon">presto</span>
+            <span class="mc-period" id="homeScadenzeCount"></span>
+            <span class="mc-go">›</span>
           </div>
-          <div class="mc-body soon">Bollette, abbonamenti, compleanni</div>
+          <div class="mc-body">
+            <div id="homeScadenzePreview" class="mc-spesa-preview"></div>
+          </div>
         </div>
 
       </div>
@@ -291,6 +294,32 @@
       </div>
     </section>
 
+    <!-- SCADENZE — vista lista (gruppi per mese) -->
+    <section id="view-scadenze-list" class="view">
+      <div id="scadenzeListContent" class="scadenze-list-wrap">
+        <!-- popolato da renderScadenzeList -->
+      </div>
+    </section>
+
+    <!-- SCADENZE — vista calendario (griglia mensile) -->
+    <section id="view-scadenze-cal" class="view">
+      <div class="scad-cal-wrap">
+        <div class="scad-cal-header">
+          <button class="scad-cal-nav" id="scadCalPrev" aria-label="Mese precedente">‹</button>
+          <div class="scad-cal-title" id="scadCalTitle">—</div>
+          <button class="scad-cal-nav" id="scadCalNext" aria-label="Mese successivo">›</button>
+        </div>
+        <div class="scad-cal-weekdays">
+          <div>L</div><div>M</div><div>M</div><div>G</div><div>V</div><div class="we">S</div><div class="we">D</div>
+        </div>
+        <div id="scadCalGrid" class="scad-cal-grid"></div>
+        <div id="scadCalDayDetails" class="scad-cal-day-details">
+          <div class="scad-cal-day-title" id="scadCalDayTitle">Seleziona un giorno</div>
+          <div id="scadCalDayList" class="scad-cal-day-list"></div>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- BOTTOM NAV (6 pill tonde sporgenti — moduli + impostazioni) -->
@@ -299,7 +328,7 @@
     <button class="nav-pill" data-view="conti" aria-label="Conti di Casa"><span class="np-ic">💰</span><span class="np-lbl">Conti</span></button>
     <button class="nav-pill" data-view="todo" aria-label="ToDo"><span class="np-ic">✅</span><span class="np-lbl">ToDo</span></button>
     <button class="nav-pill" data-view="spesa" aria-label="Lista spesa"><span class="np-ic">🛒</span><span class="np-lbl">Spesa</span></button>
-    <button class="nav-pill" data-mod-soon="scadenze" aria-label="Scadenze"><span class="np-ic">📅</span><span class="np-lbl">Scadenze</span></button>
+    <button class="nav-pill" data-view="scadenze-list" aria-label="Scadenze"><span class="np-ic">📅</span><span class="np-lbl">Scadenze</span></button>
     <button class="nav-pill" data-action="settings" aria-label="Impostazioni"><span class="np-ic">⚙️</span><span class="np-lbl">Impostaz.</span></button>
   </nav>
 
@@ -581,6 +610,77 @@
         <button id="clearTodoToDo" class="btn-secondary" type="button" style="margin-bottom:8px">📋 Solo "Da fare"</button>
         <button id="clearTodoDone" class="btn-secondary" type="button" style="margin-bottom:8px">✓ Solo "Fatti"</button>
         <button id="clearTodoAll" class="btn-primary" type="button">🧽 Pulisci tutta la lavagna</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal nuova/modifica Scadenza -->
+  <div class="modal" id="modalScadenza">
+    <div class="sheet" id="sheetScadenza">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="scadenzaEditTitle">Nuova Scadenza</h3>
+        <button class="sheet-close" data-close="modalScadenza">✕</button>
+      </div>
+      <div class="sheet-body">
+        <!-- icona centrale + suggerimenti laterali -->
+        <div class="spesa-icon-row">
+          <span class="spesa-icon-side" data-scadenza-slot="3" hidden></span>
+          <span class="spesa-icon-side" data-scadenza-slot="1" hidden></span>
+          <button id="scadenzaEditIconBtn" class="spesa-icon-circle" type="button" aria-label="Apri selettore icone">📅</button>
+          <span class="spesa-icon-side" data-scadenza-slot="2" hidden></span>
+          <span class="spesa-icon-side" data-scadenza-slot="4" hidden></span>
+        </div>
+        <div class="form-row">
+          <label for="scadenzaEditTitolo">Titolo</label>
+          <input type="text" id="scadenzaEditTitolo" placeholder="Scadenza patente, revisione auto, compleanno..." autocomplete="off" autocapitalize="sentences">
+        </div>
+        <div class="form-row">
+          <label for="scadenzaEditData">Data scadenza</label>
+          <input type="date" id="scadenzaEditData">
+        </div>
+        <div class="form-row">
+          <label>Promemoria — quanti giorni prima</label>
+          <div id="scadenzaAnticipoChips" class="anticipo-chips">
+            <button type="button" class="anticipo-chip" data-anticipo="0">il giorno</button>
+            <button type="button" class="anticipo-chip" data-anticipo="1">1 g</button>
+            <button type="button" class="anticipo-chip" data-anticipo="3">3 g</button>
+            <button type="button" class="anticipo-chip active" data-anticipo="7">1 sett</button>
+            <button type="button" class="anticipo-chip" data-anticipo="14">2 sett</button>
+            <button type="button" class="anticipo-chip" data-anticipo="30">1 mese</button>
+            <button type="button" class="anticipo-chip" data-anticipo="60">2 mesi</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Ricorrenza</label>
+          <div id="scadenzaRicorrenzaChips" class="anticipo-chips">
+            <button type="button" class="anticipo-chip active" data-ric="no">una tantum</button>
+            <button type="button" class="anticipo-chip" data-ric="mensile">mensile</button>
+            <button type="button" class="anticipo-chip" data-ric="annuale">annuale</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label for="scadenzaEditNote">Note</label>
+          <input type="text" id="scadenzaEditNote" placeholder="numero contratto, luogo, dettagli..." autocomplete="off">
+        </div>
+        <button id="scadenzaEditSave" class="btn-primary">Salva</button>
+        <button id="scadenzaEditDelete" class="btn-secondary" style="margin-top:8px;display:none">Elimina</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal scelta scope svuotamento Scadenze -->
+  <div class="modal modal-center" id="modalClearScadenze">
+    <div class="sheet" id="sheetClearScadenze">
+      <div class="sheet-header">
+        <h3>Pulizia scadenze</h3>
+        <button class="sheet-close" data-close="modalClearScadenze">✕</button>
+      </div>
+      <div class="sheet-body">
+        <p class="txt-dim" style="font-size:14px;margin:4px 0 14px;line-height:1.5;">Cosa vuoi eliminare?</p>
+        <button id="clearScadPassed" class="btn-secondary" type="button" style="margin-bottom:8px">⏰ Solo passate (non ricorrenti)</button>
+        <button id="clearScadDone" class="btn-secondary" type="button" style="margin-bottom:8px">✓ Solo segnate come fatte</button>
+        <button id="clearScadAll" class="btn-primary" type="button">🗑 Elimina tutte</button>
       </div>
     </div>
   </div>

@@ -363,6 +363,333 @@ html[data-theme="light"] {
 }
 .todo-item.fatto .todo-item-name { color: var(--chalk-text-soft); }
 
+/* ─── SCADENZE — vista lista (gruppi per mese) ──────────── */
+.scadenze-list-wrap {
+  padding: 8px 12px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.scad-month-group {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 14px 12px 8px;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.scad-month-group.is-current {
+  border-color: var(--accent);
+  box-shadow: 0 2px 14px rgba(var(--accent-rgb, 100, 80, 230), .18);
+}
+.scad-month-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.scad-month-title .scad-month-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb, 100, 80, 230), .12);
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.4px;
+  text-transform: none;
+}
+.scad-item {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background .15s ease;
+  position: relative;
+}
+.scad-item:hover { background: var(--hover); }
+.scad-item + .scad-item { border-top: 1px dashed var(--border); }
+.scad-item-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 0;
+  min-width: 50px;
+  font-variant-numeric: tabular-nums;
+}
+.scad-item-date .day {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+}
+.scad-item-date .month {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+.scad-item.is-today  .scad-item-date { background: #f59e0b; border-color: #f59e0b; }
+.scad-item.is-today  .scad-item-date .day,
+.scad-item.is-today  .scad-item-date .month { color: #fff; }
+.scad-item.is-past   .scad-item-date { background: #dc2626; border-color: #dc2626; }
+.scad-item.is-past   .scad-item-date .day,
+.scad-item.is-past   .scad-item-date .month { color: #fff; }
+.scad-item.is-soon   .scad-item-date { background: #fbbf24; border-color: #fbbf24; }
+.scad-item.is-soon   .scad-item-date .day,
+.scad-item.is-soon   .scad-item-date .month { color: #1a1a1a; }
+.scad-item.is-fatto  { opacity: .55; }
+.scad-item.is-fatto  .scad-item-name { text-decoration: line-through; }
+.scad-item-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.scad-item-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.scad-item-name .scad-icon { font-size: 18px; }
+.scad-item-name .scad-icon img.emoji { width: 18px; height: 18px; }
+.scad-item-meta {
+  font-size: 12px;
+  color: var(--text-faint);
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.scad-item-meta .scad-tag {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 1px 7px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+.scad-item-meta .scad-tag.urg     { background: #fef2f2; color: #b91c1c; border-color: #fca5a5; }
+.scad-item-meta .scad-tag.soon    { background: #fffbeb; color: #92400e; border-color: #fcd34d; }
+.scad-item-meta .scad-tag.ricorr  { background: #ecfeff; color: #0e7490; border-color: #67e8f9; }
+[data-theme="dark"] .scad-item-meta .scad-tag.urg    { background: rgba(220,38,38,.18); color:#fca5a5; border-color: rgba(220,38,38,.4); }
+[data-theme="dark"] .scad-item-meta .scad-tag.soon   { background: rgba(251,191,36,.16); color:#fcd34d; border-color: rgba(251,191,36,.4); }
+[data-theme="dark"] .scad-item-meta .scad-tag.ricorr { background: rgba(14,116,144,.18); color:#67e8f9; border-color: rgba(14,116,144,.4); }
+.scad-item-chevron {
+  color: var(--text-faint);
+  font-size: 22px;
+  font-weight: 300;
+  align-self: center;
+}
+.scadenze-empty {
+  padding: 60px 24px;
+  text-align: center;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* ─── SCADENZE — vista calendario (griglia mensile) ──────── */
+.scad-cal-wrap {
+  padding: 8px 12px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.scad-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--card);
+  border-radius: 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+}
+.scad-cal-nav {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 28px;
+  cursor: pointer;
+  padding: 4px 14px;
+  border-radius: 50%;
+  line-height: 1;
+  transition: background .15s ease;
+}
+.scad-cal-nav:hover { background: var(--hover); }
+.scad-cal-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: capitalize;
+  color: var(--text);
+  flex: 1;
+  text-align: center;
+}
+.scad-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  padding: 0 6px;
+}
+.scad-cal-weekdays > div {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  padding: 4px 0;
+}
+.scad-cal-weekdays > div.we { color: var(--accent); }
+.scad-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  background: var(--card);
+  border-radius: 14px;
+  padding: 6px;
+  border: 1px solid var(--border);
+}
+.scad-cal-cell {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 4px 2px;
+  cursor: pointer;
+  position: relative;
+  transition: background .15s ease, border-color .15s ease;
+  overflow: hidden;
+  min-height: 44px;
+}
+.scad-cal-cell.empty { visibility: hidden; }
+.scad-cal-cell.other-month { opacity: .35; }
+.scad-cal-cell .day-num {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.scad-cal-cell .day-dots {
+  display: flex;
+  gap: 2px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.scad-cal-cell .day-dot {
+  font-size: 9px;
+  line-height: 1;
+}
+.scad-cal-cell .day-dot img.emoji { width: 11px; height: 11px; }
+.scad-cal-cell .day-more {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-faint);
+  margin-top: 1px;
+}
+.scad-cal-cell:hover {
+  background: var(--hover);
+  border-color: var(--border);
+}
+.scad-cal-cell.today {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb, 100, 80, 230), .12);
+}
+.scad-cal-cell.today .day-num { color: var(--accent); font-weight: 800; }
+.scad-cal-cell.has-scad      { background: rgba(var(--accent-rgb, 100, 80, 230), .14); }
+.scad-cal-cell.has-past      { background: rgba(220, 38, 38, .14); }
+.scad-cal-cell.has-soon      { background: rgba(251, 191, 36, .18); }
+.scad-cal-cell.selected      { border-color: var(--accent); border-width: 2px; transform: scale(1.04); z-index: 2; }
+.scad-cal-day-details {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  min-height: 80px;
+}
+.scad-cal-day-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+  text-transform: capitalize;
+}
+.scad-cal-day-list .scad-item + .scad-item { margin-top: 6px; border-top: 1px dashed var(--border); padding-top: 10px; }
+.scad-cal-day-list-empty {
+  color: var(--text-faint);
+  font-style: italic;
+  font-size: 13px;
+  text-align: center;
+  padding: 16px 0;
+}
+
+/* Anticipo / Ricorrenza chips nel modal */
+.anticipo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.anticipo-chip {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.anticipo-chip:hover { border-color: var(--accent); }
+.anticipo-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Widget Home Scadenze — riusa stile mc-spesa-* ma con tag data */
+.mc-scad-date-pill {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 6px;
+  margin-right: 4px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
+.mc-scad-date-pill.past { background: #dc2626; }
+.mc-scad-date-pill.today { background: #f59e0b; }
+.mc-scad-date-pill.soon { background: #fbbf24; color: #1a1a1a; }
+
 /* ─── LISTA DELLA SPESA — stile block-notes ───────────────── */
 /* Block-notes: STESSI colori per entrambi i temi (giallino chiaro,
    ben visibile su qualunque sfondo) per richiesta utente */
