@@ -2163,7 +2163,19 @@ function nextOccurrence(scad) {
   const today = _todayStr();
   let d = scad.data;
   if (scad.ricorrenza === 'no' || !scad.ricorrenza) return d;
-  // Avanza fino a quando d >= today
+  // Per giornaliera / settimanale: avanza per giorni
+  if (scad.ricorrenza === 'giornaliera' || scad.ricorrenza === 'settimanale') {
+    const stepDays = (scad.ricorrenza === 'giornaliera') ? 1 : 7;
+    // Salto diretto: calcola quanti step servono
+    let diff = _daysBetween(d, today);
+    if (diff <= 0) return d;
+    // Arrotonda per eccesso al prossimo step
+    const steps = Math.ceil(diff / stepDays);
+    const base = new Date(d + 'T00:00:00');
+    base.setDate(base.getDate() + steps * stepDays);
+    return base.getFullYear() + '-' + String(base.getMonth()+1).padStart(2,'0') + '-' + String(base.getDate()).padStart(2,'0');
+  }
+  // Per mensile / annuale: avanza ciclicamente
   while (d < today) {
     const [y, m, day] = d.split('-').map(Number);
     let ny = y, nm = m;
@@ -2266,7 +2278,13 @@ function scadItemHtml(it) {
     tagHtml += '<span class="scad-tag soon">' + (diff === 1 ? 'Domani' : 'tra ' + diff + ' gg') + '</span>';
   }
   if (it.ricorrenza && it.ricorrenza !== 'no') {
-    tagHtml += '<span class="scad-tag ricorr">' + (it.ricorrenza === 'mensile' ? '↻ mensile' : '↻ annuale') + '</span>';
+    const ricLabel = {
+      giornaliera: '↻ giornaliera',
+      settimanale: '↻ settimanale',
+      mensile:     '↻ mensile',
+      annuale:     '↻ annuale'
+    }[it.ricorrenza] || '↻';
+    tagHtml += '<span class="scad-tag ricorr">' + ricLabel + '</span>';
   }
   if (it.note) tagHtml += '<span class="scad-tag">' + esc(String(it.note).slice(0, 40)) + (it.note.length > 40 ? '…' : '') + '</span>';
 
@@ -2367,8 +2385,30 @@ function renderScadenzeCal() {
 function scadOccurrencesInMonth(scad, anno, mese) {
   if (!scad || !scad.data) return [];
   const [oy, om, od] = scad.data.split('-').map(Number);
+  const origin = new Date(oy, om - 1, od);
+  const monthFirst = new Date(anno, mese - 1, 1);
+  const monthLastDay = new Date(anno, mese, 0).getDate();
+  const monthLast = new Date(anno, mese - 1, monthLastDay);
   if (scad.ricorrenza === 'no' || !scad.ricorrenza) {
     return (oy === anno && om === mese) ? [scad.data] : [];
+  }
+  if (scad.ricorrenza === 'giornaliera' || scad.ricorrenza === 'settimanale') {
+    const stepDays = (scad.ricorrenza === 'giornaliera') ? 1 : 7;
+    if (monthLast < origin) return [];
+    // Trova la prima occorrenza >= max(origin, monthFirst)
+    let start = origin > monthFirst ? new Date(origin) : new Date(monthFirst);
+    // Allinea alla griglia: se monthFirst > origin, calcola quanti giorni dall'origine
+    if (start.getTime() === monthFirst.getTime() && monthFirst > origin) {
+      const diff = Math.round((monthFirst - origin) / 86400000);
+      const offset = diff % stepDays;
+      if (offset !== 0) start.setDate(start.getDate() + (stepDays - offset));
+    }
+    const out = [];
+    while (start <= monthLast) {
+      out.push(start.getFullYear() + '-' + String(start.getMonth()+1).padStart(2,'0') + '-' + String(start.getDate()).padStart(2,'0'));
+      start.setDate(start.getDate() + stepDays);
+    }
+    return out;
   }
   if (scad.ricorrenza === 'mensile') {
     // Tutti i mesi dalla data originale in poi (e prima se data > mese cursore non includere)
