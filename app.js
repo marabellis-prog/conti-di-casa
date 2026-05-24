@@ -3515,19 +3515,19 @@ function renderHomeGestione() {
 
     let html = '';
 
-    // Sez 1: SALTATE (badge rosso + ⚠️)
+    // Sez 1: OLTRE IL PROMEMORIA = data passata, in ritardo (badge rosso + ⚠️)
     if (saltate.length) {
       html += '<div class="mc-scad-section alert">';
-      html += '<div class="mc-scad-section-title"><span class="sec-icon">⚠️</span><span>Saltate</span><span class="sec-count">' + saltate.length + '</span></div>';
+      html += '<div class="mc-scad-section-title"><span class="sec-icon">⚠️</span><span>Oltre il promemoria</span><span class="sec-count">' + saltate.length + '</span></div>';
       html += saltate.slice(0, 4).map(rowHtml).join('');
       if (saltate.length > 4) html += '<div class="mc-spesa-more">+ ' + (saltate.length - 4) + ' altre</div>';
       html += '</div>';
     }
 
-    // Sez 2: REMINDER SUPERATO (badge giallo + 🔔)
+    // Sez 2: IN SCADENZA = entro l'anticipo (badge giallo + 🔔)
     if (reminderItems.length) {
       html += '<div class="mc-scad-section warn">';
-      html += '<div class="mc-scad-section-title"><span class="sec-icon">🔔</span><span>Oltre il promemoria</span><span class="sec-count">' + reminderItems.length + '</span></div>';
+      html += '<div class="mc-scad-section-title"><span class="sec-icon">🔔</span><span>In scadenza</span><span class="sec-count">' + reminderItems.length + '</span></div>';
       html += reminderItems.slice(0, 4).map(rowHtml).join('');
       if (reminderItems.length > 4) html += '<div class="mc-spesa-more">+ ' + (reminderItems.length - 4) + ' altre</div>';
       html += '</div>';
