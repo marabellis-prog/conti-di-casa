@@ -13,6 +13,10 @@
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
   <link rel="preconnect" href="https://lrvkchqvjzynfzevpqaj.supabase.co" crossorigin>
   <link rel="dns-prefetch" href="https://lrvkchqvjzynfzevpqaj.supabase.co">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Font scritto a mano per la lavagna ToDo -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
   <!-- Preload degli asset locali critici -->
   <link rel="preload" href="./app.css" as="style">
   <link rel="preload" href="./app.js" as="script">
@@ -134,14 +138,17 @@
           </div>
         </div>
 
-        <div class="module-card module-soon" data-mod="todo">
+        <div class="module-card module-todo" data-mod="todo">
           <span class="mc-drag" title="Trascina per riordinare">⋮⋮</span>
           <div class="mc-header">
             <span class="mc-icon">✅</span>
             <span class="mc-title">ToDo</span>
-            <span class="mc-soon">presto</span>
+            <span class="mc-period" id="homeTodoCount"></span>
+            <span class="mc-go">›</span>
           </div>
-          <div class="mc-body soon">Cose da fare in casa</div>
+          <div class="mc-body">
+            <div id="homeTodoPreview" class="mc-spesa-preview"></div>
+          </div>
         </div>
 
         <div class="module-card module-soon" data-mod="scadenze">
@@ -264,13 +271,33 @@
       </div>
     </section>
 
+    <!-- TODO — lavagna a quadretti -->
+    <section id="view-todo" class="view">
+      <div class="todo-section">
+        <div class="todo-subsection">
+          <h3 class="todo-section-title">
+            <span>Da fare</span>
+            <span class="todo-count" id="todoCountToDo">0</span>
+          </h3>
+          <div id="todoListToDo" class="todo-list"></div>
+        </div>
+        <div class="todo-subsection todo-subsection-done">
+          <h3 class="todo-section-title">
+            <span>Fatti</span>
+            <span class="todo-count" id="todoCountDone">0</span>
+          </h3>
+          <div id="todoListDone" class="todo-list"></div>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- BOTTOM NAV (6 pill tonde sporgenti — moduli + impostazioni) -->
   <nav class="bottom-nav nav-pills">
     <button class="nav-pill active" data-view="home" aria-label="Home"><span class="np-ic">🏠</span><span class="np-lbl">Home</span></button>
     <button class="nav-pill" data-view="conti" aria-label="Conti di Casa"><span class="np-ic">💰</span><span class="np-lbl">Conti</span></button>
-    <button class="nav-pill" data-mod-soon="todo" aria-label="ToDo"><span class="np-ic">✅</span><span class="np-lbl">ToDo</span></button>
+    <button class="nav-pill" data-view="todo" aria-label="ToDo"><span class="np-ic">✅</span><span class="np-lbl">ToDo</span></button>
     <button class="nav-pill" data-view="spesa" aria-label="Lista spesa"><span class="np-ic">🛒</span><span class="np-lbl">Spesa</span></button>
     <button class="nav-pill" data-mod-soon="scadenze" aria-label="Scadenze"><span class="np-ic">📅</span><span class="np-lbl">Scadenze</span></button>
     <button class="nav-pill" data-action="settings" aria-label="Impostazioni"><span class="np-ic">⚙️</span><span class="np-lbl">Impostaz.</span></button>
@@ -504,6 +531,56 @@
         </div>
         <button id="spesaEditSave" class="btn-primary">Salva</button>
         <button id="spesaEditDelete" class="btn-secondary" style="margin-top:8px;display:none">Elimina</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nuovo/Modifica ToDo -->
+  <div class="modal" id="modalTodo">
+    <div class="sheet" id="sheetTodo">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="todoEditTitle">Nuovo ToDo</h3>
+        <button class="sheet-close" data-close="modalTodo">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="spesa-icon-row">
+          <button class="spesa-icon-side" data-todo-slot="3" type="button" aria-label="Suggerimento icona" hidden></button>
+          <button class="spesa-icon-side" data-todo-slot="1" type="button" aria-label="Suggerimento icona" hidden></button>
+          <button id="todoEditIconBtn" class="spesa-icon-circle" type="button" aria-label="Apri selettore icone">📝</button>
+          <button class="spesa-icon-side" data-todo-slot="2" type="button" aria-label="Suggerimento icona" hidden></button>
+          <button class="spesa-icon-side" data-todo-slot="4" type="button" aria-label="Suggerimento icona" hidden></button>
+        </div>
+        <div class="form-field">
+          <label>Cosa devi fare</label>
+          <input type="text" id="todoEditNome" placeholder="Chiamare elettricista, pagare bolletta..." autocomplete="off" autocapitalize="sentences">
+        </div>
+        <div class="form-field">
+          <label>Scadenza (opzionale)</label>
+          <input type="date" id="todoEditScadenza">
+        </div>
+        <div class="form-field">
+          <label>Note (opzionale)</label>
+          <input type="text" id="todoEditNote" placeholder="dettagli, numero di telefono..." autocomplete="off">
+        </div>
+        <button id="todoEditSave" class="btn-primary">Salva</button>
+        <button id="todoEditDelete" class="btn-secondary" style="margin-top:8px;display:none">Elimina</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal scelta scope svuotamento ToDo -->
+  <div class="modal modal-center" id="modalClearTodo">
+    <div class="sheet" id="sheetClearTodo">
+      <div class="sheet-header">
+        <h3>Svuota la lavagna</h3>
+        <button class="sheet-close" data-close="modalClearTodo">✕</button>
+      </div>
+      <div class="sheet-body">
+        <p class="txt-dim" style="font-size:14px;margin:4px 0 14px;line-height:1.5;">Cosa vuoi svuotare?</p>
+        <button id="clearTodoToDo" class="btn-secondary" type="button" style="margin-bottom:8px">📋 Solo "Da fare"</button>
+        <button id="clearTodoDone" class="btn-secondary" type="button" style="margin-bottom:8px">✓ Solo "Fatti"</button>
+        <button id="clearTodoAll" class="btn-primary" type="button">🧽 Pulisci tutta la lavagna</button>
       </div>
     </div>
   </div>

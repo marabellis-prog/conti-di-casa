@@ -115,6 +115,9 @@ html[data-theme="light"] {
   flex-shrink: 0;
   /* niente margin-left auto: la qty sta SUBITO accanto al nome */
 }
+.mc-spesa-row-qty.urgent {
+  color: #ff5252;                   /* rosso: scadenza oggi o passata */
+}
 .mc-spesa-more {
   grid-column: 1 / -1;            /* occupa tutta la riga grid */
   font-size: 12px;
@@ -131,6 +134,227 @@ html[data-theme="light"] {
   text-align: center;
   padding: 4px 0;
 }
+
+/* ─── TODO — stile lavagna a quadretti ───────────────────── */
+:root {
+  --chalk-bg: #1f4233;             /* verde lavagna scuro */
+  --chalk-bg-2: #1a3729;
+  --chalk-text: #f3eccf;           /* bianco "gesso" caldo */
+  --chalk-text-soft: rgba(243, 236, 207, .72);
+  --chalk-grid: rgba(255, 255, 255, .06);
+  --chalk-frame: #5a3a1e;          /* cornice marrone */
+  --chalk-frame-light: #7a5230;
+  --chalk-strike: rgba(243, 236, 207, .85);
+  --chalk-font: 'Architects Daughter', 'Caveat', 'Comic Sans MS', cursive;
+  --chalk-line: 48px;              /* "passo" del quadretto interno */
+}
+
+.todo-section {
+  position: relative;
+  margin-bottom: 22px;
+  padding: 18px 18px 16px;
+  background-color: var(--chalk-bg);
+  color: var(--chalk-text);
+  border: 8px solid var(--chalk-frame);
+  border-radius: 6px;
+  /* Cornice marrone "legno" con bevel chiaro */
+  box-shadow:
+    0 0 0 2px rgba(0,0,0,.4),
+    0 10px 24px rgba(0,0,0,.45),
+    inset 0 0 60px rgba(0,0,0,.35),
+    inset 0 0 6px rgba(255,255,255,.04);
+  /* Quadretti via doppio gradient (lines orizzontali + verticali) */
+  background-image:
+    linear-gradient(to right, var(--chalk-grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--chalk-grid) 1px, transparent 1px);
+  background-size: 40px var(--chalk-line);
+}
+
+/* Effetto "lavagna rovinata": macchie di gesso sparse */
+.todo-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 3px;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(255,255,255,.045) 0, transparent 18%),
+    radial-gradient(circle at 78% 35%, rgba(255,255,255,.035) 0, transparent 14%),
+    radial-gradient(circle at 32% 72%, rgba(255,255,255,.04) 0, transparent 16%),
+    radial-gradient(circle at 88% 82%, rgba(0,0,0,.05) 0, transparent 20%),
+    radial-gradient(circle at 8% 88%, rgba(0,0,0,.04) 0, transparent 14%),
+    radial-gradient(circle at 55% 50%, rgba(255,255,255,.02) 0, transparent 25%);
+  mix-blend-mode: overlay;
+}
+/* Linea diagonale a tutta lavagna come sporco da cancellino */
+.todo-section::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.025) 45%, transparent 60%);
+  border-radius: 3px;
+}
+
+.todo-subsection { padding: 0; margin: 0; position: relative; z-index: 1; }
+.todo-subsection-done {
+  margin-top: 20px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(243, 236, 207, .25);
+}
+
+.todo-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--chalk-font);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--chalk-text);
+  margin: 0 0 14px;
+  /* Effetto gesso: blur + sfumatura */
+  text-shadow:
+    0 0 1px rgba(243,236,207,.55),
+    0 1px 0 rgba(0,0,0,.2),
+    0 2px 4px rgba(0,0,0,.3);
+}
+
+.todo-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 12px;
+  background: rgba(243, 236, 207, .15);
+  border: 1.5px solid rgba(243, 236, 207, .5);
+  color: var(--chalk-text);
+  font-family: var(--chalk-font);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.todo-list:empty::before {
+  content: '— vuoto —';
+  display: block;
+  text-align: center;
+  color: var(--chalk-text-soft);
+  font-family: var(--chalk-font);
+  font-style: normal;
+  font-size: 16px;
+  padding: 16px 0;
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 4px;
+  min-height: var(--chalk-line);
+  background: transparent;
+  position: relative;
+  transition: opacity .2s;
+}
+.todo-item-icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(243, 236, 207, .14);
+  border: 1.5px solid rgba(243, 236, 207, .35);
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform .12s, background .15s;
+}
+.todo-item-icon:active { transform: scale(.92); }
+.todo-item-icon img.emoji { width: 25px; height: 25px; }
+
+.todo-item-body {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  position: relative;
+  padding: 4px 2px;
+}
+.todo-item-name {
+  font-family: var(--chalk-font);
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0.4px;
+  color: var(--chalk-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow:
+    0 0 1px rgba(243,236,207,.45),
+    0 1px 1px rgba(0,0,0,.25);
+}
+.todo-item-meta {
+  font-family: var(--chalk-font);
+  font-size: 13px;
+  color: var(--chalk-text-soft);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.todo-item-scadenza {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(243, 236, 207, .14);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+}
+.todo-item-scadenza.urgent {
+  background: rgba(239, 68, 68, .35);
+  color: #ffd7d4;
+}
+
+/* FATTI — line-through "col gesso" + icona b/n */
+.todo-item.fatto { opacity: .85; }
+.todo-item.fatto .todo-item-icon img.emoji { filter: grayscale(1) brightness(1.08); opacity: .65; }
+.todo-item.fatto .todo-item-icon {
+  background: rgba(243, 236, 207, .08);
+  border-color: rgba(243, 236, 207, .22);
+}
+.todo-item.fatto .todo-item-body { position: relative; }
+/* La "linea col gesso" tagliata sopra il nome */
+.todo-item.fatto .todo-item-body::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: 10px;
+  top: 50%;
+  height: 3px;
+  background: linear-gradient(
+    to right,
+    rgba(243, 236, 207, .85) 0%,
+    rgba(243, 236, 207, .65) 30%,
+    rgba(243, 236, 207, .88) 55%,
+    rgba(243, 236, 207, .55) 80%,
+    rgba(243, 236, 207, .8) 100%
+  );
+  border-radius: 2px;
+  transform: rotate(-1.5deg);
+  box-shadow:
+    0 0 4px rgba(243,236,207,.4),
+    0 1px 2px rgba(0,0,0,.25);
+  pointer-events: none;
+}
+.todo-item.fatto .todo-item-name { color: var(--chalk-text-soft); }
 
 /* ─── LISTA DELLA SPESA — stile block-notes ───────────────── */
 /* Block-notes: STESSI colori per entrambi i temi (giallino chiaro,

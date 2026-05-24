@@ -18,7 +18,8 @@ const T = {
   TS: 'cdc_update_cache',
   VER: 'cdc_app_version',
   USERS: 'cdc_authorized_users',
-  SPESA: 'cdc_lista_spesa'
+  SPESA: 'cdc_lista_spesa',
+  TODO: 'cdc_lista_todo'
 };
 const OWNER_EMAIL = 'marabelli.s@gmail.com';
 
@@ -32,7 +33,8 @@ const LS = {
   SHA: 'cdc-deploy-sha',
   LAST_TIPO: 'cdc-last-tipo',
   LAST_MONTH: 'cdc-last-month',
-  SPESA: 'cdc-spesa'
+  SPESA: 'cdc-spesa',
+  TODO: 'cdc-todo'
 };
 
 // Tavolozza colori per categorie
@@ -100,6 +102,8 @@ const S = {
   autoreDonutCache: null,    // {key, segs} per il donut "Uscite per autore"
   // Lista della spesa
   spesa: [],                 // array di item {id, nome, icona, quantita, note, preso, ordine}
+  todo: [],                  // array di item {id, nome, icona, note, scadenza, fatto, ordine}
+  editTodoId: null,
   editSpesaId: null,         // id dell'item correntemente in modifica (null = nuovo)
   // pending tx tmp ids
   pendingTxIds: new Set()
@@ -114,6 +118,10 @@ function cacheDOM() {
    'view-home','view-conti','view-list','view-cat','view-spesa',
    'spesaListToBuy','spesaListBought','spesaCountToBuy','spesaCountBought',
    'modalSpesa','spesaEditTitle','spesaEditIconBtn','spesaEditNome','spesaEditQtyMinus','spesaEditQtyValue','spesaEditQtyPlus','spesaEditNote','spesaEditSave','spesaEditDelete',
+   'view-todo','todoListToDo','todoListDone','todoCountToDo','todoCountDone',
+   'homeTodoPreview','homeTodoCount',
+   'modalTodo','todoEditTitle','todoEditIconBtn','todoEditNome','todoEditScadenza','todoEditNote','todoEditSave','todoEditDelete',
+   'modalClearTodo',
    'modalIconPicker','iconPickerSearch','iconPickerCategories','iconPickerGrid',
    'homeContiDonut','homeContiSaldo','homeContiSubtle','homeContiPeriod','goToList','goToCategorie',
    'homeSpesaPreview','homeSpesaCount',
@@ -366,6 +374,7 @@ function loadLocalCache() {
   try { S.tx = JSON.parse(localStorage.getItem(LS.TX) || '[]'); } catch { S.tx = []; }
   try { S.budgets = JSON.parse(localStorage.getItem(LS.BUDGETS) || '[]'); } catch { S.budgets = []; }
   try { S.spesa = JSON.parse(localStorage.getItem(LS.SPESA) || '[]'); } catch { S.spesa = []; }
+  try { S.todo  = JSON.parse(localStorage.getItem(LS.TODO)  || '[]'); } catch { S.todo  = []; }
   try {
     const p = JSON.parse(localStorage.getItem(LS.PREFS) || 'null');
     if (p) S.prefs = Object.assign(S.prefs, p);
@@ -377,6 +386,7 @@ function saveLocalCache() {
   localStorage.setItem(LS.TX, JSON.stringify(S.tx));
   localStorage.setItem(LS.BUDGETS, JSON.stringify(S.budgets));
   localStorage.setItem(LS.SPESA, JSON.stringify(S.spesa));
+  localStorage.setItem(LS.TODO,  JSON.stringify(S.todo));
   localStorage.setItem(LS.PREFS, JSON.stringify(S.prefs));
   localStorage.setItem(LS.TS, String(S.ts));
 }
@@ -395,18 +405,20 @@ async function reloadAll() {
   const cutoff = new Date(now.getFullYear(), now.getMonth() - 2, 1);
   const cutoffStr = cutoff.getFullYear() + '-' + String(cutoff.getMonth()+1).padStart(2,'0') + '-01';
 
-  const [cats, tx, budgets, prefsRows, verRows, spesa] = await Promise.all([
+  const [cats, tx, budgets, prefsRows, verRows, spesa, todo] = await Promise.all([
     supaFetch(T.CATS + '?select=*&order=ordine.asc,id.asc'),
     supaFetch(T.TX + '?select=*&data=gte.' + cutoffStr + '&order=data.desc,id.desc'),
     supaFetch(T.BUDGET + '?select=*&anno=eq.' + now.getFullYear()),
     supaFetch(T.PREFS + '?select=dati&id=eq.1'),
     supaFetch(T.VER + '?select=sha&id=eq.1'),
-    supaFetch(T.SPESA + '?select=*&order=ordine.asc,created_at.asc')
+    supaFetch(T.SPESA + '?select=*&order=ordine.asc,created_at.asc'),
+    supaFetch(T.TODO + '?select=*&order=ordine.asc,created_at.asc')
   ]);
   S.cats = cats || [];
   S.tx = tx || [];
   S.budgets = budgets || [];
   S.spesa = spesa || [];
+  S.todo  = todo  || [];
   if (prefsRows && prefsRows[0] && prefsRows[0].dati) {
     S.prefs = Object.assign(S.prefs, prefsRows[0].dati);
   }
@@ -449,6 +461,7 @@ function renderAll() {
   try { renderList();          } catch (e) { console.warn('[renderAll] renderList',          e); }
   try { renderCatView();       } catch (e) { console.warn('[renderAll] renderCatView',       e); }
   try { renderSpesa();         } catch (e) { console.warn('[renderAll] renderSpesa',         e); }
+  try { renderTodo();          } catch (e) { console.warn('[renderAll] renderTodo',          e); }
   try { renderSettings();      } catch (e) { console.warn('[renderAll] renderSettings',      e); }
 }
 
@@ -545,6 +558,402 @@ async function ensureMonthLoaded() {
 // Categorie del selettore icone (modal). Ogni categoria ha un set di emoji.
 // Le keyword sotto fanno match ANCHE su radici/prefissi (es. "natalin" → 🎄
 // per matchare "natalini, natalino, natalina, natale").
+// ─── ICONE TODO: categorie + keyword map ────────────────────
+// Categorie ottimizzate per azioni "cose da fare" (chiamate, pagamenti,
+// commissioni, manutenzione, salute, ufficio, viaggi, comunicazione, ecc.)
+const TODO_ICON_CATS = [
+  { id: 'casa', label: 'Casa & Manutenzione', icon: '🏠',
+    emojis: ['🏠','🏡','🛏','🛋','🚪','🪟','🚿','🛁','🚽','🪥','🪑','🖼','🧹','🧺','🧼','🪣','🧴','🪒','🪞','📺','🛜','🔌','💡','🔋','🚨','🔔','🗝','🔑','🧯','🪜','🪤','🐜'] },
+  { id: 'fix', label: 'Riparazioni & Bricolage', icon: '🔧',
+    emojis: ['🔨','🛠','🔧','🪛','🔩','⚙️','🪚','🪜','🧰','🧲','📏','📐','✂️','🩹','📦','📐','🪞','🚿','🔍','🪤','⛓','🪧'] },
+  { id: 'office', label: 'Ufficio & Documenti', icon: '📋',
+    emojis: ['📋','📑','📄','📃','✏️','🖊','🖋','✒️','📨','📬','📭','📮','💼','🪪','🧾','📂','📁','📊','📈','📉','📌','📎','🖇','🗂','📰','⚖️','🏛','🪧','📝'] },
+  { id: 'money', label: 'Banca & Soldi', icon: '🏦',
+    emojis: ['🏦','💳','💰','💸','💵','💴','💶','💷','🪙','💹','📈','📉','🧾','🤝','💼'] },
+  { id: 'health', label: 'Salute & Medico', icon: '🩺',
+    emojis: ['🏥','💊','💉','🩺','🩹','🩼','🦷','👓','😷','🌡','🫀','🩸','🧬','🧠','👁','👂','👃','🦴','🦷','🪥','🧪','🔬','🩻','🤧','🤒','🤕'] },
+  { id: 'family', label: 'Famiglia & Amici', icon: '👨‍👩‍👧',
+    emojis: ['👨‍👩‍👧','👨‍👩‍👦','👨‍👨‍👧','👶','🧒','👦','👧','🧑','👴','👵','🤝','💌','💝','🎂','🎁','🎈','🎉','🎊','🥳','💐','🌹','💍'] },
+  { id: 'pets', label: 'Animali', icon: '🐾',
+    emojis: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🐤','🦆','🦅','🐝','🦋','🐌','🐞','🐢','🐍','🦎','🐠','🐟','🐡','🦈','🐙','🦀','🦐','🦞','🐚','🐾','🦴','🐕','🐩','🐈'] },
+  { id: 'work', label: 'Lavoro & Studio', icon: '💼',
+    emojis: ['💼','💻','🖥','⌨️','🖱','🖨','📱','☎️','📞','📧','📨','🗓','📅','📆','⏰','⌛','⏳','📊','📈','📌','📎','🖇','📝','📚','📖','✏️','🎓','🏫','✒️','🖊','🖍','📐','📏','🔬','🔭','🧮','🪧'] },
+  { id: 'travel', label: 'Viaggi & Trasporti', icon: '✈️',
+    emojis: ['✈️','🛬','🛫','🚂','🚆','🚄','🚅','🚇','🚌','🚏','🚗','🚙','🚕','🚙','🛻','🚚','🚛','🚜','🏍','🛵','🛴','🚲','⛵','🚤','🛥','🛳','⛴','🚢','🏨','🏖','🏝','🏔','⛰','🗺','🧭','🎒','🧳','🎫','🛂','🛃','🛄','🛅','🪪'] },
+  { id: 'shop', label: 'Spese & Commissioni', icon: '🛒',
+    emojis: ['🛒','🛍','🛒','💵','🧾','🏪','🏬','🏤','🏣','📦','📮','📭','📬','💳'] },
+  { id: 'hobby', label: 'Tempo libero & Hobby', icon: '🎨',
+    emojis: ['🎭','🎨','🎬','📷','📸','🎵','🎶','🎼','🎤','🎧','🎮','🕹','🎲','🎳','🎯','🎸','🎹','🥁','🎺','🎻','🪕','♟','🃏','🀄','🎴','⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏓','🏸','🥏','⛳','🏊','🚴','🚵','🏋️','🤸','🧘','🛹','🛼','🎿','⛷','🏂','🏄','⛸','🥌','🥋','🥊','🤿','🏹','🎣'] },
+  { id: 'comm', label: 'Comunicazione', icon: '📞',
+    emojis: ['📞','📱','📟','📠','📧','✉️','📨','📤','📥','📩','💬','🗨','🗯','💭','📢','📣','📯','🔔','🔕','📡','📺','📻','🎙','🎤','🪧','📷','📸','📹','🎥','🎬'] }
+];
+
+// Keyword TODO: azioni comuni (chiamare, pagare, prenotare, riparare...)
+// Match identico a quello della spesa: substring anywhere bidirezionale.
+const TODO_KEYWORD_ICONS = [
+  // Comunicazione / chiamate
+  ['chiama', '📞'], ['telefon', '📱'], ['call', '📞'], ['skype', '📞'], ['zoom', '📞'],
+  ['email', '📧'], ['mail', '📧'], ['scriv', '✏️'], ['mess', '💬'], ['whats', '💬'],
+  ['sms', '💬'], ['risp', '💬'], ['contatt', '📞'], ['invi', '📤'], ['spedi', '📦'],
+  ['ricev', '📥'], ['inoltr', '📤'], ['pec', '📧'], ['fax', '📠'],
+
+  // Pagamenti / finanze
+  ['paga', '💳'], ['bonifi', '💸'], ['banc', '🏦'], ['mutuo', '🏦'], ['prestit', '🏦'],
+  ['rata', '💸'], ['rate', '💸'], ['tasse', '💰'], ['tax', '💰'], ['iva', '🧾'],
+  ['730', '🧾'], ['modello', '📑'], ['imu', '🏠'], ['tari', '🗑'], ['bollett', '🧾'],
+  ['fattur', '🧾'], ['stipendi', '💰'], ['nomin', '💰'], ['pension', '💰'],
+  ['risparm', '💰'], ['invest', '📈'], ['azione', '📈'], ['borsa', '📈'],
+
+  // Casa / manutenzione
+  ['elettr', '🔌'], ['idraul', '🚿'], ['muratore', '🔨'], ['imbianch', '🎨'],
+  ['pittor', '🎨'], ['falegnam', '🪚'], ['ripar', '🔧'], ['aggiust', '🔧'],
+  ['cambia', '🔧'], ['sostitu', '🔧'], ['install', '🛠'], ['mont', '🛠'],
+  ['smont', '🛠'], ['avvit', '🪛'], ['ferrament', '🛠'], ['bricolag', '🛠'],
+  ['lavandin', '🚿'], ['rubinett', '🚿'], ['scaric', '🚽'], ['caldai', '🔥'],
+  ['boiler', '🔥'], ['termosifon', '🌡'], ['climatiz', '❄️'], ['ariacondiz', '❄️'],
+  ['lampadin', '💡'], ['lampada', '💡'], ['interruttor', '🔌'], ['presa', '🔌'],
+  ['cavo', '🔌'], ['serratur', '🔑'], ['chiav', '🔑'], ['porta', '🚪'],
+  ['finestr', '🪟'], ['tapparell', '🪟'], ['veneziana', '🪟'], ['zanzar', '🪟'],
+  ['armadi', '🛋'], ['letto', '🛏'], ['materass', '🛏'], ['lenzuol', '🛏'],
+  ['cuscin', '🛏'], ['divano', '🛋'], ['sedie', '🪑'], ['tavolo', '🪑'],
+
+  // Pulizie
+  ['pul', '🧹'], ['ripuliscoperi', '🧹'], ['scoperi', '🧹'], ['lava', '🧴'],
+  ['lavatric', '🧴'], ['lavastovi', '🧴'], ['stira', '👔'], ['piega', '👕'],
+  ['aspirap', '🧹'], ['scopa', '🧹'], ['scopin', '🧹'], ['spazz', '🧹'],
+  ['mocio', '🧹'], ['polver', '🧹'], ['ragnatel', '🕸'], ['rifuit', '🗑'],
+  ['rifiut', '🗑'], ['spazzatura', '🗑'], ['immondi', '🗑'], ['butta', '🗑'],
+  ['raccolta', '♻️'], ['riciclag', '♻️'], ['carta plast', '♻️'],
+
+  // Spesa & commissioni esterne
+  ['spesa', '🛒'], ['compra', '🛒'], ['acquist', '🛒'], ['supermerc', '🏪'],
+  ['mercato', '🏪'], ['negozio', '🏬'], ['post', '🏤'], ['poste', '🏤'],
+  ['pacc', '📦'], ['ritir', '📦'], ['conse', '📦'], ['ordi', '📦'],
+  ['amazon', '📦'], ['corrier', '🚚'], ['restitu', '📦'], ['reso', '📦'],
+
+  // Cucina / casa giornaliera
+  ['cuc', '🍳'], ['cucinare', '🍳'], ['preparare', '🍳'], ['cena', '🍽'],
+  ['pranzo', '🍽'], ['colazione', '☕'], ['merenda', '🍪'], ['ricett', '📖'],
+  ['ingred', '🥗'], ['conservare', '🧊'], ['frigorif', '🧊'], ['congel', '🧊'],
+  ['frigo', '🧊'],
+
+  // Salute & medico
+  ['medic', '🩺'], ['dottor', '🩺'], ['pediatr', '🩺'], ['ginec', '🩺'],
+  ['cardio', '🫀'], ['dermat', '🩺'], ['oculist', '👓'], ['dentist', '🦷'],
+  ['ortodont', '🦷'], ['estetist', '💄'], ['parruccher', '💇'], ['barbier', '💈'],
+  ['visit', '🩺'], ['esame', '🧪'], ['analisi', '🧪'], ['sangu', '🩸'],
+  ['urina', '🧪'], ['radiograf', '🩻'], ['risonanz', '🩻'], ['ecograf', '🩺'],
+  ['vaccin', '💉'], ['punt', '💉'], ['terap', '💊'], ['cura', '💊'],
+  ['medicin', '💊'], ['farmac', '💊'], ['prescrizion', '📑'], ['ricetta', '📑'],
+  ['mutua', '🩺'], ['ssn', '🩺'], ['cup', '🩺'],
+
+  // Amministrazione / burocrazia
+  ['ammin', '💼'], ['condom', '🏢'], ['assemb', '👥'], ['contratto', '📑'],
+  ['firma', '✒️'], ['notai', '📑'], ['avvoc', '⚖️'], ['commerci', '💼'],
+  ['caaf', '📑'], ['caf', '📑'], ['agenzia entrate', '🏛'], ['comune', '🏛'],
+  ['anagraf', '📑'], ['certific', '📑'], ['carta identit', '🪪'], ['passapor', '🛂'],
+  ['patent', '🪪'], ['codice fisc', '🪪'], ['inps', '🏛'], ['inail', '🏛'],
+  ['cud', '📑'], ['unic', '📑'], ['isee', '📑'], ['multa', '🚨'], ['ricorso', '⚖️'],
+  ['polizia', '🚨'], ['carabinier', '🚨'],
+
+  // Auto / mezzi
+  ['auto', '🚗'], ['benzin', '⛽'], ['gasoli', '⛽'], ['lavaggio auto', '🚗'],
+  ['gomme', '🛞'], ['pneumatic', '🛞'], ['olio motor', '🛢'], ['filtri', '🚗'],
+  ['tagliando', '🚗'], ['revision', '🚗'], ['boll', '🚗'], ['rca', '🚗'],
+  ['assicur', '🛡'], ['meccanic', '🔧'], ['carrozzier', '🚗'], ['bici', '🚴'],
+  ['motor', '🏍'], ['scooter', '🛵'], ['taxi', '🚕'], ['treno', '🚂'],
+  ['aereo', '✈️'], ['volo', '✈️'], ['bigli', '🎫'], ['ticket', '🎫'],
+
+  // Viaggi & vacanze
+  ['vacanz', '🏖'], ['viaggio', '🗺'], ['prenot', '🏨'], ['hotel', '🏨'],
+  ['b&b', '🏨'], ['airbnb', '🏨'], ['campegg', '⛺'], ['valig', '🧳'],
+  ['zaino', '🎒'], ['itinerari', '🗺'], ['mappa', '🗺'], ['gps', '🧭'],
+  ['mare', '🏖'], ['montagn', '⛰'], ['piscin', '🏊'],
+
+  // Famiglia / eventi
+  ['compleann', '🎂'], ['regal', '🎁'], ['anniver', '💐'], ['matrimon', '💍'],
+  ['battes', '👶'], ['comunion', '👼'], ['cresima', '👼'], ['laurea', '🎓'],
+  ['festa', '🎉'], ['cena', '🍽'], ['invit', '💌'], ['augur', '💌'],
+  ['nonn', '👵'], ['mamma', '👩'], ['papa', '👨'], ['suocer', '👴'],
+  ['fratel', '👫'], ['cugin', '👨‍👩‍👧'], ['parent', '👨‍👩‍👧'], ['amic', '🤝'],
+
+  // Animali domestici
+  ['veter', '🩺'], ['vacc cane', '💉'], ['toelett', '✂️'], ['guinz', '🐕'],
+  ['lettier', '🐾'], ['crocch', '🐾'], ['gatto', '🐱'], ['cane', '🐶'],
+  ['canile', '🐶'], ['pension cani', '🐶'], ['pet shop', '🐾'],
+
+  // Lavoro / ufficio
+  ['riunion', '👥'], ['meeting', '👥'], ['call lavoro', '💻'], ['conference', '💻'],
+  ['videoconf', '💻'], ['progett', '💼'], ['client', '🤝'], ['fornitor', '🤝'],
+  ['propost', '📑'], ['present', '📊'], ['report', '📊'], ['ferie', '🏖'],
+  ['malatt', '🤒'], ['cv', '📄'], ['curriculum', '📄'], ['collo', '🤝'],
+  ['assunzion', '🤝'], ['licenz', '📑'], ['contratt lavor', '📑'], ['busta paga', '💰'],
+
+  // Scuola / studio
+  ['scuola', '🏫'], ['materna', '🏫'], ['element', '🏫'], ['medie', '🏫'],
+  ['licei', '🏫'], ['universit', '🎓'], ['esame univers', '📚'], ['compiti', '📝'],
+  ['lezione', '📚'], ['ripetizion', '📚'], ['studi', '📚'], ['libro', '📚'],
+  ['libri', '📚'], ['cancellaria', '✏️'], ['zaino scuol', '🎒'], ['mensa', '🍽'],
+  ['professor', '👨‍🏫'],
+
+  // Tempo libero
+  ['palestr', '🏋️'], ['yoga', '🧘'], ['pilates', '🧘'], ['corso', '🎓'],
+  ['danza', '💃'], ['nuoto', '🏊'], ['calcio', '⚽'], ['tennis', '🎾'],
+  ['cinema', '🎬'], ['teatro', '🎭'], ['concer', '🎵'], ['music', '🎵'],
+  ['mostra', '🎨'], ['museo', '🏛'], ['libro lett', '📖'], ['lettura', '📖'],
+  ['hobby', '🎨'], ['pittura', '🎨'], ['fotograf', '📷'],
+
+  // Generici utili
+  ['controll', '🔍'], ['verific', '🔍'], ['cerca', '🔍'], ['guarda', '👁'],
+  ['ricord', '🔔'], ['promemoria', '🔔'], ['preparar', '📋'], ['fare', '📝'],
+  ['important', '⚠️'], ['urgent', '🚨'], ['scaden', '⏰'], ['appunto', '📝'],
+  ['nota', '📝'], ['programm', '📅'], ['agenda', '📒'], ['lista', '📋'],
+
+  // ── ESPANSIONE: pagamenti / banca dettagliati ──────────────
+  ['postepay', '💳'], ['paypal', '💳'], ['satispay', '💳'], ['carta credito', '💳'],
+  ['carta debito', '💳'], ['carta prepag', '💳'], ['bancomat', '💳'], ['rid', '💸'],
+  ['sdd', '💸'], ['domiciliazion', '💸'], ['ricarica', '💳'], ['prelievo', '🏦'],
+  ['versament', '🏦'], ['estratto cont', '🧾'], ['saldo cont', '🏦'], ['iban', '🏦'],
+  ['conto corrent', '🏦'], ['libretto', '🏦'], ['poste italiane', '🏤'],
+  ['f24', '🧾'], ['f23', '🧾'], ['ravvedimento', '⚖️'], ['cartella esattor', '🧾'],
+  ['rottamazion', '🧾'], ['agenzia riscoss', '🏛'], ['equitalia', '🏛'],
+  ['cedolare', '🧾'], ['irpef', '🧾'], ['imposta', '🧾'],
+
+  // ── ESPANSIONE: bollette / utenze dettagliate ──────────────
+  ['enel', '⚡'], ['eni', '🔥'], ['a2a', '⚡'], ['hera', '⚡'], ['acea', '💧'],
+  ['mm', '💧'], ['luce', '💡'], ['energia', '⚡'], ['gas', '🔥'], ['acqua', '💧'],
+  ['fastweb', '📡'], ['tim', '📡'], ['vodafone', '📡'], ['wind', '📡'], ['iliad', '📡'],
+  ['sky', '📺'], ['netflix', '📺'], ['amazon prime', '📺'], ['disney', '📺'],
+  ['spotify', '🎵'], ['canone rai', '📺'], ['fibra', '📡'], ['adsl', '📡'],
+  ['internet', '📡'], ['telecom', '📡'], ['wifi', '🛜'], ['router', '📡'],
+
+  // ── ESPANSIONE: medico / specialisti dettagliati ───────────
+  ['otorin', '👂'], ['ortopedic', '🦴'], ['neurolo', '🧠'], ['psicolo', '🧠'],
+  ['psichiat', '🧠'], ['logoped', '🗣'], ['fisioterap', '🦴'], ['osteopat', '🦴'],
+  ['agopuntura', '💉'], ['nutrizion', '🥗'], ['dietolo', '🥗'], ['endocrin', '🩺'],
+  ['urolog', '🩺'], ['androlog', '🩺'], ['proctolog', '🩺'], ['gastroenter', '🩺'],
+  ['pneumolog', '🫁'], ['allergolog', '🤧'], ['reumatolog', '🦴'], ['ematolog', '🩸'],
+  ['oncolog', '🩺'], ['radiolog', '🩻'], ['anestes', '🩺'], ['chirurg', '🩺'],
+  ['guardia medic', '🏥'], ['118', '🚑'], ['pronto soccor', '🏥'], ['ospedal', '🏥'],
+  ['clinic', '🏥'], ['ambulator', '🏥'], ['poliambulator', '🏥'], ['ricov', '🏥'],
+  ['operazione', '🩺'], ['intervento', '🩺'], ['biopsia', '🧪'], ['tampone', '🧪'],
+  ['ecg', '💓'], ['holter', '💓'], ['mammograf', '🩻'], ['pap test', '🩺'],
+  ['cup salute', '🩺'], ['sanitar', '🩺'], ['esent', '📑'], ['ricetta dem', '📑'],
+  ['ricetta bian', '📑'], ['piano terap', '💊'], ['protesi', '🦷'],
+
+  // ── ESPANSIONE: documenti / burocrazia ─────────────────────
+  ['rinnov', '📑'], ['rinnovo patent', '🪪'], ['rinnovo carta', '🪪'],
+  ['duplicato', '📑'], ['autocertificaz', '📑'], ['delega', '📑'], ['procura', '📑'],
+  ['testamento', '📑'], ['donazione', '📑'], ['eredità', '📑'], ['successione', '📑'],
+  ['catasto', '🏛'], ['visura', '📑'], ['atto', '📑'], ['rogito', '📑'],
+  ['compromess', '📑'], ['cila', '📑'], ['scia', '📑'], ['dia', '📑'],
+  ['permesso costru', '📑'], ['agibilit', '📑'], ['ape', '📑'],
+  ['certificato medic', '📑'], ['referto', '📑'], ['cartella clin', '📑'],
+  ['ddt', '📑'], ['scontrino', '🧾'], ['ricevuta', '🧾'], ['preventiv', '📑'],
+  ['offerta', '📑'], ['gara', '⚖️'], ['appalto', '⚖️'], ['concorso', '⚖️'],
+  ['domanda', '📑'], ['richiesta', '📑'], ['ricorso ammin', '⚖️'],
+
+  // ── ESPANSIONE: scuola / studio ────────────────────────────
+  ['iscrizione', '📑'], ['iscriversi', '📑'], ['immatricol', '🎓'], ['tasse univers', '🎓'],
+  ['esame', '📚'], ['tesi', '📜'], ['relator', '👨‍🏫'], ['laurea trien', '🎓'],
+  ['magistral', '🎓'], ['dottorato', '🎓'], ['master', '🎓'], ['corso aggiorn', '📚'],
+  ['ecm', '📚'], ['professor', '👨‍🏫'], ['maestr', '👩‍🏫'], ['insegnant', '👨‍🏫'],
+  ['preside', '🏫'], ['segreteria', '📑'], ['portfolio', '📂'],
+  ['recital', '🎭'], ['saggio', '🎭'], ['gita', '🚌'], ['campo scuol', '🎒'],
+  ['quaderno', '📓'], ['diario', '📒'], ['agenda scolast', '📒'], ['astuccio', '✏️'],
+  ['merenda scuol', '🍪'],
+
+  // ── ESPANSIONE: cura della persona / bellezza ──────────────
+  ['taglio capell', '✂️'], ['piega', '💇'], ['colore capell', '💇'], ['tinta', '💇'],
+  ['mèche', '💇'], ['shatush', '💇'], ['extensions', '💇'], ['barba', '💈'],
+  ['manicur', '💅'], ['pedicur', '💅'], ['ricostruz unghie', '💅'], ['smalto', '💅'],
+  ['laser', '✨'], ['ceretta', '✨'], ['epilaz', '✨'], ['depilaz', '✨'],
+  ['massagg', '💆'], ['terma', '♨️'], ['spa', '♨️'], ['sauna', '♨️'],
+  ['solarium', '☀'],
+
+  // ── ESPANSIONE: bambini ────────────────────────────────────
+  ['asilo nido', '👶'], ['nido', '👶'], ['scuola material', '🏫'],
+  ['baby sitter', '👶'], ['tata', '👶'], ['centro estiv', '⛱'],
+  ['campo estiv', '⛱'], ['vaccino bimb', '💉'], ['controlli pediat', '🩺'],
+  ['fila scuol', '🚶'], ['recital scuol', '🎭'], ['rientro scuol', '🏫'],
+  ['gita scolast', '🚌'], ['libri scuol', '📚'], ['zaino scolast', '🎒'],
+  ['quadern scuol', '📓'], ['parlamentari scuol', '👨‍🏫'],
+
+  // ── ESPANSIONE: cucina dettagliata ─────────────────────────
+  ['ricetta', '📖'], ['menu', '📋'], ['lista spes', '🛒'], ['preparare pranzo', '🍽'],
+  ['preparare cena', '🍽'], ['fare il pane', '🍞'], ['fare la pasta', '🍝'],
+  ['fare la pizza', '🍕'], ['fare il sugo', '🥫'], ['fare la pasta frol', '🍪'],
+  ['impastare', '🍞'], ['lievitar', '🍞'], ['cuocere', '🍳'], ['friggere', '🍳'],
+  ['arrostire', '🍖'], ['bollire', '♨️'], ['vapore', '♨️'], ['marinatur', '🍖'],
+  ['marinare', '🍖'], ['conserve', '🫙'], ['confettura', '🍯'], ['sottolio', '🫙'],
+  ['sottacet', '🫙'], ['mettere in frigo', '🧊'], ['scongelar', '🧊'], ['lavar piatti', '🍽'],
+
+  // ── ESPANSIONE: auto / mezzi / trasporti ───────────────────
+  ['parcheggi', '🅿️'], ['multa parcheggi', '🚨'], ['ztl', '🚨'], ['autostrad', '🛣'],
+  ['casello', '🛣'], ['telepass', '🛣'], ['viacard', '🛣'], ['benzinaio', '⛽'],
+  ['distributor', '⛽'], ['concessionar', '🚗'], ['vendita auto', '🚗'],
+  ['acquisto auto', '🚗'], ['noleggio auto', '🚗'], ['car sharing', '🚗'],
+  ['blocco motore', '🔧'], ['gomma forat', '🛞'], ['gomme inverno', '🛞'],
+  ['gomme estive', '🛞'], ['catene neve', '⛓'], ['portapacchi', '🚗'],
+  ['portabici', '🚴'], ['cric', '🔧'], ['guida pratic', '🚗'], ['scuola guida', '🚗'],
+  ['esame patente', '🪪'], ['foglio rosa', '🪪'], ['rinnovo bollo', '🚗'],
+  ['rinnovo assicur', '🛡'], ['rinnovo revis', '🚗'], ['cambio gomme', '🛞'],
+
+  // ── ESPANSIONE: viaggi / vacanze dettagliate ───────────────
+  ['booking', '🏨'], ['prenotazione', '🏨'], ['check in', '🏨'], ['check out', '🏨'],
+  ['carta imbarco', '🛂'], ['boarding pass', '🛂'], ['bagaglio', '🧳'],
+  ['valigia', '🧳'], ['trolley', '🧳'], ['imbarco', '🛬'], ['aeroporto', '🛫'],
+  ['stazione', '🚉'], ['treno alta vel', '🚄'], ['italo', '🚄'], ['frecciaross', '🚄'],
+  ['frecciaarg', '🚄'], ['intercity', '🚂'], ['regionale', '🚂'], ['metro', '🚇'],
+  ['tram', '🚊'], ['bus turis', '🚌'], ['transfer', '🚐'], ['volo low cost', '✈️'],
+  ['ryanair', '✈️'], ['easyjet', '✈️'], ['alitalia', '✈️'], ['ita airways', '✈️'],
+  ['turisti', '🗺'], ['tour', '🗺'], ['escursion', '🗺'], ['museo viagg', '🏛'],
+  ['monumento', '🏛'], ['guida turistic', '🗺'], ['app mappe', '🧭'], ['gps viaggi', '🧭'],
+  ['sci', '🎿'], ['snowboard', '🏂'], ['skipass', '🎿'], ['rifugio', '⛰'],
+  ['ostello', '🏨'], ['agriturismo', '🏡'], ['casa vacanze', '🏡'], ['villaggio', '🏖'],
+
+  // ── ESPANSIONE: shopping / acquisti ────────────────────────
+  ['centro commerc', '🏬'], ['outlet', '🏬'], ['black friday', '🛍'],
+  ['saldi', '🛍'], ['sconto', '🛍'], ['promozion', '🛍'], ['coupon', '🎫'],
+  ['buono regalo', '🎁'], ['carta fedelt', '💳'], ['punti fedelt', '🎫'],
+  ['negozio online', '💻'], ['amazon prime ord', '📦'], ['ebay', '💻'],
+  ['subito.it', '💻'], ['vinted', '💻'], ['etsy', '💻'], ['shein', '💻'],
+  ['zalando', '👟'], ['ikea', '🪑'], ['leroy merlin', '🛠'], ['brico', '🛠'],
+
+  // ── ESPANSIONE: hobby / interessi ──────────────────────────
+  ['ricamo', '🧵'], ['cucito', '🧵'], ['uncinetto', '🧶'], ['maglia', '🧶'],
+  ['knit', '🧶'], ['bricolage hobby', '🛠'], ['modellismo', '🚂'], ['lego', '🧱'],
+  ['puzzle', '🧩'], ['scacchi', '♟'], ['carte', '🃏'], ['burraco', '🃏'],
+  ['briscola', '🃏'], ['poker', '🃏'], ['videogioc', '🎮'], ['ps5', '🎮'],
+  ['xbox', '🎮'], ['nintendo', '🎮'], ['switch', '🎮'], ['streaming', '📺'],
+  ['serie tv', '📺'], ['film', '🎬'], ['documentar', '🎬'], ['libro audio', '🎧'],
+  ['podcast', '🎙'], ['radio', '📻'], ['vinile', '💿'],
+
+  // ── ESPANSIONE: sport ──────────────────────────────────────
+  ['allen', '🏋️'], ['allenamento', '🏋️'], ['cross', '🏋️'], ['crossfit', '🏋️'],
+  ['running', '🏃'], ['corsa', '🏃'], ['mezza marat', '🏃'], ['maratona', '🏃'],
+  ['triathlon', '🏊'], ['ciclismo', '🚴'], ['mtb', '🚵'], ['bici corsa', '🚴'],
+  ['arrampi', '🧗'], ['boulder', '🧗'], ['trekking', '🥾'], ['escursionismo', '🥾'],
+  ['rugby', '🏉'], ['pallavolo', '🏐'], ['basket', '🏀'], ['hockey', '🏒'],
+  ['baseball', '⚾'], ['surf', '🏄'], ['windsurf', '🏄'], ['kitesurf', '🪁'],
+  ['vela', '⛵'], ['canoa', '🛶'], ['kayak', '🛶'], ['rafting', '🛶'],
+  ['equitazione', '🐴'], ['cavallo', '🐴'], ['scherma', '🤺'], ['arti marz', '🥋'],
+  ['karate', '🥋'], ['judo', '🥋'], ['kung fu', '🥋'], ['boxe', '🥊'],
+  ['mma', '🥋'], ['kickboxing', '🥋'],
+
+  // ── ESPANSIONE: animali domestici dettagliato ──────────────
+  ['veterinari', '🩺'], ['microchip', '🐾'], ['sverm', '💊'], ['antiparassit', '💊'],
+  ['pulci', '🐾'], ['zecche', '🐾'], ['leishman', '🐾'], ['leishmaniosi', '🐾'],
+  ['filaria', '🐾'], ['toelettatura', '✂️'], ['educatore cinof', '🐕'], ['addestrator', '🐕'],
+  ['parco cani', '🌳'], ['dog sitter', '🐶'], ['acquario', '🐠'],
+  ['terrario', '🦎'], ['gabbia', '🐦'], ['voliera', '🐦'], ['mangim', '🐾'],
+  ['ciotole', '🍽'], ['cucce', '🐾'], ['cuccia', '🐾'], ['tiragraffi', '🐱'],
+  ['trasportin', '🧳'],
+
+  // ── ESPANSIONE: giardino / esterno ────────────────────────
+  ['giardino', '🪴'], ['orto', '🌱'], ['piant', '🪴'], ['fiori giard', '🌷'],
+  ['potatur', '✂️'], ['potare', '✂️'], ['concime', '🌾'], ['concimar', '🌾'],
+  ['innaff', '💧'], ['annaffi', '💧'], ['irrigaz', '💧'], ['terriccio', '🌱'],
+  ['vaso piant', '🪴'], ['piant fiori', '🌷'], ['piant aromat', '🌿'], ['siepe', '🌳'],
+  ['prato', '🌱'], ['tagliaerba', '🌱'], ['decespugliat', '🌳'], ['motosega', '🪚'],
+  ['legna', '🪵'], ['stufa', '🔥'], ['caminetto', '🔥'], ['barbecu', '🍖'],
+  ['bbq', '🍖'], ['grigliata', '🍖'],
+
+  // ── ESPANSIONE: condom / casa / amm. ──────────────────────
+  ['quota condom', '🧾'], ['fondo condom', '🧾'], ['spese condom', '🧾'],
+  ['preventivo condom', '📑'], ['verbale assemb', '📑'], ['regolam condom', '📑'],
+  ['tabelle millesim', '📑'], ['lavori condom', '🛠'], ['portone condom', '🚪'],
+  ['ascensore', '🛗'], ['scala', '🪜'], ['cantina', '📦'], ['box auto', '🅿️'],
+  ['garage', '🅿️'], ['posto auto', '🅿️'],
+
+  // ── ESPANSIONE: tecnologia / digital ───────────────────────
+  ['password', '🔑'], ['cambiare password', '🔑'], ['otp', '🔐'], ['2fa', '🔐'],
+  ['spid', '🪪'], ['cie', '🪪'], ['identit digit', '🪪'], ['cns', '🪪'],
+  ['firma digit', '✒️'], ['backup', '💾'], ['cloud', '☁️'], ['google drive', '☁️'],
+  ['dropbox', '☁️'], ['icloud', '☁️'], ['onedrive', '☁️'], ['hard disk', '💾'],
+  ['ssd', '💾'], ['memoria', '💾'], ['aggiornare app', '📱'], ['aggiornare softw', '💻'],
+  ['installare app', '📱'], ['disinstallar', '📱'], ['cancellare account', '🗑'],
+  ['recuperare password', '🔑'], ['email recup', '📧'], ['sim', '📱'],
+  ['cambiare sim', '📱'], ['portabilit', '📱'],
+
+  // ── ESPANSIONE: lavoro extra ───────────────────────────────
+  ['busta pag', '💰'], ['cedolin', '💰'], ['ferie lav', '🏖'], ['permess lav', '📑'],
+  ['malattia lav', '🤒'], ['certificato malatt', '📑'], ['visita fiscale', '🩺'],
+  ['mobilità', '📑'], ['naspi', '📑'], ['cassa integraz', '📑'], ['tfr', '💰'],
+  ['contributi inps', '🏛'], ['regime forfett', '🧾'], ['partita iva', '🧾'],
+  ['fattura elettr', '🧾'], ['sdi', '🧾'], ['enpam', '🏛'], ['cassa professio', '🏛'],
+  ['ordine professio', '⚖️'], ['onorari', '💰'],
+
+  // ── ESPANSIONE: relazioni / amici ─────────────────────────
+  ['invito', '💌'], ['rsvp', '💌'], ['augurar', '💌'], ['chiamare zia', '📞'],
+  ['chiamare zio', '📞'], ['nipote', '👶'], ['nipoti', '👶'], ['cognato', '👫'],
+  ['cognata', '👫'], ['suocera', '👵'], ['suocero', '👴'], ['nonna', '👵'],
+  ['nonno', '👴'], ['amica', '🤝'], ['amico', '🤝'], ['collega', '🤝'],
+  ['vicin di casa', '🏡'],
+
+  // ── ESPANSIONE: religione / culto ──────────────────────────
+  ['chiesa', '⛪'], ['parrocch', '⛪'], ['don ', '⛪'], ['parroco', '⛪'],
+  ['messa', '⛪'], ['confess', '⛪'], ['battesimo bimb', '👼'], ['matrim rel', '💒'],
+  ['funerale', '⚱'], ['cimitero', '🪦'], ['fiori tomba', '💐'], ['rosario', '📿'],
+  ['preghiera', '🙏'], ['catechismo', '⛪'],
+
+  // ── ESPANSIONE: emergenza / sicurezza ──────────────────────
+  ['115', '🚒'], ['vigili fuoco', '🚒'], ['vigili urbani', '🚓'], ['112', '🚨'],
+  ['emergenza', '🚨'], ['allarme', '🚨'], ['antifurto', '🚨'], ['cancello', '🚪'],
+  ['videocamere', '📹'], ['videosorvegl', '📹'], ['blindata', '🚪'], ['cassaforte', '🔒'],
+
+  // ── ESPANSIONE: smartphone / cellulare ─────────────────────
+  ['contratto telefon', '📑'], ['ricarica telefon', '📱'], ['cambio gestore', '📱'],
+  ['portabilità', '📱'], ['credito residuo', '📱'], ['offerta cellul', '📱'],
+  ['rinnovo contratto', '📑'], ['custodia', '📱'], ['vetro temp', '📱'],
+  ['caricabatt', '🔌'], ['power bank', '🔋'],
+
+  // ── ESPANSIONE: posta / spedizioni ─────────────────────────
+  ['raccomand', '📨'], ['raccomandata', '📨'], ['posta racco', '📨'], ['atto giud', '⚖️'],
+  ['ar ', '📨'], ['ritirare raccoman', '📨'], ['avviso giac', '📨'], ['giacenza post', '📦'],
+  ['spedire pacc', '📦'], ['poste ricevute', '🧾'], ['posta privata', '📨'],
+  ['gls', '🚚'], ['brt', '🚚'], ['sda', '🚚'], ['dhl', '🚚'], ['ups', '🚚'],
+  ['fedex', '🚚'],
+
+  // ── ESPANSIONE: extra utili / generici ────────────────────
+  ['comprare regalo', '🎁'], ['inviare cartolin', '💌'], ['preparare valig', '🧳'],
+  ['fare benzin', '⛽'], ['fare la spesa', '🛒'], ['ritirare ricetta', '📑'],
+  ['prenotare visita', '🩺'], ['fissare appunt', '📅'], ['portare auto', '🚗'],
+  ['portare cane', '🐶'], ['organizzare evento', '🎉'], ['invitare amic', '🤝'],
+  ['rispondere mail', '📧'], ['richiamare', '📞'], ['ricontattare', '📞'],
+  ['mandare auguri', '💌'], ['scrivere email', '📧'], ['stampare', '🖨'],
+  ['scannerizzare', '📷'], ['firmare', '✒️'], ['consegnare', '📦'],
+  ['ritirare', '📦'], ['restituire', '📦'], ['scambio', '🔄'], ['cambiare', '🔄'],
+  ['rispondere', '💬'], ['confermare', '✔️'], ['cancellare', '🗑'], ['rinviare', '⏰']
+];
+
+function todoIconSuggestions(name, max) {
+  if (max == null) max = 5;
+  if (!name) return ['📝'];
+  const n = String(name).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  if (!n || n.length < SPESA_MIN_QUERY_LEN) return ['📝'];
+  const matches = [];
+  const seen = new Set();
+  for (const [kw, ic] of TODO_KEYWORD_ICONS) {
+    const nameContainsKw = n.indexOf(kw) !== -1;
+    const kwContainsName = kw.indexOf(n) !== -1;
+    if ((nameContainsKw || kwContainsName) && !seen.has(ic)) {
+      const isPrefix = kw.indexOf(n) === 0;
+      const score = (nameContainsKw ? 100 : 0) + (isPrefix ? 20 : 0) + kw.length;
+      matches.push({ kw, ic, score });
+      seen.add(ic);
+    }
+  }
+  matches.sort((a, b) => b.score - a.score);
+  const out = matches.slice(0, max).map(m => m.ic);
+  if (!out.length) out.push('📝');
+  return out;
+}
+function todoIconForName(name) {
+  const s = todoIconSuggestions(name, 1);
+  return s[0] || '📝';
+}
+
 const SPESA_ICON_CATS = [
   { id: 'food', label: 'Cibo', icon: '🍽',
     emojis: ['🍞','🥖','🥐','🥯','🥪','🧀','🥚','🥩','🥓','🍗','🍖','🌭','🍔','🍟','🍕','🥙','🌮','🌯','🥗','🥘','🍝','🍜','🍲','🍱','🍚','🍙','🍘','🍢','🍡','🥟','🍤','🍣','🍿','🥫','🧂','🫙','🥣','🍫','🍬','🍭','🍮','🍡','🍯','🍰','🎂','🧁','🍩','🍪','🥧','🍦','🍨','🍧'] },
@@ -823,11 +1232,13 @@ function spesaIconSuggestions(name, max) {
   return out;
 }
 
-// ─── MODAL SELETTORE ICONE ──────────────────────────────────
-let _iconPickerCat = 'all'; // 'all' o id di SPESA_ICON_CATS
+// ─── MODAL SELETTORE ICONE (condiviso Spesa/Todo) ───────────
+let _iconPickerCat = 'all'; // 'all' o id di categoria attiva
 let _iconPickerSearch = '';
+let _iconPickerCtx = 'spesa'; // 'spesa' o 'todo' — quale mappa usare
 
-function openIconPicker() {
+function openIconPicker(ctx) {
+  _iconPickerCtx = (ctx === 'todo') ? 'todo' : 'spesa';
   _iconPickerCat = 'all';
   _iconPickerSearch = '';
   if (D.iconPickerSearch) D.iconPickerSearch.value = '';
@@ -837,10 +1248,18 @@ function openIconPicker() {
   setTimeout(() => { if (D.iconPickerSearch) D.iconPickerSearch.focus(); }, 60);
 }
 
+function _iconPickerCatsArr() {
+  return _iconPickerCtx === 'todo' ? TODO_ICON_CATS : SPESA_ICON_CATS;
+}
+function _iconPickerKwArr() {
+  return _iconPickerCtx === 'todo' ? TODO_KEYWORD_ICONS : SPESA_KEYWORD_ICONS;
+}
+
 function renderIconPickerCats() {
   if (!D.iconPickerCategories) return;
+  const cats = _iconPickerCatsArr();
   const html = '<button class="icon-picker-cat' + (_iconPickerCat === 'all' ? ' active' : '') + '" data-cat="all">Tutte</button>' +
-    SPESA_ICON_CATS.map(c =>
+    cats.map(c =>
       '<button class="icon-picker-cat' + (_iconPickerCat === c.id ? ' active' : '') + '" data-cat="' + c.id + '">' +
         c.icon + ' ' + esc(c.label) +
       '</button>'
@@ -859,41 +1278,31 @@ function renderIconPickerCats() {
 function renderIconPickerGrid() {
   if (!D.iconPickerGrid) return;
   let emojis;
+  const cats = _iconPickerCatsArr();
+  const kwArr = _iconPickerKwArr();
   const q = (_iconPickerSearch || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
   if (q) {
     if (q.length < SPESA_MIN_QUERY_LEN) {
-      // Sotto la soglia minima → mostra tutto della categoria attuale come
-      // se non ci fosse query (l'utente sta ancora digitando)
-      if (_iconPickerCat === 'all') emojis = SPESA_ICON_CATS.flatMap(c => c.emojis);
+      if (_iconPickerCat === 'all') emojis = cats.flatMap(c => c.emojis);
       else {
-        const cat = SPESA_ICON_CATS.find(c => c.id === _iconPickerCat);
+        const cat = cats.find(c => c.id === _iconPickerCat);
         emojis = cat ? cat.emojis : [];
       }
     } else {
-      // Ricerca PROMISCUA: la kw matcha se contiene la query OVUNQUE
-      // (substring middle/end) O se la query contiene la kw. Questo dà più
-      // risultati rispetto all'auto-suggestion sul nome che è più restrittiva.
-      // Es. "mel" matcha 'mel', 'melon', 'melanzan'; "mele" matcha 'mel'.
-      // Niente fallback "show all": se non c'è nessun match, mostra empty.
       const found = new Set();
-      SPESA_KEYWORD_ICONS.forEach(([kw, ic]) => {
+      kwArr.forEach(([kw, ic]) => {
         if (kw.indexOf(q) !== -1 || q.indexOf(kw) !== -1) found.add(ic);
       });
-      // Match anche la label della categoria (es. "frutta" → tutte le emoji
-      // della categoria Frutta&Verdura). Substring anche qui per essere
-      // permissivi (es. "verdu" matcha "Frutta & Verdura")
-      SPESA_ICON_CATS.forEach(c => {
+      cats.forEach(c => {
         const labLower = c.label.toLowerCase();
-        if (labLower.indexOf(q) !== -1) {
-          c.emojis.forEach(e => found.add(e));
-        }
+        if (labLower.indexOf(q) !== -1) c.emojis.forEach(e => found.add(e));
       });
       emojis = Array.from(found);
     }
   } else if (_iconPickerCat === 'all') {
-    emojis = SPESA_ICON_CATS.flatMap(c => c.emojis);
+    emojis = cats.flatMap(c => c.emojis);
   } else {
-    const cat = SPESA_ICON_CATS.find(c => c.id === _iconPickerCat);
+    const cat = cats.find(c => c.id === _iconPickerCat);
     emojis = cat ? cat.emojis : [];
   }
   // dedup
@@ -902,7 +1311,9 @@ function renderIconPickerGrid() {
     D.iconPickerGrid.innerHTML = '<div class="icon-picker-empty">Nessuna icona trovata per "' + esc(q) + '"</div>';
     return;
   }
-  const cur = _spesaEditState.icona;
+  const cur = (_iconPickerCtx === 'todo')
+    ? (_todoEditState && _todoEditState.icona)
+    : (_spesaEditState && _spesaEditState.icona);
   D.iconPickerGrid.innerHTML = emojis.map(e =>
     '<button class="icon-picker-cell' + (e === cur ? ' selected' : '') + '" data-emoji="' + e + '" type="button">' +
       e +
@@ -912,8 +1323,13 @@ function renderIconPickerGrid() {
   $$('.icon-picker-cell', D.iconPickerGrid).forEach(b => {
     b.addEventListener('click', () => {
       const e = b.getAttribute('data-emoji');
-      _spesaEditState.iconaManual = true;
-      updateSpesaEditIcon(e);
+      if (_iconPickerCtx === 'todo') {
+        _todoEditState.iconaManual = true;
+        updateTodoEditIcon(e);
+      } else {
+        _spesaEditState.iconaManual = true;
+        updateSpesaEditIcon(e);
+      }
       closeModal('modalIconPicker');
     });
   });
@@ -1273,6 +1689,332 @@ async function refreshSpesaNow() {
       S.spesa = rows;
       saveLocalCache();
       renderSpesa();
+      renderHomeGestione();
+    }
+  } catch (e) { /* offline o errore: niente */ }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TODO — stessa logica della Spesa ma su tabella cdc_lista_todo
+// Item: {id, nome, icona, note, scadenza, fatto, ordine, ...}
+// ═══════════════════════════════════════════════════════════════
+function renderTodo() {
+  if (!D.todoListToDo || !D.todoListDone) return;
+  const items = (S.todo || []).slice().sort((a, b) => {
+    // Ordine: scadenza prima (asc), poi ordine, poi created
+    const sa = a.scadenza || '9999-99-99';
+    const sb = b.scadenza || '9999-99-99';
+    if (sa !== sb) return sa < sb ? -1 : 1;
+    return (a.ordine || 0) - (b.ordine || 0);
+  });
+  const todo = items.filter(x => !x.fatto);
+  const done = items.filter(x =>  x.fatto);
+  if (D.todoCountToDo) D.todoCountToDo.textContent = todo.length;
+  if (D.todoCountDone) D.todoCountDone.textContent = done.length;
+  D.todoListToDo.innerHTML = todo.map(todoRowHtml).join('');
+  D.todoListDone.innerHTML = done.map(todoRowHtml).join('');
+  bindTodoRows(D.todoListToDo);
+  bindTodoRows(D.todoListDone);
+  twemojify(D.todoListToDo);
+  twemojify(D.todoListDone);
+}
+
+function todoRowHtml(it) {
+  const fatto = !!it.fatto;
+  // Badge scadenza con "urgent" se entro oggi
+  let scadHtml = '';
+  if (it.scadenza) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const sd = new Date(it.scadenza + 'T00:00:00');
+    const diffDays = Math.floor((sd - today) / 86400000);
+    const urgent = diffDays <= 1 && !fatto;
+    scadHtml = '<span class="todo-item-scadenza' + (urgent ? ' urgent' : '') + '">' + fmtDataLong(it.scadenza) + '</span>';
+  }
+  const note = it.note ? esc(it.note) : '';
+  const meta = (scadHtml || note) ? '<div class="todo-item-meta">' + scadHtml + (note ? '<span>' + note + '</span>' : '') + '</div>' : '';
+  return '<div class="todo-item ' + (fatto ? 'fatto' : '') + '" data-id="' + it.id + '">' +
+           '<button class="todo-item-icon" type="button" data-action="toggle" aria-label="' + (fatto ? 'Non fatto' : 'Segna come fatto') + '">' +
+             (it.icona || '📝') +
+           '</button>' +
+           '<div class="todo-item-body" data-action="edit">' +
+             '<div class="todo-item-name">' + esc(it.nome || '') + '</div>' +
+             meta +
+           '</div>' +
+         '</div>';
+}
+
+function bindTodoRows(container) {
+  $$('.todo-item', container).forEach(row => {
+    const id = Number(row.getAttribute('data-id'));
+    const iconBtn = row.querySelector('[data-action="toggle"]');
+    const body    = row.querySelector('[data-action="edit"]');
+    if (iconBtn) iconBtn.addEventListener('click', e => { e.stopPropagation(); toggleTodoDone(id); });
+    if (body)    body.addEventListener('click', () => openTodoEdit(id));
+  });
+}
+
+async function toggleTodoDone(id) {
+  const it = S.todo.find(x => x.id === id);
+  if (!it) return;
+  const newVal = !it.fatto;
+  it.fatto = newVal;
+  saveLocalCache();
+  renderTodo();
+  renderHomeGestione();
+  // remoto
+  const path = T.TODO + '?id=eq.' + id;
+  const options = { method: 'PATCH', body: JSON.stringify({ fatto: newVal }) };
+  if (isOnline()) {
+    try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+  } else {
+    enqueue({ path, options });
+  }
+}
+
+// ─── MODAL Nuovo/Modifica ToDo ──────────────────────────────
+let _todoEditState = { icone: ['📝'], iconaManual: false };
+
+function openTodoAdd() {
+  S.editTodoId = null;
+  _todoEditState = { icone: ['📝'], iconaManual: false };
+  if (D.todoEditTitle)    D.todoEditTitle.textContent = 'Nuovo ToDo';
+  if (D.todoEditNome)     D.todoEditNome.value = '';
+  if (D.todoEditScadenza) D.todoEditScadenza.value = '';
+  if (D.todoEditNote)     D.todoEditNote.value = '';
+  updateTodoEditIcons(['📝']);
+  if (D.todoEditDelete) D.todoEditDelete.style.display = 'none';
+  openModal('modalTodo');
+  setTimeout(() => { if (D.todoEditNome) D.todoEditNome.focus(); }, 80);
+}
+
+function openTodoEdit(idStr) {
+  const id = isNaN(Number(idStr)) ? idStr : Number(idStr);
+  const it = S.todo.find(x => x.id === id);
+  if (!it) return;
+  S.editTodoId = id;
+  _todoEditState = { icone: [it.icona || '📝'], iconaManual: true };
+  if (D.todoEditTitle)    D.todoEditTitle.textContent = 'Modifica ToDo';
+  if (D.todoEditNome)     D.todoEditNome.value = it.nome || '';
+  if (D.todoEditScadenza) D.todoEditScadenza.value = it.scadenza || '';
+  if (D.todoEditNote)     D.todoEditNote.value = it.note || '';
+  updateTodoEditIcons(_todoEditState.icone);
+  if (D.todoEditDelete) D.todoEditDelete.style.display = 'block';
+  openModal('modalTodo');
+}
+
+function updateTodoEditIcons(icone) {
+  if (!Array.isArray(icone) || !icone.length) icone = ['📝'];
+  _todoEditState.icone = icone.slice(0, 5);
+  if (D.todoEditIconBtn) {
+    D.todoEditIconBtn.innerHTML = _todoEditState.icone[0];
+    twemojify(D.todoEditIconBtn);
+  }
+  document.querySelectorAll('.spesa-icon-side[data-todo-slot]').forEach(el => {
+    const slot = Number(el.getAttribute('data-todo-slot'));
+    const ic = _todoEditState.icone[slot];
+    if (ic) { el.hidden = false; el.innerHTML = ic; twemojify(el); }
+    else    { el.hidden = true;  el.innerHTML = ''; }
+  });
+}
+
+function updateTodoEditIcon(icon) {
+  if (!icon) icon = '📝';
+  const arr = _todoEditState.icone.slice();
+  const existing = arr.indexOf(icon, 1);
+  if (existing > 0) arr.splice(existing, 1);
+  arr[0] = icon;
+  updateTodoEditIcons(arr);
+}
+
+function onTodoEditNomeInput() {
+  const nome = D.todoEditNome ? D.todoEditNome.value : '';
+  if (nome.trim().length < SPESA_MIN_QUERY_LEN) return;
+  const suggestions = todoIconSuggestions(nome, 5);
+  const currentIcon = _todoEditState.icone && _todoEditState.icone[0];
+  const stillRelevant = suggestions.indexOf(currentIcon) !== -1;
+  if (_todoEditState.iconaManual && stillRelevant) {
+    const lateral = suggestions.filter(e => e !== currentIcon).slice(0, 4);
+    updateTodoEditIcons([currentIcon].concat(lateral));
+  } else {
+    _todoEditState.iconaManual = false;
+    updateTodoEditIcons(suggestions);
+  }
+}
+
+function swapTodoIcon(slot) {
+  const arr = _todoEditState.icone.slice();
+  if (!arr[slot]) return;
+  const tmp = arr[0]; arr[0] = arr[slot]; arr[slot] = tmp;
+  _todoEditState.iconaManual = true;
+  updateTodoEditIcons(arr);
+}
+
+async function saveTodoEdit() {
+  const nome = D.todoEditNome ? D.todoEditNome.value.trim() : '';
+  if (!nome) { toast('Inserisci cosa devi fare', 'warn'); return; }
+  const icona = (_todoEditState.icone && _todoEditState.icone[0]) || todoIconForName(nome);
+  const scadenza = (D.todoEditScadenza && D.todoEditScadenza.value) || null;
+  const note = D.todoEditNote ? D.todoEditNote.value.trim() : '';
+  setBtnLoading(D.todoEditSave, true);
+  try {
+    if (S.editTodoId == null) {
+      // nuovo
+      const maxOrd = (S.todo || []).reduce((m, x) => Math.max(m, x.ordine || 0), 0);
+      const payload = { nome, icona, scadenza, note: note || null, ordine: maxOrd + 1, fatto: false };
+      const tmpId = uuid();
+      const row = Object.assign({ id: tmpId, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, payload);
+      S.todo.push(row);
+      saveLocalCache();
+      renderTodo(); renderHomeGestione();
+      const path = T.TODO + '?select=*';
+      const options = { method: 'POST', body: JSON.stringify(payload), headers: { 'Prefer': 'return=representation' } };
+      if (isOnline()) {
+        try {
+          const res = await supaFetch(path, options);
+          if (res && res[0]) {
+            const idx = S.todo.findIndex(x => x.id === tmpId);
+            if (idx >= 0) S.todo[idx] = res[0];
+            saveLocalCache();
+            renderTodo(); renderHomeGestione();
+          }
+        } catch { enqueue({ path, options }); }
+      } else {
+        enqueue({ path, options });
+      }
+      closeModal('modalTodo');
+      toast('ToDo aggiunto', 'success');
+    } else {
+      // modifica
+      const idx = S.todo.findIndex(x => x.id === S.editTodoId);
+      const payload = { nome, icona, scadenza, note: note || null };
+      if (idx >= 0) S.todo[idx] = Object.assign({}, S.todo[idx], payload);
+      saveLocalCache();
+      renderTodo(); renderHomeGestione();
+      const path = T.TODO + '?id=eq.' + S.editTodoId;
+      const options = { method: 'PATCH', body: JSON.stringify(payload) };
+      if (isOnline()) {
+        try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+      } else {
+        enqueue({ path, options });
+      }
+      closeModal('modalTodo');
+      toast('ToDo modificato', 'success');
+    }
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'salvataggio non riuscito'), 'error');
+  } finally {
+    setBtnLoading(D.todoEditSave, false);
+    S.editTodoId = null;
+  }
+}
+
+async function deleteTodoEdit() {
+  if (S.editTodoId == null) return;
+  const ok = await confirmDlg({
+    title: 'Elimina ToDo',
+    message: 'Vuoi davvero eliminare questo ToDo? L\'azione non è reversibile.',
+    confirmLabel: 'Elimina',
+    danger: true
+  });
+  if (!ok) return;
+  setBtnLoading(D.todoEditDelete, true);
+  try {
+    const id = S.editTodoId;
+    S.todo = S.todo.filter(x => x.id !== id);
+    saveLocalCache();
+    renderTodo(); renderHomeGestione();
+    const path = T.TODO + '?id=eq.' + id;
+    const options = { method: 'DELETE' };
+    if (isOnline()) {
+      try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+    } else {
+      enqueue({ path, options });
+    }
+    closeModal('modalTodo');
+    toast('ToDo eliminato', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'eliminazione non riuscita'), 'error');
+  } finally {
+    setBtnLoading(D.todoEditDelete, false);
+    S.editTodoId = null;
+  }
+}
+
+// Step 1: scelta scope svuotamento ToDo
+function confirmClearTodo() {
+  if (!S.todo.length) { toast('Lavagna già vuota', 'info'); return; }
+  openModal('modalClearTodo');
+}
+
+async function clearTodoScope(scope) {
+  const all = S.todo || [];
+  let items, msg;
+  if (scope === 'toDo') {
+    items = all.filter(x => !x.fatto);
+    if (!items.length) { closeModal('modalClearTodo'); toast('Niente "Da fare"', 'info'); return; }
+    msg = 'Cancellare i ' + items.length + ' ToDo "Da fare"? L\'azione non è reversibile.';
+  } else if (scope === 'done') {
+    items = all.filter(x => x.fatto);
+    if (!items.length) { closeModal('modalClearTodo'); toast('Niente "Fatti"', 'info'); return; }
+    msg = 'Cancellare i ' + items.length + ' ToDo "Fatti"? L\'azione non è reversibile.';
+  } else {
+    items = all.slice();
+    msg = 'Pulire TUTTA la lavagna (' + items.length + ' ToDo)? L\'azione non è reversibile.';
+  }
+  closeModal('modalClearTodo');
+  const ok = await confirmDlg({
+    title: 'Conferma pulizia lavagna',
+    message: msg,
+    confirmLabel: 'Pulisci',
+    danger: true
+  });
+  if (!ok) return;
+  try {
+    const ids = items.map(x => x.id).filter(id => typeof id === 'number');
+    if (scope === 'all')      S.todo = [];
+    else if (scope === 'toDo')S.todo = all.filter(x => x.fatto);
+    else                       S.todo = all.filter(x => !x.fatto);
+    saveLocalCache();
+    renderTodo(); renderHomeGestione();
+    if (ids.length) {
+      const path = T.TODO + '?id=in.(' + ids.join(',') + ')';
+      const options = { method: 'DELETE' };
+      if (isOnline()) {
+        try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+      } else {
+        enqueue({ path, options });
+      }
+    }
+    toast(scope === 'all' ? 'Lavagna pulita' : 'ToDo eliminati', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'pulizia fallita'), 'error');
+  }
+}
+
+// Realtime ToDo
+function onTodoChange(p) {
+  const ev = p.eventType;
+  if (ev === 'INSERT') {
+    if (!S.todo.find(x => x.id === p.new.id)) S.todo.push(p.new);
+  } else if (ev === 'UPDATE') {
+    const idx = S.todo.findIndex(x => x.id === p.new.id);
+    if (idx >= 0) S.todo[idx] = p.new;
+    else S.todo.push(p.new);
+  } else if (ev === 'DELETE') {
+    S.todo = S.todo.filter(x => x.id !== p.old.id);
+  }
+  saveLocalCache();
+  try { renderTodo(); } catch {}
+  try { renderHomeGestione(); } catch {}
+}
+
+async function refreshTodoNow() {
+  try {
+    const rows = await supaFetch(T.TODO + '?select=*&order=ordine.asc,created_at.asc');
+    if (rows) {
+      S.todo = rows;
+      saveLocalCache();
+      renderTodo();
       renderHomeGestione();
     }
   } catch (e) { /* offline o errore: niente */ }
@@ -1832,6 +2574,54 @@ function renderHomeGestione() {
       D.homeSpesaPreview.innerHTML = html;
     }
     twemojify(D.homeSpesaPreview);
+  }
+
+  // Widget ToDo: primi 6 elementi "da fare" in grid (stessa logica della Spesa)
+  // Mostriamo solo i non-fatti per riflettere ciò che resta da fare.
+  if (D.homeTodoPreview) {
+    const items = (S.todo || []).slice().sort((a, b) => {
+      // Ordine: prima per scadenza ASC (i più urgenti in cima), poi per ordine, poi per id
+      const sa = a.scadenza || '9999-12-31';
+      const sb = b.scadenza || '9999-12-31';
+      if (sa !== sb) return sa < sb ? -1 : 1;
+      return (a.ordine || 0) - (b.ordine || 0);
+    });
+    const toDo = items.filter(x => !x.fatto);
+    const PREVIEW_MAX = 6;
+    const preview = toDo.slice(0, PREVIEW_MAX);
+    if (D.homeTodoCount) {
+      D.homeTodoCount.textContent = toDo.length ? (toDo.length + ' da fare') : 'lavagna vuota';
+    }
+    if (!toDo.length) {
+      D.homeTodoPreview.innerHTML = '<div class="mc-spesa-empty">Niente da fare</div>';
+    } else {
+      const todayStr = (() => {
+        const t = new Date();
+        return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+      })();
+      let html = preview.map(it => {
+        const urg = (it.scadenza && it.scadenza <= todayStr) ? ' urgent' : '';
+        // formato compatto DD/MM per home widget
+        let scaTxt = '';
+        if (it.scadenza) {
+          const [, m, d] = it.scadenza.split('-');
+          scaTxt = d + '/' + m;
+        }
+        const sca = scaTxt ? '<span class="mc-spesa-row-qty' + urg + '">' + scaTxt + '</span>' : '';
+        return '<div class="mc-spesa-row">' +
+                 '<span class="mc-spesa-row-icon">' + (it.icona || '📝') + '</span>' +
+                 '<span class="mc-spesa-row-text">' +
+                   '<span class="mc-spesa-row-name">' + esc(it.nome || '') + '</span>' +
+                   sca +
+                 '</span>' +
+               '</div>';
+      }).join('');
+      if (toDo.length > PREVIEW_MAX) {
+        html += '<div class="mc-spesa-more">+ ' + (toDo.length - PREVIEW_MAX) + ' altri</div>';
+      }
+      D.homeTodoPreview.innerHTML = html;
+    }
+    twemojify(D.homeTodoPreview);
   }
 }
 
@@ -2987,20 +3777,31 @@ const MODULI = {
       { id: 'actAddSpesa', cls: 'action-add', label: '+', aria: 'Nuovo elemento', onClick: openSpesaAdd },
       { id: 'actClearSpesa', label: '🗑', caption: 'Svuota', aria: 'Svuota lista', onClick: confirmClearSpesa }
     ]
+  },
+  todo: {
+    label: '✅ ToDo',
+    home: 'todo',
+    hasMonthNav: false,
+    viewLabels: { todo: 'Lavagna' },
+    getActions: () => [
+      { id: 'actAddTodo', cls: 'action-add', label: '+', aria: 'Nuovo ToDo', onClick: openTodoAdd },
+      { id: 'actClearTodo', label: '🧽', caption: 'Pulisci', aria: 'Pulisci lavagna', onClick: confirmClearTodo }
+    ]
   }
-  // futuri moduli (todo, scadenze) → si aggiungono qui con la stessa shape
+  // futuri moduli (scadenze) → si aggiungono qui con la stessa shape
 };
 
 function moduloOf(viewName) {
   if (viewName === 'home') return null;
   if (viewName === 'conti' || viewName === 'list' || viewName === 'cat') return 'conti';
   if (viewName === 'spesa') return 'spesa';
+  if (viewName === 'todo') return 'todo';
   return null;
 }
 
 function switchView(name) {
   S.currentView = name;
-  ['home','conti','list','cat','spesa'].forEach(v => {
+  ['home','conti','list','cat','spesa','todo'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.classList.toggle('active', v === name);
   });
@@ -3031,17 +3832,19 @@ function switchView(name) {
   // render contenuto view
   if (name === 'home') {
     renderHomeGestione();
-    // Refresh anche in home perché c'è il widget anteprima Lista spesa
     refreshSpesaNow();
+    refreshTodoNow();
   }
   else if (name === 'conti') renderConti();
   else if (name === 'list') renderList();
   else if (name === 'cat')  renderCatView();
   else if (name === 'spesa') {
     renderSpesa();
-    // Refresh in background: assicura che la lista sia allineata col remoto
-    // (utile se Realtime ha perso eventi mentre l'app era in background)
     refreshSpesaNow();
+  }
+  else if (name === 'todo') {
+    renderTodo();
+    refreshTodoNow();
   }
   // Sincronizza monthLabel + visibilità frecce mese in base alla nuova view
   renderHeader();
@@ -4644,6 +5447,7 @@ function setupRealtime() {
     ch.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: T.PREFS, filter: 'id=eq.1' }, p => onPrefsChange(p));
     ch.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: T.VER, filter: 'id=eq.1' }, p => onVersionChange(p && p.new && p.new.sha));
     ch.on('postgres_changes', { event: '*', schema: 'public', table: T.SPESA }, p => onSpesaChange(p));
+    ch.on('postgres_changes', { event: '*', schema: 'public', table: T.TODO },  p => onTodoChange(p));
     ch.subscribe(status => { if (status === 'SUBSCRIBED') console.log('Realtime connesso'); });
     S.realtimeChannel = ch;
   } catch (e) { console.warn('Realtime init failed', e); }
@@ -4755,12 +5559,14 @@ function setupVersionWatchdog() {
       // Safari iOS PWA si addormenta in background → recuperiamo lo
       // stato vero della tabella quando torna visibile
       refreshSpesaNow();
+      refreshTodoNow();
     }
   });
   window.addEventListener('online', () => {
     ensureRealtimeAlive();
     checkAppVersionNow();
     refreshSpesaNow();
+    refreshTodoNow();
   });
   // Polling di backup: ogni 60s se la tab è visibile, controlla il SHA.
   if (_versionPollId) clearInterval(_versionPollId);
@@ -4900,17 +5706,30 @@ function bindEvents() {
   if (D.spesaEditQtyMinus) D.spesaEditQtyMinus.addEventListener('click', () => updateSpesaEditQty(_spesaEditState.qty - 1));
   if (D.spesaEditQtyPlus)  D.spesaEditQtyPlus.addEventListener('click', () => updateSpesaEditQty(_spesaEditState.qty + 1));
   if (D.spesaEditNome)     D.spesaEditNome.addEventListener('input', onSpesaEditNomeInput);
-  // Click sull'icona circolare CENTRALE → apri modal selettore icone
+  // Click sull'icona circolare CENTRALE → apri modal selettore icone (spesa)
   if (D.spesaEditIconBtn) {
-    D.spesaEditIconBtn.addEventListener('click', openIconPicker);
+    D.spesaEditIconBtn.addEventListener('click', () => openIconPicker('spesa'));
   }
-  // Click su un suggerimento laterale → swap col centro
-  $$('.spesa-icon-side').forEach(el => {
-    el.addEventListener('click', () => {
-      const slot = Number(el.getAttribute('data-slot'));
-      swapSpesaIcon(slot);
-    });
+  // Click su un suggerimento laterale spesa → swap col centro
+  $$('.spesa-icon-side[data-slot]').forEach(el => {
+    el.addEventListener('click', () => swapSpesaIcon(Number(el.getAttribute('data-slot'))));
   });
+
+  // ── ToDo modal: bind add/edit ────────────────────────────
+  if (D.todoEditSave)    D.todoEditSave.addEventListener('click', saveTodoEdit);
+  if (D.todoEditDelete)  D.todoEditDelete.addEventListener('click', deleteTodoEdit);
+  if (D.todoEditNome)    D.todoEditNome.addEventListener('input', onTodoEditNomeInput);
+  if (D.todoEditIconBtn) D.todoEditIconBtn.addEventListener('click', () => openIconPicker('todo'));
+  $$('.spesa-icon-side[data-todo-slot]').forEach(el => {
+    el.addEventListener('click', () => swapTodoIcon(Number(el.getAttribute('data-todo-slot'))));
+  });
+  // Modal scope svuotamento ToDo
+  const btnClearTodoToDo = document.getElementById('clearTodoToDo');
+  const btnClearTodoDone = document.getElementById('clearTodoDone');
+  const btnClearTodoAll  = document.getElementById('clearTodoAll');
+  if (btnClearTodoToDo) btnClearTodoToDo.addEventListener('click', () => clearTodoScope('toDo'));
+  if (btnClearTodoDone) btnClearTodoDone.addEventListener('click', () => clearTodoScope('done'));
+  if (btnClearTodoAll)  btnClearTodoAll.addEventListener('click',  () => clearTodoScope('all'));
   if (D.iconPickerSearch) {
     D.iconPickerSearch.addEventListener('input', e => {
       _iconPickerSearch = e.target.value || '';
@@ -4933,6 +5752,7 @@ function bindEvents() {
       const mod = card.getAttribute('data-mod');
       if (mod === 'conti')      switchView('conti');
       else if (mod === 'spesa') switchView('spesa');
+      else if (mod === 'todo')  switchView('todo');
       else                      toast('Modulo in arrivo', 'info');
     });
   });
@@ -5118,7 +5938,7 @@ async function init() {
   if (D.moduleActions) D.moduleActions.style.display = 'none';
   S.currentView = 'home';
   // render iniziale da cache
-  if (S.cats.length || S.tx.length) {
+  if (S.cats.length || S.tx.length || S.spesa.length || S.todo.length) {
     renderAll();
   }
   // UI di base pronta → nascondi splash subito (la sync da rete continua in background)
@@ -5129,7 +5949,7 @@ async function init() {
     if (changed) renderAll();
     else {
       // se cache vuota anche dopo sync, prova full reload
-      if (!S.cats.length && !S.tx.length && !S.spesa.length) {
+      if (!S.cats.length && !S.tx.length && !S.spesa.length && !S.todo.length) {
         await reloadAll();
         renderAll();
       }
