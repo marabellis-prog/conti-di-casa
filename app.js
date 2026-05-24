@@ -136,6 +136,7 @@ function cacheDOM() {
    'homeScadenzePreview','homeScadenzeCount',
    'modalScadenza','scadenzaEditTitle','scadenzaEditIconBtn','scadenzaEditTitolo','scadenzaEditData','scadenzaEditNote','scadenzaEditSave','scadenzaEditDelete',
    'scadenzaAnticipoChips','scadenzaRicorrenzaChips',
+   'modalScadenzaComplete','scadCompleteTitle','scadCompleteSubtitle','scadCompleteNota','scadCompleteSave',
    'modalClearScadenze',
    'modalIconPicker','iconPickerSearch','iconPickerCategories','iconPickerGrid',
    'homeContiDonut','homeContiSaldo','homeContiSubtle','homeContiPeriod','goToList','goToCategorie',
@@ -2288,25 +2289,134 @@ function scadItemHtml(it) {
   }
   if (it.note) tagHtml += '<span class="scad-tag">' + esc(String(it.note).slice(0, 40)) + (it.note.length > 40 ? '…' : '') + '</span>';
 
+  // Footer "completata da X il dd/mm" se fatto
+  let completedFooter = '';
+  if (it.fatto && it.completato_da) {
+    const dt = it.completato_at ? new Date(it.completato_at) : null;
+    const when = dt ? (String(dt.getDate()).padStart(2,'0') + '/' + String(dt.getMonth()+1).padStart(2,'0') + '/' + dt.getFullYear()) : '';
+    completedFooter = '<div class="scad-item-completed-info">' +
+                        '<span>✓ ' + esc(it.completato_da) + '</span>' +
+                        (when ? '<span class="ci-sep">·</span><span>' + when + '</span>' : '') +
+                        (it.nota_completamento ? '<span class="ci-sep">·</span><span class="ci-note">' + esc(it.nota_completamento) + '</span>' : '') +
+                      '</div>';
+  }
+
   const [, m, d] = date.split('-');
+  // Action button: ✓ apre modal complete (se non fatto) o riporta a not-fatto (se fatto)
+  const actionLabel = it.fatto ? 'Annulla completamento' : 'Segna come completata';
   return '<div class="' + cls.join(' ') + '" data-id="' + it.id + '">' +
            '<div class="scad-item-date">' +
              '<div class="day">' + Number(d) + '</div>' +
              '<div class="month">' + MESI_SHORT[Number(m) - 1] + '</div>' +
            '</div>' +
            '<div class="scad-item-body">' +
-             '<div class="scad-item-name"><span class="scad-icon">' + (it.icona || '📅') + '</span>' + esc(it.titolo || '') + '</div>' +
+             '<div class="scad-item-name">' +
+               '<span class="scad-item-icon-wrap">' +
+                 '<span class="scad-icon">' + (it.icona || '📅') + '</span>' +
+                 '<span class="check-mark">✓</span>' +
+               '</span>' +
+               esc(it.titolo || '') +
+             '</div>' +
              (tagHtml ? '<div class="scad-item-meta">' + tagHtml + '</div>' : '') +
+             completedFooter +
            '</div>' +
-           '<div class="scad-item-chevron">›</div>' +
+           '<button class="scad-item-action" data-action="complete" type="button" aria-label="' + actionLabel + '" title="' + actionLabel + '">✓</button>' +
          '</div>';
 }
 
 function bindScadenzeItems(container) {
   $$('.scad-item', container).forEach(row => {
     const id = row.getAttribute('data-id');
-    row.addEventListener('click', () => openScadenzaEdit(id));
+    // Bottone azione ✓ a destra → apre modal complete (o annulla se già fatto)
+    const actionBtn = row.querySelector('[data-action="complete"]');
+    if (actionBtn) {
+      actionBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        const it = (S.scadenze || []).find(x => String(x.id) === String(id));
+        if (!it) return;
+        if (it.fatto) uncompleteScadenza(id);
+        else openScadenzaComplete(id);
+      });
+    }
+    // Click ovunque sulla riga (eccetto sul bottone azione) → modifica
+    row.addEventListener('click', e => {
+      if (e.target && e.target.closest('[data-action="complete"]')) return;
+      openScadenzaEdit(id);
+    });
   });
+}
+
+// ─── COMPLETAMENTO scadenza ─────────────────────────────────
+function openScadenzaComplete(idStr) {
+  const id = isNaN(Number(idStr)) ? idStr : Number(idStr);
+  const it = (S.scadenze || []).find(x => x.id === id || String(x.id) === String(id));
+  if (!it) return;
+  S.editScadenzaId = it.id;
+  if (D.scadCompleteTitle) D.scadCompleteTitle.textContent = 'Segna come completata';
+  if (D.scadCompleteSubtitle) {
+    D.scadCompleteSubtitle.textContent = 'Vuoi segnare "' + (it.titolo || 'questa scadenza') + '" come completata?';
+  }
+  if (D.scadCompleteNota) D.scadCompleteNota.value = '';
+  openModal('modalScadenzaComplete');
+  setTimeout(() => { if (D.scadCompleteNota) D.scadCompleteNota.focus(); }, 80);
+}
+
+async function saveScadenzaComplete() {
+  const id = S.editScadenzaId;
+  if (id == null) { closeModal('modalScadenzaComplete'); return; }
+  const it = (S.scadenze || []).find(x => x.id === id || String(x.id) === String(id));
+  if (!it) { closeModal('modalScadenzaComplete'); return; }
+  const nota = D.scadCompleteNota ? D.scadCompleteNota.value.trim() : '';
+  const autore = getDefaultAutore();
+  const completato_at = new Date().toISOString();
+  setBtnLoading(D.scadCompleteSave, true);
+  try {
+    const payload = {
+      fatto: true,
+      completato_da: autore,
+      completato_at,
+      nota_completamento: nota || null
+    };
+    // Update optimistic locale
+    const idx = S.scadenze.findIndex(x => x.id === id || String(x.id) === String(id));
+    if (idx >= 0) S.scadenze[idx] = Object.assign({}, S.scadenze[idx], payload);
+    saveLocalCache();
+    _rerenderScadenze();
+    // Remoto
+    const path = T.SCADENZE + '?id=eq.' + it.id;
+    const options = { method: 'PATCH', body: JSON.stringify(payload) };
+    if (isOnline()) {
+      try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+    } else {
+      enqueue({ path, options });
+    }
+    closeModal('modalScadenzaComplete');
+    toast('✓ Completata', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'salvataggio'), 'error');
+  } finally {
+    setBtnLoading(D.scadCompleteSave, false);
+    S.editScadenzaId = null;
+  }
+}
+
+async function uncompleteScadenza(idStr) {
+  const id = isNaN(Number(idStr)) ? idStr : Number(idStr);
+  const idx = S.scadenze.findIndex(x => x.id === id || String(x.id) === String(id));
+  if (idx < 0) return;
+  const it = S.scadenze[idx];
+  const payload = { fatto: false, completato_da: null, completato_at: null, nota_completamento: null };
+  S.scadenze[idx] = Object.assign({}, it, payload);
+  saveLocalCache();
+  _rerenderScadenze();
+  const path = T.SCADENZE + '?id=eq.' + it.id;
+  const options = { method: 'PATCH', body: JSON.stringify(payload) };
+  if (isOnline()) {
+    try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
+  } else {
+    enqueue({ path, options });
+  }
+  toast('Completamento annullato', 'info');
 }
 
 // ─── RENDER CALENDARIO ───────────────────────────────────────
@@ -3341,58 +3451,98 @@ function renderHomeGestione() {
     twemojify(D.homeTodoPreview);
   }
 
-  // Widget Scadenze: prossime 6 ordinate per data ASC (escludendo passate non ricorrenti già fatte)
+  // Widget Scadenze a 3 sezioni:
+  // 1) SALTATE/NON COMPLETATE entro la data  → badge rosso pastello + ⚠️
+  // 2) Oltre data REMINDER (entro anticipo) ma non ancora a today  → badge giallo + 🔔
+  // 3) Prossime 4 normali (oltre il reminder, future)
   if (D.homeScadenzePreview) {
     const today = _todayStr();
-    const items = (S.scadenze || []).map(it => {
+    const allActive = (S.scadenze || []).map(it => {
       const nextDate = nextOccurrence(it);
       return Object.assign({}, it, { _nextDate: nextDate });
     }).filter(it => {
-      if (it.fatto && it.ricorrenza === 'no') return false;
-      // Per ricorrenti: prossima occorrenza è sempre futura/odierna
-      // Per non-ricorrenti: includi anche passate (per dare warning)
+      // Escludi una tantum già completate
+      if (it.fatto && (it.ricorrenza === 'no' || !it.ricorrenza)) return false;
       return !!it._nextDate;
-    }).sort((a, b) => {
-      const da = a._nextDate || '9999-12-31';
-      const db = b._nextDate || '9999-12-31';
-      return da < db ? -1 : (da > db ? 1 : 0);
     });
-    const PREVIEW_MAX = 6;
-    const preview = items.slice(0, PREVIEW_MAX);
+
+    // 1) Saltate: data passata e NON completata (per ricorrenti = appena scaduta, per una tantum non-fatto e nextDate<today)
+    const saltate = allActive.filter(it => {
+      const d = _daysBetween(today, it._nextDate);
+      return d < 0 && !it.fatto;
+    }).sort((a, b) => (a._nextDate < b._nextDate ? -1 : 1));
+
+    // 2) Reminder superato: dentro anticipo_giorni (compreso oggi) e non passata
+    const reminderItems = allActive.filter(it => {
+      if (it.fatto) return false;
+      const d = _daysBetween(today, it._nextDate);
+      const ant = (it.anticipo_giorni != null) ? it.anticipo_giorni : 7;
+      return d >= 0 && d <= ant;
+    }).sort((a, b) => (a._nextDate < b._nextDate ? -1 : 1));
+
+    // 3) Prossime future (oltre anticipo)
+    const prossime = allActive.filter(it => {
+      if (it.fatto) return false;
+      const d = _daysBetween(today, it._nextDate);
+      const ant = (it.anticipo_giorni != null) ? it.anticipo_giorni : 7;
+      return d > ant;
+    }).sort((a, b) => (a._nextDate < b._nextDate ? -1 : 1));
+
+    // Conteggio totale in alto (oltre alle saltate + reminder)
     if (D.homeScadenzeCount) {
-      // Conta solo prossime entro 30 giorni o scadute
-      const imminenti = items.filter(it => {
-        const d = _daysBetween(today, it._nextDate);
-        return d <= 30;
-      });
-      D.homeScadenzeCount.textContent = imminenti.length
-        ? (imminenti.length + ' prossim' + (imminenti.length === 1 ? 'a' : 'e'))
+      const tot = saltate.length + reminderItems.length;
+      D.homeScadenzeCount.textContent = tot
+        ? (tot + (tot === 1 ? ' urgente' : ' urgenti'))
         : 'tutto sotto controllo';
     }
-    if (!preview.length) {
-      D.homeScadenzePreview.innerHTML = '<div class="mc-spesa-empty">Nessuna scadenza</div>';
-    } else {
-      let html = preview.map(it => {
-        const status = scadStatus(it);
-        let pillCls = '';
-        if (status === 'past')  pillCls = ' past';
-        else if (status === 'today') pillCls = ' today';
-        else if (status === 'soon')  pillCls = ' soon';
-        const [, m, d] = (it._nextDate || it.data).split('-');
-        const pill = '<span class="mc-scad-date-pill' + pillCls + '">' + Number(d) + '/' + Number(m) + '</span>';
-        return '<div class="mc-spesa-row">' +
-                 '<span class="mc-spesa-row-icon">' + (it.icona || '📅') + '</span>' +
-                 '<span class="mc-spesa-row-text">' +
-                   pill +
-                   '<span class="mc-spesa-row-name">' + esc(it.titolo || '') + '</span>' +
-                 '</span>' +
-               '</div>';
-      }).join('');
-      if (items.length > PREVIEW_MAX) {
-        html += '<div class="mc-spesa-more">+ ' + (items.length - PREVIEW_MAX) + ' altre</div>';
-      }
-      D.homeScadenzePreview.innerHTML = html;
+
+    const rowHtml = it => {
+      const [, m, d] = (it._nextDate || it.data).split('-');
+      const status = scadStatus(it);
+      let pillCls = '';
+      if (status === 'past')       pillCls = ' past';
+      else if (status === 'today') pillCls = ' today';
+      else if (status === 'soon')  pillCls = ' soon';
+      const pill = '<span class="mc-scad-date-pill' + pillCls + '">' + Number(d) + '/' + Number(m) + '</span>';
+      return '<div class="mc-spesa-row">' +
+               '<span class="mc-spesa-row-icon">' + (it.icona || '📅') + '</span>' +
+               '<span class="mc-spesa-row-text">' +
+                 pill +
+                 '<span class="mc-spesa-row-name">' + esc(it.titolo || '') + '</span>' +
+               '</span>' +
+             '</div>';
+    };
+
+    let html = '';
+
+    // Sez 1: SALTATE (badge rosso + ⚠️)
+    if (saltate.length) {
+      html += '<div class="mc-scad-section alert">';
+      html += '<div class="mc-scad-section-title"><span class="sec-icon">⚠️</span><span>Saltate</span><span class="sec-count">' + saltate.length + '</span></div>';
+      html += saltate.slice(0, 4).map(rowHtml).join('');
+      if (saltate.length > 4) html += '<div class="mc-spesa-more">+ ' + (saltate.length - 4) + ' altre</div>';
+      html += '</div>';
     }
+
+    // Sez 2: REMINDER SUPERATO (badge giallo + 🔔)
+    if (reminderItems.length) {
+      html += '<div class="mc-scad-section warn">';
+      html += '<div class="mc-scad-section-title"><span class="sec-icon">🔔</span><span>Oltre il promemoria</span><span class="sec-count">' + reminderItems.length + '</span></div>';
+      html += reminderItems.slice(0, 4).map(rowHtml).join('');
+      if (reminderItems.length > 4) html += '<div class="mc-spesa-more">+ ' + (reminderItems.length - 4) + ' altre</div>';
+      html += '</div>';
+    }
+
+    // Sez 3: PROSSIME 4 (elenco normale)
+    if (prossime.length) {
+      html += prossime.slice(0, 4).map(rowHtml).join('');
+      if (prossime.length > 4) html += '<div class="mc-spesa-more">+ ' + (prossime.length - 4) + ' altre prossime</div>';
+    }
+
+    if (!html) {
+      html = '<div class="mc-spesa-empty">Nessuna scadenza</div>';
+    }
+    D.homeScadenzePreview.innerHTML = html;
     twemojify(D.homeScadenzePreview);
   }
 }
@@ -6560,6 +6710,13 @@ function bindEvents() {
   if (btnClearScadPassed) btnClearScadPassed.addEventListener('click', () => clearScadenzeScope('passed'));
   if (btnClearScadDone)   btnClearScadDone.addEventListener('click',   () => clearScadenzeScope('done'));
   if (btnClearScadAll)    btnClearScadAll.addEventListener('click',    () => clearScadenzeScope('all'));
+  // Modal "segna come completata"
+  if (D.scadCompleteSave) D.scadCompleteSave.addEventListener('click', saveScadenzaComplete);
+  if (D.scadCompleteNota) {
+    D.scadCompleteNota.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); saveScadenzaComplete(); }
+    });
+  }
   if (D.iconPickerSearch) {
     D.iconPickerSearch.addEventListener('input', e => {
       _iconPickerSearch = e.target.value || '';

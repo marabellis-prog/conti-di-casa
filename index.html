@@ -671,6 +671,27 @@
     </div>
   </div>
 
+  <!-- Modal "Segna come completata" -->
+  <div class="modal modal-center" id="modalScadenzaComplete">
+    <div class="sheet" id="sheetScadenzaComplete">
+      <div class="sheet-header">
+        <h3 id="scadCompleteTitle">Segna come completata</h3>
+        <button class="sheet-close" data-close="modalScadenzaComplete">✕</button>
+      </div>
+      <div class="sheet-body">
+        <p class="txt-dim" style="font-size:14px;margin:4px 0 14px;line-height:1.5;" id="scadCompleteSubtitle">
+          Vuoi segnare questa scadenza come completata?
+        </p>
+        <div class="form-row">
+          <label for="scadCompleteNota">Nota (opzionale)</label>
+          <input type="text" id="scadCompleteNota" placeholder="es. pagato in posta, ricevuta n. 1234..." autocomplete="off">
+        </div>
+        <button id="scadCompleteSave" class="btn-primary" type="button">✓ Sì, completata</button>
+        <button class="btn-secondary" type="button" data-close="modalScadenzaComplete" style="margin-top:8px">Annulla</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal scelta scope svuotamento Scadenze -->
   <div class="modal modal-center" id="modalClearScadenze">
     <div class="sheet" id="sheetClearScadenze">
