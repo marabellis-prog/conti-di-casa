@@ -3226,13 +3226,14 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   to   { opacity: 1; transform: translateY(0)  scale(1);    }
 }
 
-/* Riga compatta: data a sx + toggle personale a dx (stessa riga) */
+/* Riga compatta: data + toggle personale affiancati e CENTRATI */
 .qa-meta-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 8px;
   margin: 2px 0 6px;
+  flex-wrap: wrap;
 }
 .qa-date-pill {
   position: relative;
