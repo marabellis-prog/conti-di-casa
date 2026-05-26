@@ -6724,22 +6724,37 @@ function bindEvents() {
     D.qaDatePicker.addEventListener('input', renderQaDateLabel);
   }
   if (D.qaDateBtn && D.qaDatePicker) {
-    const openDatePicker = () => {
+    // Il qaDateBtn è un <label for="qaDatePicker">: cliccando OVUNQUE
+    // sulla pill (icona, label, freccia, padding), il browser dispatch
+    // nativamente un click sull'input → apre il calendarietto.
+    // Però:
+    // - Firefox/alcuni browser su date input non aprono il picker via
+    //   label-click-dispatch (solo focus). Quindi chiamiamo esplicitamente
+    //   showPicker() come backup.
+    // - Per evitare doppia apertura usiamo un flag con timeout breve.
+    let _qaPickerOpening = false;
+    D.qaDateBtn.addEventListener('click', e => {
+      // Se l'evento è già stato dispatched DAL label sull'input stesso,
+      // l'apertura nativa è in corso: non duplichiamo.
+      if (e.target === D.qaDatePicker) return;
+      if (_qaPickerOpening) return;
+      _qaPickerOpening = true;
+      setTimeout(() => { _qaPickerOpening = false; }, 400);
+      // showPicker() richiede user gesture: siamo dentro un handler click
+      // sincrono, quindi è valido.
       try {
         if (typeof D.qaDatePicker.showPicker === 'function') {
           D.qaDatePicker.showPicker();
           return;
         }
+      } catch (err) {
+        // showPicker può rifiutare in alcuni contesti — proviamo focus+click
+      }
+      try {
+        // fallback per browser più vecchi
+        D.qaDatePicker.focus();
+        D.qaDatePicker.click();
       } catch (err) {}
-      try { D.qaDatePicker.focus(); D.qaDatePicker.click(); } catch (err) {}
-    };
-    // Click su QUALSIASI parte del bottone (icona, label, freccia, padding)
-    D.qaDateBtn.addEventListener('click', e => {
-      // Se il browser ha già aperto il picker (click diretto sull'input
-      // overlay), non duplicare l'apertura
-      if (e.target === D.qaDatePicker) return;
-      e.preventDefault();
-      openDatePicker();
     });
   }
   // tx edit
