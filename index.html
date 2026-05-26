@@ -366,12 +366,20 @@
           <button data-tipo="entrata">Entrata</button>
         </div>
 
-        <div class="qa-date-row">
+        <!-- Riga compatta: data a sx + toggle personale a dx -->
+        <div class="qa-meta-row">
           <label id="qaDateBtn" class="qa-date-pill" for="qaDatePicker" aria-label="Cambia data">
             <span class="qa-date-ic">🗓</span>
             <span id="qaDateLabel">Oggi</span>
             <span class="qa-date-arrow">▾</span>
             <input type="date" id="qaDatePicker" class="qa-date-hidden">
+          </label>
+          <label class="pers-toggle pers-toggle-compact" for="qaPersonale" aria-label="Spesa personale">
+            <input type="checkbox" id="qaPersonale">
+            <span class="pers-toggle-track"></span>
+            <span class="pers-toggle-label">
+              <span class="pers-toggle-ic">👤</span>Personale
+            </span>
           </label>
         </div>
 
@@ -382,15 +390,6 @@
           <select id="qaAutore" class="qa-autore-select" title="Chi sta inserendo la spesa"></select>
         </div>
 
-        <label class="pers-toggle" for="qaPersonale">
-          <input type="checkbox" id="qaPersonale">
-          <span class="pers-toggle-track"></span>
-          <span class="pers-toggle-label">
-            <span class="pers-toggle-ic">👤</span>
-            Spesa <b>personale</b> (non in comune)
-          </span>
-        </label>
-
         <div class="numpad" id="numpad">
           <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
           <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
@@ -398,7 +397,7 @@
           <button data-k=",">,</button><button data-k="0">0</button><button class="bs" data-k="bs">⌫</button>
         </div>
 
-        <h3 class="card-title" style="margin: 8px 0 2px">Scegli categoria</h3>
+        <h3 class="card-title qa-cats-title">Scegli categoria</h3>
         <div class="qa-cats" id="qaCats"></div>
 
         <button id="qaSaveBtn" class="qa-save-btn" type="button" style="display:none">

@@ -421,6 +421,40 @@ html[data-theme="light"] {
   border-color: var(--accent);
 }
 
+/* Variante COMPATTA: pill orizzontale per la qa-meta-row del quick-add.
+   Track più piccolo + label scritta inline, altezza coerente con .qa-date-pill */
+.pers-toggle.pers-toggle-compact {
+  margin: 0;
+  padding: 5px 12px 5px 10px;
+  gap: 8px;
+  border-radius: 18px;
+  background: var(--surface-2);
+  min-height: 30px;
+  flex-shrink: 0;
+}
+.pers-toggle-compact .pers-toggle-track {
+  width: 30px;
+  height: 18px;
+}
+.pers-toggle-compact .pers-toggle-track::after {
+  width: 14px;
+  height: 14px;
+  top: 2px;
+  left: 2px;
+}
+.pers-toggle-compact input:checked + .pers-toggle-track::after {
+  transform: translateX(12px);
+}
+.pers-toggle-compact .pers-toggle-label {
+  font-size: 13px;
+  font-weight: 600;
+  flex: none;
+}
+.pers-toggle-compact .pers-toggle-ic {
+  font-size: 13px;
+  margin-right: 2px;
+}
+
 /* Badge piccolo per le tx personali quando appaiono in liste */
 .tx-pers-tag {
   display: inline-block;
@@ -3079,20 +3113,34 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 }
 
 /* ─── QUICK ADD ───────────────────────────────────────────── */
+/* Quick-add: modal compatto pensato per stare nello schermo senza scroll.
+   Padding ridotto, sheet header più snello, titolo categoria piccolo. */
+#sheetQa .sheet-body { padding: 0 14px 12px; }
+#sheetQa .sheet-header { padding: 8px 14px 6px; min-height: auto; }
+#sheetQa .sheet-header h3 { font-size: 15px; }
+#sheetQa .sheet-handle { margin: 6px auto 2px; }
+.qa-cats-title {
+  margin: 4px 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
 
 .qa-toggle {
   display: grid;
   grid-template-columns: 1fr 1fr;
   background: var(--surface-2);
-  border-radius: 22px;
-  padding: 4px;
-  margin: 6px 0 16px;
+  border-radius: 18px;
+  padding: 3px;
+  margin: 4px 0 8px;
   position: relative;
 }
 .qa-toggle button {
-  height: 36px;
-  border-radius: 18px;
-  font-size: 14px;
+  height: 30px;
+  border-radius: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-dim);
   z-index: 1;
@@ -3100,11 +3148,11 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .qa-toggle button.active { color: #0f1419; }
 .qa-toggle-bg {
   position: absolute;
-  top: 4px;
-  left: 4px;
-  width: calc(50% - 4px);
-  height: calc(100% - 8px);
-  border-radius: 18px;
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  height: calc(100% - 6px);
+  border-radius: 14px;
   background: var(--danger);
   transition: transform .2s, background .2s;
 }
@@ -3116,8 +3164,8 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 /* Riga descrizione + autore (sotto importo, sopra numpad) */
 .qa-desc-row {
   display: flex;
-  gap: 8px;
-  margin: 4px 0 12px;
+  gap: 6px;
+  margin: 2px 0 6px;
 }
 .qa-desc-input {
   flex: 1;
@@ -3125,8 +3173,8 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 10px 14px;
-  font-size: 14px;
+  padding: 7px 12px;
+  font-size: 13px;
   color: var(--text);
   text-align: center;
 }
@@ -3137,17 +3185,17 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 10px 28px 10px 12px;
-  font-size: 14px;
+  padding: 7px 24px 7px 10px;
+  font-size: 13px;
   color: var(--text);
   font-weight: 600;
   appearance: none;
   -webkit-appearance: none;
   background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
-  background-position: calc(100% - 14px) 50%, calc(100% - 10px) 50%;
+  background-position: calc(100% - 12px) 50%, calc(100% - 8px) 50%;
   background-size: 4px 4px;
   background-repeat: no-repeat;
-  max-width: 130px;
+  max-width: 120px;
 }
 .qa-autore-select:focus { border-color: var(--accent); outline: none; }
 
@@ -3158,10 +3206,10 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   color: #0f1419;
   border: none;
   border-radius: var(--radius-sm);
-  padding: 14px 16px;
-  font-size: 15px;
+  padding: 10px 16px;
+  font-size: 14px;
   font-weight: 700;
-  margin-top: 14px;
+  margin-top: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3178,35 +3226,38 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   to   { opacity: 1; transform: translateY(0)  scale(1);    }
 }
 
-/* Date pill — sempre visibile nel quick-add */
-.qa-date-row {
+/* Riga compatta: data a sx + toggle personale a dx (stessa riga) */
+.qa-meta-row {
   display: flex;
-  justify-content: center;
-  margin-top: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 2px 0 6px;
 }
 .qa-date-pill {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 22px;
-  padding: 8px 16px 8px 14px;
-  font-size: 14px;
+  border-radius: 18px;
+  padding: 5px 12px 5px 10px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
   cursor: pointer;
   transition: background .15s, border-color .15s;
-  min-height: 38px;
+  min-height: 30px;
+  flex-shrink: 0;
 }
 .qa-date-pill:active { transform: scale(.97); }
 .qa-date-pill.is-past {
   border-color: var(--warn);
   color: var(--warn);
 }
-.qa-date-pill .qa-date-ic { font-size: 16px; }
-.qa-date-pill .qa-date-arrow { font-size: 12px; color: var(--text-faint); }
+.qa-date-pill .qa-date-ic { font-size: 14px; }
+.qa-date-pill .qa-date-arrow { font-size: 11px; color: var(--text-faint); }
 .qa-date-hidden {
   position: absolute;
   inset: 0;
@@ -3218,32 +3269,27 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   padding: 0;
   font-size: 16px; /* >=16 per evitare zoom iOS */
   color: transparent;
-  /* pointer-events:none → tutti i click sul .qa-date-pill arrivano al
-     button parent (anche su icona/label/freccia/padding), che chiama
-     showPicker() programmaticamente. Era stato rimosso per provare il
-     click diretto sull'input, ma su iOS questo intercettava i click sulle
-     etichette interne e l'utente doveva premere precisamente sul
-     triangolino indicator a destra. */
   pointer-events: none;
 }
 
 .qa-amt {
   text-align: center;
-  font-size: 56px;
+  font-size: 42px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -1.5px;
-  margin: 14px 0 8px;
-  min-height: 70px;
+  letter-spacing: -1px;
+  margin: 6px 0 4px;
+  min-height: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
   word-break: break-all;
+  line-height: 1;
 }
 .qa-amt .euro {
-  font-size: 30px;
+  font-size: 22px;
   color: var(--text-dim);
-  margin-right: 6px;
+  margin-right: 4px;
   font-weight: 500;
 }
 .qa-amt.empty { color: var(--text-faint); }
@@ -3251,28 +3297,28 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .numpad {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-  margin: 8px 0 14px;
+  gap: 6px;
+  margin: 4px 0 8px;
 }
 .numpad button {
-  height: 56px;
+  height: 42px;
   background: var(--surface-2);
   border-radius: var(--radius-sm);
-  font-size: 22px;
+  font-size: 19px;
   font-weight: 500;
   color: var(--text);
   transition: background .1s;
 }
 .numpad button:active { background: var(--border); }
-.numpad button.bs { color: var(--danger); font-size: 18px; }
+.numpad button.bs { color: var(--danger); font-size: 16px; }
 
 .qa-cats {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  padding: 6px 2px 12px;
+  padding: 4px 2px 6px;
   margin: 0 -16px 0 -16px;
   padding-left: 16px;
   padding-right: 16px;
@@ -3283,16 +3329,16 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   background: var(--surface-2);
   border-radius: var(--radius-sm);
-  padding: 10px 8px;
-  min-width: 76px;
+  padding: 6px 8px;
+  min-width: 64px;
   font-size: 11px;
   text-align: center;
   border: 2px solid transparent;
 }
-.qa-cat-icon { font-size: 24px; }
+.qa-cat-icon { font-size: 22px; }
 .qa-cat-name {
   font-size: 11px;
   color: var(--text);
