@@ -254,6 +254,23 @@
       <button id="btnAddCat" class="add-cat-btn">+ Aggiungi categoria</button>
     </section>
 
+    <!-- GESTIONE PERSONALE — placeholder "in sviluppo" -->
+    <section id="view-personale" class="view">
+      <div class="personale-wip">
+        <div class="personale-wip-ic">👤</div>
+        <h2 class="personale-wip-title">Gestione personale</h2>
+        <p class="personale-wip-sub">in sviluppo…</p>
+        <p class="personale-wip-info" id="personaleWipInfo">
+          Qui vedrai le transazioni segnate come <b>personali</b> da te.
+          Solo tu potrai accedere a questo riepilogo.
+        </p>
+        <div class="personale-wip-counter">
+          <div class="pwc-label">Tue transazioni personali:</div>
+          <div class="pwc-num" id="personaleCount">0</div>
+        </div>
+      </div>
+    </section>
+
     <!-- LISTA DELLA SPESA — un solo block-notes con due sub-sezioni -->
     <section id="view-spesa" class="view">
       <div class="spesa-section">
@@ -365,6 +382,15 @@
           <select id="qaAutore" class="qa-autore-select" title="Chi sta inserendo la spesa"></select>
         </div>
 
+        <label class="pers-toggle" for="qaPersonale">
+          <input type="checkbox" id="qaPersonale">
+          <span class="pers-toggle-track"></span>
+          <span class="pers-toggle-label">
+            <span class="pers-toggle-ic">👤</span>
+            Spesa <b>personale</b> (non in comune)
+          </span>
+        </label>
+
         <div class="numpad" id="numpad">
           <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
           <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
@@ -418,6 +444,14 @@
           <label>Autore</label>
           <select id="txEditAutore"></select>
         </div>
+        <label class="pers-toggle" for="txEditPersonale">
+          <input type="checkbox" id="txEditPersonale">
+          <span class="pers-toggle-track"></span>
+          <span class="pers-toggle-label">
+            <span class="pers-toggle-ic">👤</span>
+            Transazione <b>personale</b> (non in comune)
+          </span>
+        </label>
         <button id="txEditSave" class="btn-primary">Salva</button>
         <button id="txEditDelete" class="btn-danger">Elimina</button>
       </div>

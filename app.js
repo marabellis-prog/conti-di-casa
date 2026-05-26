@@ -152,9 +152,10 @@ function cacheDOM() {
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
    // modals
-   'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaDesc','qaAutore',
+   'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaDesc','qaAutore','qaPersonale',
    'qaDateBtn','qaDateLabel','qaDatePicker','qaSaveBtn','qaSaveLabel',
-   'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete',
+   'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete','txEditPersonale',
+   'view-personale','personaleCount','personaleWipInfo',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
    'modalSettings','setTheme','setSave','setClearCache','setVersion',
@@ -2913,9 +2914,15 @@ async function refreshScadenzeNow() {
 }
 
 // ─── HOME (DASHBOARD) ───────────────────────────────────────
+// Filtra "in comune": esclude tx personali. Tutte le view del modulo
+// Conti (saldo, donut, trend, lista, autori, budget) lavorano sui soli
+// "in comune". Le personali vivono nella sub-view dedicata.
+function txComune() {
+  return S.tx.filter(t => !t.personale);
+}
 function txInCurrentMonth() {
   const { anno, mese } = S.currentMonth;
-  return S.tx.filter(t => inMonth(t.data, anno, mese));
+  return txComune().filter(t => inMonth(t.data, anno, mese));
 }
 
 function renderConti() {
@@ -3642,7 +3649,7 @@ function renderMeseTrend() {
 function _drawMeseTrend() {
   const { anno, mese } = S.meseTrend;
   const daysInMonth = new Date(anno, mese, 0).getDate();
-  const arr = S.tx.filter(t => inMonth(t.data, anno, mese));
+  const arr = txComune().filter(t => inMonth(t.data, anno, mese));
   if (!arr.length) {
     D.meseTrendChart.innerHTML = '<div class="empty"><div class="emoji">📅</div><div>Nessun movimento in questo mese</div></div>';
     return;
@@ -3702,8 +3709,9 @@ function renderCompareMonth() {
   Promise.all([loadIfMissing(anno, mese), loadIfMissing(prevY, prevM)]).then(() => _drawCompare(anno, mese, prevY, prevM));
 }
 function _drawCompare(anno, mese, prevY, prevM) {
-  const curArr  = S.tx.filter(t => inMonth(t.data, anno, mese));
-  const prevArr = S.tx.filter(t => inMonth(t.data, prevY, prevM));
+  const tComune = txComune();
+  const curArr  = tComune.filter(t => inMonth(t.data, anno, mese));
+  const prevArr = tComune.filter(t => inMonth(t.data, prevY, prevM));
 
   function sumByMacro(arr) {
     const m = {};
@@ -3873,7 +3881,7 @@ function renderRicorrenti() {
   }
   // per ogni categoria, conta in quanti mesi è apparsa e somma totale
   const stats = {};
-  S.tx.filter(t => t.tipo === 'uscita').forEach(t => {
+  txComune().filter(t => t.tipo === 'uscita').forEach(t => {
     const m = monthsToCheck.find(mm => inMonth(t.data, mm.y, mm.m));
     if (!m) return;
     const cid = t.categoria_id;
@@ -4284,7 +4292,8 @@ function renderList() {
 }
 
 function _drawList(range) {
-  let arr = S.tx.filter(t => t.data >= range.fromStr && t.data <= range.toStr);
+  // Modulo Conti: SOLO transazioni "in comune", le personali sono escluse
+  let arr = txComune().filter(t => t.data >= range.fromStr && t.data <= range.toStr);
   if (S.listFilter !== 'all') arr = arr.filter(t => t.tipo === S.listFilter);
   if (S.donutFilter != null) {
     if (typeof S.donutFilter === 'object' && S.donutFilter.type === 'macro') {
@@ -4554,6 +4563,19 @@ function renderBudgetView() {
 
 // ─── CATEGORIE VIEW ─────────────────────────────────────────
 let activeCatTab = 'uscita';
+// ─── VISTA "GESTIONE PERSONALE" (placeholder in sviluppo) ──
+function renderPersonale() {
+  // Conta SOLO le transazioni personali dell'utente loggato
+  const me = (S.currentUser && S.currentUser.nome) || getDefaultAutore();
+  const mine = (S.tx || []).filter(t => t.personale && t.autore === me);
+  if (D.personaleCount) D.personaleCount.textContent = mine.length;
+  if (D.personaleWipInfo) {
+    D.personaleWipInfo.innerHTML =
+      'Qui vedrai le transazioni segnate come <b>personali</b> da te (' +
+      esc(me) + '). Solo tu potrai accedere a questo riepilogo.';
+  }
+}
+
 function renderCatView() {
   const cats = S.cats.filter(c => c.tipo === activeCatTab);
   if (!cats.length) {
@@ -4745,14 +4767,16 @@ const MODULI = {
     home: 'conti',
     hasMonthNav: true,
     viewLabels: {
-      conti: 'Riepilogo',
-      list:  'Transazioni',
-      cat:   'Categorie'
+      conti:     'Riepilogo',
+      list:      'Transazioni',
+      cat:       'Categorie',
+      personale: 'Personale'
     },
     getActions: (cv) => [
       { go: 'list', label: '📋', caption: 'Transazioni', aria: 'Lista transazioni', active: cv === 'list' },
+      { go: 'cat',  label: '📁', caption: 'Categorie',  aria: 'Categorie',         active: cv === 'cat'  },
       { id: 'actAddTx', cls: 'action-add', label: '+', aria: 'Nuova transazione', onClick: openQuickAdd },
-      { go: 'cat',  label: '📁', caption: 'Categorie',  aria: 'Categorie',         active: cv === 'cat'  }
+      { go: 'personale', label: '👤', caption: 'Personale', aria: 'Gestione personale', active: cv === 'personale' }
     ]
   },
   spesa: {
@@ -4790,7 +4814,7 @@ const MODULI = {
 
 function moduloOf(viewName) {
   if (viewName === 'home') return null;
-  if (viewName === 'conti' || viewName === 'list' || viewName === 'cat') return 'conti';
+  if (viewName === 'conti' || viewName === 'list' || viewName === 'cat' || viewName === 'personale') return 'conti';
   if (viewName === 'spesa') return 'spesa';
   if (viewName === 'todo') return 'todo';
   if (viewName === 'scadenze-list' || viewName === 'scadenze-cal') return 'scadenze';
@@ -4799,7 +4823,7 @@ function moduloOf(viewName) {
 
 function switchView(name) {
   S.currentView = name;
-  ['home','conti','list','cat','spesa','todo','scadenze-list','scadenze-cal'].forEach(v => {
+  ['home','conti','list','cat','personale','spesa','todo','scadenze-list','scadenze-cal'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.classList.toggle('active', v === name);
   });
@@ -4837,6 +4861,7 @@ function switchView(name) {
   else if (name === 'conti') renderConti();
   else if (name === 'list') renderList();
   else if (name === 'cat')  renderCatView();
+  else if (name === 'personale') renderPersonale();
   else if (name === 'spesa') {
     renderSpesa();
     refreshSpesaNow();
@@ -5115,7 +5140,7 @@ function _anMeseTrend() {
 function _drawAnMeseTrend() {
   const { anno, mese } = S.anMeseTrend;
   const daysInMonth = new Date(anno, mese, 0).getDate();
-  const arr = S.tx.filter(t => inMonth(t.data, anno, mese));
+  const arr = txComune().filter(t => inMonth(t.data, anno, mese));
   if (!arr.length) {
     D.anMeseTrendChart.innerHTML = '<div class="empty"><div class="emoji">📅</div><div>Nessun movimento</div></div>';
     if (D.anMeseTrendDetail) D.anMeseTrendDetail.innerHTML = '';
@@ -5195,8 +5220,9 @@ function _anCompare() {
   Promise.all([loadIfMissing(anno, mese), loadIfMissing(prevY, prevM)]).then(() => _drawAnCompare(anno, mese, prevY, prevM));
 }
 function _drawAnCompare(anno, mese, prevY, prevM) {
-  const curArr  = S.tx.filter(t => inMonth(t.data, anno, mese));
-  const prevArr = S.tx.filter(t => inMonth(t.data, prevY, prevM));
+  const tComune = txComune();
+  const curArr  = tComune.filter(t => inMonth(t.data, anno, mese));
+  const prevArr = tComune.filter(t => inMonth(t.data, prevY, prevM));
   function sumByMacro(arr) {
     const m = {};
     arr.filter(t => t.tipo === 'uscita').forEach(t => {
@@ -5350,6 +5376,7 @@ function openQuickAdd(tipo) {
     setQaTipo(QA.tipo);
     setQaAmt('');
     if (D.qaDesc) D.qaDesc.value = '';
+    if (D.qaPersonale) D.qaPersonale.checked = false; // default: "in comune"
     if (D.qaAutore) populateAutoreSelect(D.qaAutore, getDefaultAutore());
     if (D.qaDatePicker) {
       D.qaDatePicker.value = QA.data;
@@ -5561,6 +5588,7 @@ async function quickSave(categoria_id) {
   const desc = D.qaDesc ? D.qaDesc.value.trim() : '';
   const dataStr = D.qaDatePicker.value || QA.data || today();
   const autore = (D.qaAutore && D.qaAutore.value) || getDefaultAutore() || null;
+  const personale = !!(D.qaPersonale && D.qaPersonale.checked);
   setBtnLoading(D.qaSaveBtn, true);
   try {
     await saveTransaction({
@@ -5569,7 +5597,8 @@ async function quickSave(categoria_id) {
       categoria_id,
       descrizione: desc || null,
       data: dataStr,
-      autore: autore || null
+      autore: autore || null,
+      personale
     });
     closeModal('modalQa');
     vibrate(20);
@@ -5624,6 +5653,7 @@ function openTxEdit(idStr) {
   D.txEditData.value = t.data;
   D.txEditDesc.value = t.descrizione || '';
   if (D.txEditAutore) populateAutoreSelect(D.txEditAutore, t.autore || getDefaultAutore());
+  if (D.txEditPersonale) D.txEditPersonale.checked = !!t.personale;
   D.txEditTipo.onchange = () => populateCatSelect(D.txEditCat, D.txEditTipo.value, null);
   openModal('modalTx');
 }
@@ -5636,7 +5666,8 @@ async function saveTxEdit() {
     categoria_id: D.txEditCat.value ? Number(D.txEditCat.value) : null,
     data: D.txEditData.value || today(),
     descrizione: D.txEditDesc.value.trim() || null,
-    autore: (D.txEditAutore && D.txEditAutore.value) || null
+    autore: (D.txEditAutore && D.txEditAutore.value) || null,
+    personale: !!(D.txEditPersonale && D.txEditPersonale.checked)
   };
   if (!payload.importo || payload.importo <= 0) { toast('Importo non valido', 'warn'); return; }
   setBtnLoading(D.txEditSave, true);
