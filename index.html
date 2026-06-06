@@ -230,9 +230,17 @@
         </button>
       </div>
       <div class="list-period-custom" id="listPeriodCustom" style="display:none">
-        <input type="date" id="listPeriodFrom" aria-label="Da">
-        <span class="lpc-sep">→</span>
-        <input type="date" id="listPeriodTo" aria-label="A">
+        <div class="list-period-quick" id="listPeriodQuick">
+          <button class="lpq-btn" type="button" data-quick="1y">Ultimo anno</button>
+          <button class="lpq-btn" type="button" data-quick="6m">Ultimi 6 mesi</button>
+          <button class="lpq-btn" type="button" data-quick="3m">Ultimi 3 mesi</button>
+          <button class="lpq-btn" type="button" data-quick="month">Questo mese</button>
+        </div>
+        <div class="list-period-dates">
+          <input type="date" id="listPeriodFrom" aria-label="Da">
+          <span class="lpc-sep">→</span>
+          <input type="date" id="listPeriodTo" aria-label="A">
+        </div>
       </div>
       <div id="listPeriodSummary" class="list-period-summary"></div>
       <div id="activeFiltersBar" class="active-filters" style="display:none"></div>

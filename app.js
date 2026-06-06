@@ -4258,6 +4258,61 @@ async function ensurePeriodLoaded(fromStr, toStr) {
   saveLocalCache();
 }
 
+// ─── Scelte rapide periodo (Ultimo anno / 6m / 3m / Questo mese) ──
+// Applica un preset di range alle date Da/A e renderizza la lista.
+function applyListQuickPeriod(q) {
+  const pad = n => String(n).padStart(2, '0');
+  const now = new Date();
+  let from, to;
+  if (q === 'month') {
+    const y = now.getFullYear(), m = now.getMonth() + 1;
+    const lastDay = new Date(y, m, 0).getDate();
+    from = y + '-' + pad(m) + '-01';
+    to   = y + '-' + pad(m) + '-' + pad(lastDay);
+  } else {
+    const months = q === '1y' ? 12 : q === '6m' ? 6 : 3;
+    const start = new Date(now);
+    start.setMonth(start.getMonth() - months);
+    from = start.getFullYear() + '-' + pad(start.getMonth() + 1) + '-' + pad(start.getDate());
+    to   = now.getFullYear()   + '-' + pad(now.getMonth() + 1)   + '-' + pad(now.getDate());
+  }
+  S.listPeriod = 'custom';
+  S.listFrom = from;
+  S.listTo   = to;
+  if (D.listPeriodFrom) D.listPeriodFrom.value = from;
+  if (D.listPeriodTo)   D.listPeriodTo.value   = to;
+  refreshListQuickActive();
+  renderList();
+}
+
+// Evidenzia il pulsante rapido che corrisponde all'attuale range Da/A.
+function refreshListQuickActive() {
+  const all = $$('.lpq-btn');
+  if (!all.length) return;
+  const matchKey = _detectQuickPeriodKey(S.listFrom, S.listTo);
+  all.forEach(b => b.classList.toggle('active', b.getAttribute('data-quick') === matchKey));
+}
+
+function _detectQuickPeriodKey(from, to) {
+  if (!from || !to) return null;
+  const pad = n => String(n).padStart(2, '0');
+  const now = new Date();
+  // "month" = mese corrente full
+  const y = now.getFullYear(), m = now.getMonth() + 1;
+  const lastDay = new Date(y, m, 0).getDate();
+  if (from === y + '-' + pad(m) + '-01' && to === y + '-' + pad(m) + '-' + pad(lastDay)) return 'month';
+  // "1y" / "6m" / "3m" = today - N months → today (paragono entrambe le date)
+  const todayStr = y + '-' + pad(m) + '-' + pad(now.getDate());
+  if (to !== todayStr) return null;
+  for (const [k, n] of [['1y', 12], ['6m', 6], ['3m', 3]]) {
+    const start = new Date(now);
+    start.setMonth(start.getMonth() - n);
+    const startStr = start.getFullYear() + '-' + pad(start.getMonth() + 1) + '-' + pad(start.getDate());
+    if (from === startStr) return k;
+  }
+  return null;
+}
+
 function renderList() {
   const range = getListPeriodRange();
   // Sincronizza l'header (range vs mese + visibilità frecce)
@@ -4269,6 +4324,8 @@ function renderList() {
   if (S.listPeriod === 'custom') {
     if (D.listPeriodFrom && S.listFrom) D.listPeriodFrom.value = S.listFrom;
     if (D.listPeriodTo   && S.listTo)   D.listPeriodTo.value   = S.listTo;
+    // Evidenzia chip quick-period se il range corrisponde a un preset
+    refreshListQuickActive();
   }
   // Badge sul pulsante "Seleziona filtri": numero filtri attivi
   updateFilterBadge();
@@ -6696,11 +6753,20 @@ function bindEvents() {
   });
   if (D.listPeriodFrom) D.listPeriodFrom.addEventListener('change', () => {
     S.listFrom = D.listPeriodFrom.value || null;
+    refreshListQuickActive();
     renderList();
   });
   if (D.listPeriodTo) D.listPeriodTo.addEventListener('change', () => {
     S.listTo = D.listPeriodTo.value || null;
+    refreshListQuickActive();
     renderList();
+  });
+  // Pulsanti scelta rapida periodo: Ultimo anno / 6 mesi / 3 mesi / Questo mese
+  $$('.lpq-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const q = btn.getAttribute('data-quick');
+      applyListQuickPeriod(q);
+    });
   });
   // Pulsante "Seleziona Filtri" → apre modal
   if (D.btnOpenFilters)   D.btnOpenFilters.addEventListener('click', openFiltersModal);

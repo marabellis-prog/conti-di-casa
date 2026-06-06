@@ -2684,11 +2684,43 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 
 .list-period-custom {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
   margin-bottom: 8px;
 }
-.list-period-custom input[type=date] {
+/* Quick shortcuts row */
+.list-period-quick {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.lpq-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s ease, border-color .12s ease, color .12s ease, transform .12s ease;
+}
+.lpq-btn:hover { border-color: var(--accent); }
+.lpq-btn:active { transform: scale(.96); }
+.lpq-btn.active {
+  background: var(--accent);
+  color: #0f1419;
+  border-color: var(--accent);
+}
+/* Row with the two date inputs (sotto i pulsanti rapidi) */
+.list-period-dates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.list-period-dates input[type=date] {
   flex: 1;
   min-width: 0;
   background: var(--surface);
@@ -2699,7 +2731,7 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   color: var(--text);
   color-scheme: dark;
 }
-.list-period-custom .lpc-sep {
+.list-period-dates .lpc-sep {
   color: var(--text-faint);
   font-size: 14px;
   flex-shrink: 0;
