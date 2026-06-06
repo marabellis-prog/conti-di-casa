@@ -4599,10 +4599,13 @@ function renderActiveFilters() {
   });
 }
 
-// stato draft per il modal (non commitato finché l'utente non preme Filtra)
+// Stato draft mantenuto per retrocompat ma allineato sempre a S
+// (i filtri si applicano LIVE: ogni tap su un chip aggiorna direttamente
+// S e ri-renderizza la lista, senza bisogno di premere "Filtra").
 let _filtersDraft = null;
 
 function openFiltersModal() {
+  // Ri-sincronizza draft = S correnti (mantenuto per coerenza interna)
   _filtersDraft = {
     cats:   (S.filtersCats   || []).slice(),
     autori: (S.filtersAutori || []).slice()
@@ -4628,7 +4631,7 @@ function renderFiltersModalCats() {
   const uscite  = S.cats.filter(c => c.tipo === 'uscita').sort(sortCats);
 
   const chipHtml = c => {
-    const selected = _filtersDraft.cats.indexOf(c.id) !== -1;
+    const selected = (S.filtersCats || []).indexOf(c.id) !== -1;
     return '<button type="button" class="filter-chip' + (selected ? ' selected' : '') + '" data-cat-id="' + c.id + '">' +
            (c.icona ? c.icona + ' ' : '') + esc(c.nome) + '</button>';
   };
@@ -4642,11 +4645,8 @@ function renderFiltersModalCats() {
     html += '<div class="filter-subtitle">Uscite</div>';
     html += '<div class="filter-chips-row">' + uscite.map(chipHtml).join('') + '</div>';
   }
-  // Chip speciale "📦 Altro" — matcha le tx con categoria_id NULL (cioè
-  // quelle salvate via il chip "Altro" del quick-add senza scegliere una
-  // categoria specifica). Uso il sentinel 0 perché i bigserial id partono
-  // da 1, quindi 0 non collide mai con un cat reale.
-  const altroSelected = _filtersDraft.cats.indexOf(0) !== -1;
+  // Chip speciale "📦 Altro" — categoria_id NULL (sentinel 0)
+  const altroSelected = (S.filtersCats || []).indexOf(0) !== -1;
   html += '<div class="filter-subtitle">Senza categoria</div>';
   html += '<div class="filter-chips-row"><button type="button" class="filter-chip' + (altroSelected ? ' selected' : '') + '" data-cat-id="0">📦 Altro</button></div>';
   D.filterCats.innerHTML = html;
@@ -4654,10 +4654,15 @@ function renderFiltersModalCats() {
   $$('.filter-chip', D.filterCats).forEach(el => {
     el.addEventListener('click', () => {
       const id = Number(el.getAttribute('data-cat-id'));
-      const i = _filtersDraft.cats.indexOf(id);
-      if (i >= 0) _filtersDraft.cats.splice(i, 1);
-      else _filtersDraft.cats.push(id);
+      // Modifica DIRETTAMENTE S e ri-renderizza lista + grafico
+      const arr = (S.filtersCats = (S.filtersCats || []).slice());
+      const i = arr.indexOf(id);
+      if (i >= 0) arr.splice(i, 1);
+      else arr.push(id);
+      // Sync draft per coerenza
+      _filtersDraft.cats = arr.slice();
       el.classList.toggle('selected');
+      renderList(); // aggiorna lista + grafico + badge filtri attivi
     });
   });
 }
@@ -4670,7 +4675,7 @@ function renderFiltersModalAutori() {
     return;
   }
   const html = list.map(nome => {
-    const selected = _filtersDraft.autori.indexOf(nome) !== -1;
+    const selected = (S.filtersAutori || []).indexOf(nome) !== -1;
     return '<button type="button" class="filter-chip' + (selected ? ' selected' : '') + '" data-autore="' + esc(nome) + '">' +
            esc(nome) + '</button>';
   }).join('');
@@ -4678,29 +4683,30 @@ function renderFiltersModalAutori() {
   $$('.filter-chip', D.filterAutori).forEach(el => {
     el.addEventListener('click', () => {
       const nome = el.getAttribute('data-autore');
-      const i = _filtersDraft.autori.indexOf(nome);
-      if (i >= 0) _filtersDraft.autori.splice(i, 1);
-      else _filtersDraft.autori.push(nome);
+      const arr = (S.filtersAutori = (S.filtersAutori || []).slice());
+      const i = arr.indexOf(nome);
+      if (i >= 0) arr.splice(i, 1);
+      else arr.push(nome);
+      _filtersDraft.autori = arr.slice();
       el.classList.toggle('selected');
+      renderList();
     });
   });
 }
 
+// Il bottone "Filtra" ora chiude semplicemente il modal — i filtri sono
+// già stati applicati live a ogni chip-tap. Mantenuto per retrocompat.
 function applyFiltersFromModal() {
-  if (!_filtersDraft) return;
-  S.filtersCats   = _filtersDraft.cats.slice();
-  S.filtersAutori = _filtersDraft.autori.slice();
   closeModal('modalFilters');
-  renderList();
 }
 
 function resetFiltersFromModal() {
-  _filtersDraft = { cats: [], autori: [] };
   S.filtersCats = [];
   S.filtersAutori = [];
+  _filtersDraft = { cats: [], autori: [] };
   renderFiltersModalCats();
   renderFiltersModalAutori();
-  // non chiudo il modal, così l'utente vede la pulizia e può rifiltrare
+  renderList(); // applica subito la pulizia
 }
 
 // ─── BUDGET VIEW ────────────────────────────────────────────
