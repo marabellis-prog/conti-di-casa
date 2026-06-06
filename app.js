@@ -143,6 +143,7 @@ function cacheDOM() {
    'homeSpesaPreview','homeSpesaCount',
    'saldoNum','saldoIn','saldoOut','ultime','donutWrap',
    'carouselTrack','carouselPrev','carouselNext','carouselTitle','carouselDots',
+   'categFrom','categTo',
    'trendFrom','trendTo','trend3mWrap',
    'autoreFrom','autoreTo',
    'listFilters','txList','activeFiltersBar',
@@ -529,11 +530,9 @@ function shiftMonth(delta) {
   while (mese > 12) { mese -= 12; anno++; }
   S.currentMonth = { anno, mese };
   localStorage.setItem(LS.LAST_MONTH, monthKey(anno, mese));
-  // Reset del trendRange: l'andamento mesi e il donut autori seguono il
-  // nuovo mese di riferimento (default = mese corrente + 2 precedenti)
-  S.trendRange = null;
-  S.trend3mCache = null;
-  S.autoreDonutCache = null;
+  // Nota: NON resettiamo S.trendRange — adesso il default del carousel
+  // è "anno corrente" (indipendente dal mese selezionato in alto). Se
+  // l'utente ha personalizzato il range vogliamo preservarlo.
   renderHeader();
   // 1° render IMMEDIATO con dati in cache (anche se vuoti) — così l'UI
   // reagisce subito al cambio mese
@@ -2942,6 +2941,7 @@ function invalidateTxCharts() {
 
 function renderConti() {
   if (!S.currentMonth) return;
+  // PRIMA CARD: saldo + ultime sempre del MESE selezionato in alto
   const arr = txInCurrentMonth();
   const inSum = arr.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
   const outSum = arr.filter(t => t.tipo === 'uscita').reduce((s, t) => s + Number(t.importo), 0);
@@ -2962,9 +2962,16 @@ function renderConti() {
   twemojify(D.ultime);
   }
 
-  // Donut uscite RAGGRUPPATO PER MACRO-CATEGORIA
+  // SECONDA CARD (carousel): grafici per il RANGE custom (default = anno corrente)
+  ensureTrendRangeDefault();
+  populateTrendSelects();
+  const tr = S.trendRange;
+  const tComune = txComune();
+  const arrRange = tComune.filter(t => t.data >= tr.from && t.data <= tr.to);
+
+  // Donut "Uscite per categoria" → range trend (anno corrente di default)
   const uscByMacro = {};
-  arr.filter(t => t.tipo === 'uscita').forEach(t => {
+  arrRange.filter(t => t.tipo === 'uscita').forEach(t => {
     const c = catById(t.categoria_id);
     const macroId = (c && c.macro_categoria) || 'simboli';
     if (!uscByMacro[macroId]) uscByMacro[macroId] = { total: 0, breakdown: {} };
@@ -2980,25 +2987,22 @@ function renderConti() {
       color: MACRO_COLORS[macroId] || '#666',
       macroId: macroId,
       onClick: function () {
-        // Slide "Uscite per categoria": vai alla lista con periodo = SOLO
-        // mese attualmente selezionato in alto (dal 1° all'ultimo giorno).
-        // listPeriod='current' fa sì che getListPeriodRange usi S.currentMonth.
+        // Slide "Uscite per categoria": vai alla lista filtrando per quella
+        // macro nel RANGE del trend (es. anno corrente)
         S.donutFilter = { type: 'macro', value: macroId };
         S.listFilter = 'uscita';
         S.filtersCats = [];
         S.filtersAutori = [];
-        S.listPeriod = 'current';
-        S.listFrom = null;
-        S.listTo = null;
+        S.listPeriod = 'custom';
+        S.listFrom = tr.from;
+        S.listTo   = tr.to;
         switchView('list');
       }
     };
   });
-  Charts.renderDonut(D.donutWrap, segs, { subLabel: 'uscite mese' });
+  Charts.renderDonut(D.donutWrap, segs, { subLabel: 'uscite periodo' });
 
   // Carousel: aggiorna anche le altre slide (trend + donut autori)
-  ensureTrendRangeDefault();
-  populateTrendSelects();
   renderTrend3m();
   renderAutoreDonut();
   updateCarouselTitle();
@@ -3069,17 +3073,18 @@ async function renderAutoreDonut() {
 
 // ─── CAROUSEL: donut ↔ trend mesi ───────────────────────────
 // S.trendRange = { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' } (range giornaliero)
-// Default: dal 1° giorno di (mese corrente - 2 mesi) all'ultimo giorno del
-// mese corrente. Es. mese corrente Maggio 2026 → 2026-03-01 ↔ 2026-05-31.
+// Default: ANNO CORRENTE (1 gennaio anno corrente → oggi).
+// Es. oggi 27 maggio 2026 → 2026-01-01 ↔ 2026-05-27.
 function ensureTrendRangeDefault() {
   if (S.trendRange && S.trendRange.from && S.trendRange.to) return;
-  const cm = S.currentMonth || { anno: new Date().getFullYear(), mese: new Date().getMonth() + 1 };
-  let fromY = cm.anno, fromM = cm.mese - 2;
-  while (fromM < 1) { fromM += 12; fromY--; }
-  const lastDay = new Date(cm.anno, cm.mese, 0).getDate();
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  const d = now.getDate();
+  const pad = n => String(n).padStart(2, '0');
   S.trendRange = {
-    from: fromY + '-' + String(fromM).padStart(2, '0') + '-01',
-    to:   cm.anno + '-' + String(cm.mese).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0')
+    from: y + '-01-01',
+    to:   y + '-' + pad(m) + '-' + pad(d)
   };
 }
 
@@ -3088,7 +3093,8 @@ function monthKeyYM(y, m) { return y + '-' + String(m).padStart(2, '0'); }
 function syncTrendDateInputs() {
   if (!S.trendRange) ensureTrendRangeDefault();
   const f = S.trendRange.from, t = S.trendRange.to;
-  console.log('[syncTrendDateInputs] f=', f, 't=', t, 'inputs:', !!D.trendFrom, !!D.trendTo, !!D.autoreFrom, !!D.autoreTo);
+  if (D.categFrom)  { D.categFrom.value  = f; D.categFrom.defaultValue  = f; }
+  if (D.categTo)    { D.categTo.value    = t; D.categTo.defaultValue    = t; }
   if (D.trendFrom)  { D.trendFrom.value  = f; D.trendFrom.defaultValue  = f; }
   if (D.trendTo)    { D.trendTo.value    = t; D.trendTo.defaultValue    = t; }
   if (D.autoreFrom) { D.autoreFrom.value = f; D.autoreFrom.defaultValue = f; }
@@ -3211,17 +3217,16 @@ function bindCarousel() {
   if (D.carouselDots) $$('.carousel-dot', D.carouselDots).forEach(d => {
     d.addEventListener('click', () => setCarouselSlide(Number(d.getAttribute('data-go') || 0)));
   });
-  // Helper: setta from o to (string YYYY-MM-DD) + sincronizza ENTRAMBI i
-  // set di date picker + invalida cache + ri-renderizza le due slide che
-  // usano il range condiviso
+  // Helper: setta from o to (string YYYY-MM-DD) + sincronizza TUTTI i
+  // 3 set di date picker (categFrom/To + trendFrom/To + autoreFrom/To)
+  // + invalida cache + ri-renderizza tutte le 3 slide del carousel.
   function setTrendFrom(value) {
     if (!value) return;
     S.trendRange.from = value;
     S.trend3mCache = null;
     S.autoreDonutCache = null;
     syncTrendDateInputs();
-    renderTrend3m();
-    renderAutoreDonut();
+    renderConti();        // re-render slide 0 (donut categoria su nuovo range)
     renderHomeGestione(); // aggiorna anche il "periodo" accanto al titolo del widget Home
   }
   function setTrendTo(value) {
@@ -3230,10 +3235,11 @@ function bindCarousel() {
     S.trend3mCache = null;
     S.autoreDonutCache = null;
     syncTrendDateInputs();
-    renderTrend3m();
-    renderAutoreDonut();
+    renderConti();
     renderHomeGestione();
   }
+  if (D.categFrom)  D.categFrom.addEventListener('change',  () => setTrendFrom(D.categFrom.value));
+  if (D.categTo)    D.categTo.addEventListener('change',    () => setTrendTo(D.categTo.value));
   if (D.trendFrom)  D.trendFrom.addEventListener('change',  () => setTrendFrom(D.trendFrom.value));
   if (D.trendTo)    D.trendTo.addEventListener('change',    () => setTrendTo(D.trendTo.value));
   if (D.autoreFrom) D.autoreFrom.addEventListener('change', () => setTrendFrom(D.autoreFrom.value));
@@ -3398,35 +3404,31 @@ function renderHomeGestione() {
   // Riordina i widget secondo le preferenze utente
   applyModuliOrder();
   bindModuliDrag();
-  // Widget Conti di Casa: mini donut uscite + saldo del mese
-  const arr = txInCurrentMonth();
+  // Widget Conti di Casa: mini donut uscite + saldo dell'ANNO IN CORSO
+  // (entrate dell'anno - uscite dell'anno, solo tx "in comune")
+  const annoCorrente = (S.currentMonth && S.currentMonth.anno) || new Date().getFullYear();
+  const annoStart = annoCorrente + '-01-01';
+  const annoEnd   = annoCorrente + '-12-31';
+  const arr = txComune().filter(t => t.data >= annoStart && t.data <= annoEnd);
   const inSum  = arr.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
   const outSum = arr.filter(t => t.tipo === 'uscita').reduce((s, t) => s + Number(t.importo), 0);
   const saldo  = inSum - outSum;
 
   if (D.homeContiSaldo) {
-    // Saldo SEMPRE con € (anche nel mini-widget Home)
     D.homeContiSaldo.textContent = (saldo >= 0 ? '+' : '−') + fmtEur(Math.abs(saldo));
     D.homeContiSaldo.className = 'mc-saldo ' + (saldo >= 0 ? 'pos' : 'neg');
   }
-  if (D.homeContiSubtle && S.currentMonth) {
-    D.homeContiSubtle.textContent = MESI_FULL[S.currentMonth.mese - 1] + ' ' + S.currentMonth.anno;
+  if (D.homeContiSubtle) {
+    D.homeContiSubtle.textContent = 'saldo ' + annoCorrente;
   }
   // Periodo accanto al titolo "Conti di Casa" nell'header del widget:
-  // mostra il mese corrente (default), oppure il range se è stato impostato
-  // un periodo custom (es. via slide Andamento mesi / Uscite per autore).
-  if (D.homeContiPeriod && S.currentMonth) {
-    let label = MESI_FULL[S.currentMonth.mese - 1] + ' ' + S.currentMonth.anno;
-    // Se l'utente ha modificato il trendRange dal default (currentMonth-2 → currentMonth),
-    // mostra il range. Calcolo il default e confronto.
-    const cm = S.currentMonth;
-    let fromY = cm.anno, fromM = cm.mese - 2;
-    while (fromM < 1) { fromM += 12; fromY--; }
-    const ld = new Date(cm.anno, cm.mese, 0).getDate();
-    const defaultFrom = fromY + '-' + String(fromM).padStart(2,'0') + '-01';
-    const defaultTo   = cm.anno + '-' + String(cm.mese).padStart(2,'0') + '-' + String(ld).padStart(2,'0');
+  // mostra l'anno corrente. Se l'utente ha personalizzato il trendRange
+  // del Riepilogo del modulo, mostra quel range.
+  if (D.homeContiPeriod) {
+    let label = String(annoCorrente);
+    const defaultFrom = annoCorrente + '-01-01';
     const tr = S.trendRange;
-    if (tr && tr.from && tr.to && (tr.from !== defaultFrom || tr.to !== defaultTo)) {
+    if (tr && tr.from && tr.to && tr.from !== defaultFrom) {
       label = fmtDataLong(tr.from) + ' – ' + fmtDataLong(tr.to);
     }
     D.homeContiPeriod.textContent = label;
