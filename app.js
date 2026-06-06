@@ -4278,18 +4278,27 @@ async function ensurePeriodLoaded(fromStr, toStr) {
 function applyListQuickPeriod(q) {
   const pad = n => String(n).padStart(2, '0');
   const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  const d = now.getDate();
+  const todayStr = y + '-' + pad(m) + '-' + pad(d);
   let from, to;
   if (q === 'month') {
-    const y = now.getFullYear(), m = now.getMonth() + 1;
+    // "Questo mese": 1° → ultimo giorno del mese corrente
     const lastDay = new Date(y, m, 0).getDate();
     from = y + '-' + pad(m) + '-01';
     to   = y + '-' + pad(m) + '-' + pad(lastDay);
+  } else if (q === '1y') {
+    // "Questo anno": 1 gennaio dell'anno corrente → oggi
+    from = y + '-01-01';
+    to   = todayStr;
   } else {
-    const months = q === '1y' ? 12 : q === '6m' ? 6 : 3;
+    // "Ultimi 6/3 mesi": oggi - N mesi → oggi
+    const months = q === '6m' ? 6 : 3;
     const start = new Date(now);
     start.setMonth(start.getMonth() - months);
     from = start.getFullYear() + '-' + pad(start.getMonth() + 1) + '-' + pad(start.getDate());
-    to   = now.getFullYear()   + '-' + pad(now.getMonth() + 1)   + '-' + pad(now.getDate());
+    to   = todayStr;
   }
   S.listPeriod = 'custom';
   S.listFrom = from;
@@ -4312,14 +4321,17 @@ function _detectQuickPeriodKey(from, to) {
   if (!from || !to) return null;
   const pad = n => String(n).padStart(2, '0');
   const now = new Date();
-  // "month" = mese corrente full
   const y = now.getFullYear(), m = now.getMonth() + 1;
   const lastDay = new Date(y, m, 0).getDate();
-  if (from === y + '-' + pad(m) + '-01' && to === y + '-' + pad(m) + '-' + pad(lastDay)) return 'month';
-  // "1y" / "6m" / "3m" = today - N months → today (paragono entrambe le date)
   const todayStr = y + '-' + pad(m) + '-' + pad(now.getDate());
+  // "month" = mese corrente full
+  if (from === y + '-' + pad(m) + '-01' && to === y + '-' + pad(m) + '-' + pad(lastDay)) return 'month';
+  // Tutti gli altri preset hanno to=oggi
   if (to !== todayStr) return null;
-  for (const [k, n] of [['1y', 12], ['6m', 6], ['3m', 3]]) {
+  // "1y" = Questo anno: 1 gennaio anno corrente → oggi
+  if (from === y + '-01-01') return '1y';
+  // "6m" / "3m" = today - N mesi → today
+  for (const [k, n] of [['6m', 6], ['3m', 3]]) {
     const start = new Date(now);
     start.setMonth(start.getMonth() - n);
     const startStr = start.getFullYear() + '-' + pad(start.getMonth() + 1) + '-' + pad(start.getDate());
