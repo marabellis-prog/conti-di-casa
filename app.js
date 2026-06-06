@@ -4291,9 +4291,9 @@ function applyListQuickPeriod(q) {
     from = y + '-' + pad(m) + '-01';
     to   = y + '-' + pad(m) + '-' + pad(lastDay);
   } else if (q === '1y') {
-    // "Questo anno": 1 gennaio dell'anno corrente → oggi
+    // "Questo Anno": 1 gennaio → 31 dicembre dell'anno corrente (anno solare intero)
     from = y + '-01-01';
-    to   = todayStr;
+    to   = y + '-12-31';
   } else {
     // "Ultimi 6/3 mesi": oggi - N mesi → oggi
     const months = q === '6m' ? 6 : 3;
@@ -4326,13 +4326,12 @@ function _detectQuickPeriodKey(from, to) {
   const y = now.getFullYear(), m = now.getMonth() + 1;
   const lastDay = new Date(y, m, 0).getDate();
   const todayStr = y + '-' + pad(m) + '-' + pad(now.getDate());
-  // "month" = mese corrente full
+  // "month" = mese corrente full (1°-ultimo giorno)
   if (from === y + '-' + pad(m) + '-01' && to === y + '-' + pad(m) + '-' + pad(lastDay)) return 'month';
-  // Tutti gli altri preset hanno to=oggi
+  // "1y" = Questo Anno: 1 gennaio → 31 dicembre anno corrente
+  if (from === y + '-01-01' && to === y + '-12-31') return '1y';
+  // "6m" / "3m" = today - N mesi → today (paragono entrambe le date)
   if (to !== todayStr) return null;
-  // "1y" = Questo anno: 1 gennaio anno corrente → oggi
-  if (from === y + '-01-01') return '1y';
-  // "6m" / "3m" = today - N mesi → today
   for (const [k, n] of [['6m', 6], ['3m', 3]]) {
     const start = new Date(now);
     start.setMonth(start.getMonth() - n);
