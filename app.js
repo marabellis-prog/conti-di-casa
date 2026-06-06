@@ -4382,69 +4382,67 @@ function renderList() {
 }
 
 // ─── Grafico Andamento sopra la lista transazioni ─────────────
-// Raggruppa le tx FILTRATE per giorno (range <= 62gg) o per mese
-// (range più lungo). Mostra:
-// - 2 linee (entrate verde + uscite rosso) quando filterTipo='all'
-// - 1 linea quando il filtro è 'uscita' o 'entrata'
-// Reagisce automaticamente a ogni cambio filtro/periodo (è chiamata
-// in _drawList).
+// SOLO punti corrispondenti a tx reali (sparse buckets): se non c'è
+// nessuna transazione in un mese/giorno, quel punto NON viene
+// disegnato — altrimenti la linea si appiattisce a zero distorcendo
+// il trend (es. filtro "bollette luce" → solo i mesi di pagamento).
+// Aggregazione: giorno se range ≤ 62gg, altrimenti mese.
+// Per filtro 'all' mostra entrambe le serie usando l'unione dei
+// bucket esistenti; per filtro 'uscita'/'entrata' una sola serie.
 function renderTxTrend(arr, range) {
   if (!D.txTrendWrap) return;
   if (!arr.length) {
     D.txTrendWrap.innerHTML = '';
     return;
   }
-  const pad = n => String(n).padStart(2, '0');
   const fromD = new Date(range.fromStr + 'T00:00:00');
   const toD   = new Date(range.toStr   + 'T00:00:00');
   const days  = Math.round((toD - fromD) / 86400000) + 1;
-  let mode, bucketWord;
-  if (days <= 62) { mode = 'day';   bucketWord = days === 1 ? 'giorno' : 'giorni'; }
-  else            { mode = 'month'; bucketWord = 'mesi'; }
+  const mode = days <= 62 ? 'day' : 'month';
 
-  // Costruisci array buckets
-  const buckets = []; // { key, label, in, out }
-  if (mode === 'day') {
-    for (let d = new Date(fromD); d <= toD; d.setDate(d.getDate() + 1)) {
-      const k = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
-      // Label compatto: solo giorno se range breve, altrimenti gg/mm
-      const lbl = days <= 31 ? String(d.getDate()) : (d.getDate() + '/' + (d.getMonth()+1));
-      buckets.push({ key: k, label: lbl, in: 0, out: 0 });
-    }
-  } else {
-    const startY = fromD.getFullYear(), startM = fromD.getMonth() + 1;
-    const endY   = toD.getFullYear(),   endM   = toD.getMonth() + 1;
-    let y = startY, m = startM;
-    while (y < endY || (y === endY && m <= endM)) {
-      const k = y + '-' + pad(m);
-      const lbl = MESI_SHORT[m - 1] + (m === 1 ? ' \'' + String(y).slice(-2) : '');
-      buckets.push({ key: k, label: lbl, in: 0, out: 0 });
-      m++;
-      if (m > 12) { m = 1; y++; }
-    }
-  }
-  const idx = {};
-  buckets.forEach((b, i) => { idx[b.key] = i; });
-
-  // Aggrega le tx
+  // Costruisci bucket SPARSI: una entry solo dove c'è almeno una tx.
+  const bucketsMap = new Map(); // key → { sortKey, label, in, out }
   arr.forEach(t => {
-    let k;
-    if (mode === 'day') k = t.data;
-    else                k = t.data.slice(0, 7); // YYYY-MM
-    if (idx[k] != null) {
-      if (t.tipo === 'entrata') buckets[idx[k]].in  += Number(t.importo);
-      else                       buckets[idx[k]].out += Number(t.importo);
+    let key, label;
+    if (mode === 'day') {
+      key = t.data;            // 'YYYY-MM-DD'
+      const [, mm, dd] = t.data.split('-');
+      label = days <= 31 ? String(Number(dd)) : (Number(dd) + '/' + Number(mm));
+    } else {
+      key = t.data.slice(0, 7); // 'YYYY-MM'
+      const [yy, mm] = t.data.split('-');
+      label = MESI_SHORT[Number(mm) - 1] + (Number(mm) === 1 ? ' \'' + String(yy).slice(-2) : '');
     }
+    if (!bucketsMap.has(key)) bucketsMap.set(key, { sortKey: key, label, in: 0, out: 0 });
+    const b = bucketsMap.get(key);
+    if (t.tipo === 'entrata') b.in  += Number(t.importo);
+    else                      b.out += Number(t.importo);
   });
 
-  // Costruisci le serie in base al filtro attivo
+  // Ordinamento cronologico per sortKey (stringa YYYY-MM o YYYY-MM-DD)
+  const buckets = Array.from(bucketsMap.values()).sort(
+    (a, b) => a.sortKey < b.sortKey ? -1 : (a.sortKey > b.sortKey ? 1 : 0)
+  );
+
+  // Serie in base al filtro attivo
   const series = [];
   const showIn  = S.listFilter !== 'uscita';
   const showOut = S.listFilter !== 'entrata';
   if (showIn)  series.push({ label: 'Entrate', color: 'var(--ok)',     points: buckets.map(b => b.in)  });
   if (showOut) series.push({ label: 'Uscite',  color: 'var(--danger)', points: buckets.map(b => b.out) });
 
+  // Se l'unica serie attiva è tutta zero (es. utente filtra uscita ma
+  // tutte le tx filtrate sono entrate), nascondi il grafico
+  const hasAnyValue = series.some(s => s.points.some(v => v > 0));
+  if (!hasAnyValue) {
+    D.txTrendWrap.innerHTML = '';
+    return;
+  }
+
   // Titolo + counter buckets
+  const bucketWord = mode === 'day'
+    ? (buckets.length === 1 ? 'giorno con tx' : 'giorni con tx')
+    : (buckets.length === 1 ? 'mese con tx'  : 'mesi con tx');
   const title = '<div class="tx-trend-title"><span>📈 Andamento</span><span class="tt-bucket">' + buckets.length + ' ' + bucketWord + '</span></div>';
   const chartDiv = document.createElement('div');
   chartDiv.className = 'tx-trend-chart';
