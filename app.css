@@ -363,6 +363,47 @@ html[data-theme="light"] {
 }
 .todo-item.fatto .todo-item-name { color: var(--chalk-text-soft); }
 
+/* ─── Trend lista transazioni (sopra l'elenco) ─────────── */
+.tx-trend-wrap {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 10px 6px;
+  margin: 10px 0 12px;
+  min-height: 100px;
+}
+.tx-trend-wrap:empty,
+.tx-trend-wrap[hidden] { display: none; }
+.tx-trend-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-faint);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  margin: 0 0 4px;
+  padding: 0 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.tx-trend-title .tt-bucket {
+  font-weight: 500;
+  color: var(--text-faint);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+}
+.tx-trend-chart { width: 100%; }
+.tx-trend-chart svg { width: 100%; height: auto; max-height: 200px; }
+.tx-trend-empty {
+  padding: 20px 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
 /* ─── Toggle "Spesa personale" (quick-add + tx edit) ─────── */
 .pers-toggle {
   display: flex;

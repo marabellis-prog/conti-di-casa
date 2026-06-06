@@ -146,7 +146,7 @@ function cacheDOM() {
    'categFrom','categTo',
    'trendFrom','trendTo','trend3mWrap',
    'autoreFrom','autoreTo',
-   'listFilters','txList','activeFiltersBar',
+   'listFilters','txList','txTrendWrap','activeFiltersBar',
    'btnTogglePeriod','btnOpenFilters','filterBadge',
    'modalFilters','filterCats','filterAutori','btnApplyFilters','btnResetFilters',
    'listPeriodCustom','listPeriodFrom','listPeriodTo','listPeriodSummary',
@@ -4376,6 +4376,78 @@ function renderList() {
   ensurePeriodLoaded(range.fromStr, range.toStr).then(() => _drawList(range));
 }
 
+// ─── Grafico Andamento sopra la lista transazioni ─────────────
+// Raggruppa le tx FILTRATE per giorno (range <= 62gg) o per mese
+// (range più lungo). Mostra:
+// - 2 linee (entrate verde + uscite rosso) quando filterTipo='all'
+// - 1 linea quando il filtro è 'uscita' o 'entrata'
+// Reagisce automaticamente a ogni cambio filtro/periodo (è chiamata
+// in _drawList).
+function renderTxTrend(arr, range) {
+  if (!D.txTrendWrap) return;
+  if (!arr.length) {
+    D.txTrendWrap.innerHTML = '';
+    return;
+  }
+  const pad = n => String(n).padStart(2, '0');
+  const fromD = new Date(range.fromStr + 'T00:00:00');
+  const toD   = new Date(range.toStr   + 'T00:00:00');
+  const days  = Math.round((toD - fromD) / 86400000) + 1;
+  let mode, bucketWord;
+  if (days <= 62) { mode = 'day';   bucketWord = days === 1 ? 'giorno' : 'giorni'; }
+  else            { mode = 'month'; bucketWord = 'mesi'; }
+
+  // Costruisci array buckets
+  const buckets = []; // { key, label, in, out }
+  if (mode === 'day') {
+    for (let d = new Date(fromD); d <= toD; d.setDate(d.getDate() + 1)) {
+      const k = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+      // Label compatto: solo giorno se range breve, altrimenti gg/mm
+      const lbl = days <= 31 ? String(d.getDate()) : (d.getDate() + '/' + (d.getMonth()+1));
+      buckets.push({ key: k, label: lbl, in: 0, out: 0 });
+    }
+  } else {
+    const startY = fromD.getFullYear(), startM = fromD.getMonth() + 1;
+    const endY   = toD.getFullYear(),   endM   = toD.getMonth() + 1;
+    let y = startY, m = startM;
+    while (y < endY || (y === endY && m <= endM)) {
+      const k = y + '-' + pad(m);
+      const lbl = MESI_SHORT[m - 1] + (m === 1 ? ' \'' + String(y).slice(-2) : '');
+      buckets.push({ key: k, label: lbl, in: 0, out: 0 });
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+  }
+  const idx = {};
+  buckets.forEach((b, i) => { idx[b.key] = i; });
+
+  // Aggrega le tx
+  arr.forEach(t => {
+    let k;
+    if (mode === 'day') k = t.data;
+    else                k = t.data.slice(0, 7); // YYYY-MM
+    if (idx[k] != null) {
+      if (t.tipo === 'entrata') buckets[idx[k]].in  += Number(t.importo);
+      else                       buckets[idx[k]].out += Number(t.importo);
+    }
+  });
+
+  // Costruisci le serie in base al filtro attivo
+  const series = [];
+  const showIn  = S.listFilter !== 'uscita';
+  const showOut = S.listFilter !== 'entrata';
+  if (showIn)  series.push({ label: 'Entrate', color: 'var(--ok)',     points: buckets.map(b => b.in)  });
+  if (showOut) series.push({ label: 'Uscite',  color: 'var(--danger)', points: buckets.map(b => b.out) });
+
+  // Titolo + counter buckets
+  const title = '<div class="tx-trend-title"><span>📈 Andamento</span><span class="tt-bucket">' + buckets.length + ' ' + bucketWord + '</span></div>';
+  const chartDiv = document.createElement('div');
+  chartDiv.className = 'tx-trend-chart';
+  D.txTrendWrap.innerHTML = title;
+  D.txTrendWrap.appendChild(chartDiv);
+  Charts.renderLine(chartDiv, series, buckets.map(b => b.label), { yTicks: 4, legend: series.length > 1 });
+}
+
 function _drawList(range) {
   // Modulo Conti: SOLO transazioni "in comune", le personali sono escluse
   let arr = txComune().filter(t => t.data >= range.fromStr && t.data <= range.toStr);
@@ -4411,6 +4483,11 @@ function _drawList(range) {
       '<div class="lps-block"><span class="lps-label">Uscite</span><span class="lps-val neg">' + Charts.fmtEur(outSum) + '</span></div>' +
       '<div class="lps-block" style="grid-column: span 3;border-top:1px solid var(--border);margin-top:6px;padding-top:6px"><span class="lps-label">Saldo</span><span class="lps-val ' + (saldo >= 0 ? 'pos' : 'neg') + '">' + (saldo >= 0 ? '+' : '−') + Charts.fmtEur(Math.abs(saldo)) + '</span></div>';
   }
+
+  // Grafico andamento sopra l'elenco: mostra entrate/uscite aggregate
+  // per giorno (range breve) o mese (range lungo), rispettando filtri
+  // e periodo attualmente attivi.
+  renderTxTrend(arr, range);
 
   if (!arr.length) {
     D.txList.innerHTML = '<div class="empty"><div class="emoji">📭</div><div>Nessuna transazione nel periodo.</div></div>';
