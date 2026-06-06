@@ -256,6 +256,11 @@ function setBtnLoading(btn, on) {
     if (btn.dataset.origHtml !== undefined) {
       btn.innerHTML = btn.dataset.origHtml;
       delete btn.dataset.origHtml;
+      // RE-CACHE: innerHTML replacement crea NUOVI nodi DOM. I riferimenti
+      // in D (es. D.qaSaveLabel) puntano ai vecchi nodi ora detached, e
+      // ogni successivo D.qaSaveLabel.innerHTML = ... scrive nel vuoto.
+      // Aggiorniamo D con i nuovi nodi figli che hanno id.
+      btn.querySelectorAll('[id]').forEach(el => { D[el.id] = el; });
     }
     btn.classList.remove('loading');
     btn.disabled = false;
@@ -4462,9 +4467,14 @@ function _drawList(range) {
     }
   }
   // Filtri modal: categorie selezionate (multipla, OR)
+  // Il sentinel 0 rappresenta "Senza categoria" (categoria_id NULL).
   if (S.filtersCats && S.filtersCats.length) {
     const set = new Set(S.filtersCats);
-    arr = arr.filter(t => set.has(t.categoria_id));
+    const includesAltro = set.has(0);
+    arr = arr.filter(t => {
+      if (t.categoria_id == null) return includesAltro;
+      return set.has(t.categoria_id);
+    });
   }
   // Filtri modal: autori selezionati (multipla, OR)
   if (S.filtersAutori && S.filtersAutori.length) {
@@ -4549,10 +4559,15 @@ function renderActiveFilters() {
   }
   bar.style.display = 'flex';
   let html = '';
-  // Badge categorie
+  // Badge categorie (id=0 = "Altro" / senza categoria)
   cats.forEach(id => {
-    const c = catById(id);
-    const label = c ? ((c.icona ? c.icona + ' ' : '') + c.nome) : ('Cat #' + id);
+    let label;
+    if (id === 0) {
+      label = '📦 Altro';
+    } else {
+      const c = catById(id);
+      label = c ? ((c.icona ? c.icona + ' ' : '') + c.nome) : ('Cat #' + id);
+    }
     html += '<span class="active-filter-badge" data-type="cat" data-id="' + id + '">' +
             esc(label) +
             '<span class="badge-x" aria-label="Rimuovi filtro" role="button">✕</span>' +
@@ -4629,6 +4644,13 @@ function renderFiltersModalCats() {
     html += '<div class="filter-subtitle">Uscite</div>';
     html += '<div class="filter-chips-row">' + uscite.map(chipHtml).join('') + '</div>';
   }
+  // Chip speciale "📦 Altro" — matcha le tx con categoria_id NULL (cioè
+  // quelle salvate via il chip "Altro" del quick-add senza scegliere una
+  // categoria specifica). Uso il sentinel 0 perché i bigserial id partono
+  // da 1, quindi 0 non collide mai con un cat reale.
+  const altroSelected = _filtersDraft.cats.indexOf(0) !== -1;
+  html += '<div class="filter-subtitle">Senza categoria</div>';
+  html += '<div class="filter-chips-row"><button type="button" class="filter-chip' + (altroSelected ? ' selected' : '') + '" data-cat-id="0">📦 Altro</button></div>';
   D.filterCats.innerHTML = html;
   twemojify(D.filterCats);
   $$('.filter-chip', D.filterCats).forEach(el => {
