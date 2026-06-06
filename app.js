@@ -2925,6 +2925,21 @@ function txInCurrentMonth() {
   return txComune().filter(t => inMonth(t.data, anno, mese));
 }
 
+// Invalida cache aggregate (donut autori, trend mesi, saldo cumulativo)
+// per forzare ricalcolo al prossimo render. Da chiamare DOPO ogni
+// mutazione di S.tx (insert/update/delete via UI o Realtime) così che
+// statistiche e grafici riflettano immediatamente le novità.
+//
+// Nota: queste cache usano S.ts nella chiave ma S.ts viene bumpato solo
+// dal server tramite trigger; per le mutazioni ottimistiche locali (e per
+// gli eventi Realtime che arrivano prima del fetch di S.ts) dobbiamo
+// invalidare esplicitamente.
+function invalidateTxCharts() {
+  S.trend3mCache = null;
+  S.autoreDonutCache = null;
+  S.trendCache = null;
+}
+
 function renderConti() {
   if (!S.currentMonth) return;
   const arr = txInCurrentMonth();
@@ -5673,6 +5688,7 @@ async function saveTransaction(payload) {
   // optimistic locale
   S.tx.unshift(row);
   S.pendingTxIds.add(tmpId);
+  invalidateTxCharts();
   saveLocalCache();
   renderHomeGestione(); renderConti();
   renderList();
@@ -5689,6 +5705,7 @@ async function saveTransaction(payload) {
       const idx = S.tx.findIndex(t => t.id === tmpId);
       if (idx >= 0) S.tx[idx] = res[0];
       S.pendingTxIds.delete(tmpId);
+      invalidateTxCharts();
       saveLocalCache();
       renderHomeGestione(); renderConti();
       renderList();
@@ -5732,6 +5749,7 @@ async function saveTxEdit() {
     // optimistic
     const idx = S.tx.findIndex(t => t.id === S.editTxId);
     if (idx >= 0) S.tx[idx] = Object.assign({}, S.tx[idx], payload);
+    invalidateTxCharts();
     saveLocalCache();
     renderHomeGestione(); renderConti(); renderList();
     const path = T.TX + '?id=eq.' + S.editTxId;
@@ -5764,6 +5782,7 @@ async function deleteTxEdit() {
   try {
     // optimistic
     S.tx = S.tx.filter(t => t.id !== S.editTxId);
+    invalidateTxCharts();
     saveLocalCache();
     renderHomeGestione(); renderConti(); renderList();
     const path = T.TX + '?id=eq.' + S.editTxId;
@@ -6566,8 +6585,13 @@ function onTxChange(p) {
   } else if (ev === 'DELETE') {
     S.tx = S.tx.filter(t => t.id !== p.old.id);
   }
+  // Invalida cache aggregati DONUT/TREND/SALDO per forzare ricalcolo
+  // delle statistiche/grafici al prossimo render.
+  invalidateTxCharts();
   saveLocalCache();
-  // aggiorna sempre il widget Home (mini donut + saldo) e la view attiva
+  // aggiorna sempre il widget Home (mini donut + saldo) e la view attiva.
+  // Se siamo nel modulo Conti renderizziamo tutto (saldo + carousel
+  // donut/trend/autori) per riflettere subito la novità.
   renderHomeGestione();
   if (S.currentView === 'conti') renderConti();
   else if (S.currentView === 'list') renderList();
