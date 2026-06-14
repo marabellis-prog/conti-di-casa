@@ -510,6 +510,25 @@ html[data-theme="light"] {
   letter-spacing: 0.2px;
 }
 
+/* ─── Pagina vuota (modulo Conti in ricostruzione) ────────── */
+.view-blank {
+  padding: 80px 24px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.3px;
+}
+.view-blank small {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  font-style: italic;
+  opacity: .7;
+}
+
 /* ─── Vista "Gestione personale" — placeholder in sviluppo ── */
 .personale-wip {
   padding: 40px 24px 80px;

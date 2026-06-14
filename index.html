@@ -167,122 +167,26 @@
       </div>
     </section>
 
-    <!-- MODULO CONTI DI CASA -->
+    <!-- MODULO CONTI DI CASA — pagine svuotate, da ricostruire da zero.
+         Le 4 pill in alto (Transazioni, +, Categorie, Personale) restano
+         attive. I dati restano nel DB (cdc_transazioni, cdc_categorie...). -->
     <section id="view-conti" class="view">
-      <div class="card">
-        <h3 class="card-title">Saldo del mese</h3>
-        <div id="saldoNum" class="saldo-num">—</div>
-        <div class="saldo-sub">
-          <span class="in">Entrate <b id="saldoIn">€0</b></span>
-          <span class="out">Uscite <b id="saldoOut">€0</b></span>
-        </div>
-        <div id="ultime"></div>
-      </div>
-
-      <div class="card carousel-card">
-        <div class="carousel-head">
-          <h3 class="card-title carousel-title" id="carouselTitle">Uscite per categoria</h3>
-        </div>
-        <div class="carousel-stage">
-          <button class="carousel-arrow carousel-prev" id="carouselPrev" aria-label="Slide precedente" type="button">‹</button>
-          <button class="carousel-arrow carousel-next" id="carouselNext" aria-label="Slide successiva" type="button">›</button>
-          <div class="carousel-viewport">
-            <div class="carousel-track" id="carouselTrack">
-            <div class="carousel-slide" data-slide="0">
-              <div class="trend-range">
-                <input type="date" id="categFrom" class="trend-date" aria-label="Data di inizio">
-                <span class="trend-arrow">→</span>
-                <input type="date" id="categTo" class="trend-date" aria-label="Data di fine">
-              </div>
-              <div id="donutWrap" class="donut-wrap"></div>
-            </div>
-            <div class="carousel-slide" data-slide="1">
-              <div class="trend-range">
-                <input type="date" id="trendFrom" class="trend-date" aria-label="Data di inizio">
-                <span class="trend-arrow">→</span>
-                <input type="date" id="trendTo" class="trend-date" aria-label="Data di fine">
-              </div>
-              <div id="trend3mWrap" class="line-wrap"></div>
-            </div>
-            <div class="carousel-slide" data-slide="2">
-              <div class="trend-range">
-                <input type="date" id="autoreFrom" class="trend-date" aria-label="Data di inizio">
-                <span class="trend-arrow">→</span>
-                <input type="date" id="autoreTo" class="trend-date" aria-label="Data di fine">
-              </div>
-              <div id="autoreDonutWrap" class="donut-wrap"></div>
-            </div>
-          </div>
-          </div>
-        </div>
-        <div class="carousel-dots" id="carouselDots">
-          <span class="carousel-dot active" data-go="0" aria-label="Vai a uscite per categoria"></span>
-          <span class="carousel-dot" data-go="1" aria-label="Vai a trend mensile"></span>
-          <span class="carousel-dot" data-go="2" aria-label="Vai a uscite per autore"></span>
-        </div>
-      </div>
+      <div class="view-blank">Riepilogo<br><small>da ricostruire</small></div>
     </section>
 
-    <!-- SALDO / LISTA TRANSAZIONI -->
+    <!-- TRANSAZIONI -->
     <section id="view-list" class="view">
-      <div class="list-toolbar">
-        <button class="btn-toolbar" id="btnTogglePeriod" type="button">
-          <span class="bt-ic">📅</span><span class="bt-lbl">Seleziona periodo</span>
-        </button>
-        <button class="btn-toolbar" id="btnOpenFilters" type="button">
-          <span class="bt-ic">🔍</span><span class="bt-lbl">Seleziona filtri</span>
-          <span class="bt-badge" id="filterBadge" style="display:none"></span>
-        </button>
-      </div>
-      <div class="list-period-custom" id="listPeriodCustom" style="display:none">
-        <div class="list-period-quick" id="listPeriodQuick">
-          <button class="lpq-btn" type="button" data-quick="1y">Questo Anno</button>
-          <button class="lpq-btn" type="button" data-quick="6m">Ultimi 6 mesi</button>
-          <button class="lpq-btn" type="button" data-quick="3m">Ultimi 3 mesi</button>
-          <button class="lpq-btn" type="button" data-quick="month">Questo mese</button>
-        </div>
-        <div class="list-period-dates">
-          <input type="date" id="listPeriodFrom" aria-label="Da">
-          <span class="lpc-sep">→</span>
-          <input type="date" id="listPeriodTo" aria-label="A">
-        </div>
-      </div>
-      <div id="listPeriodSummary" class="list-period-summary"></div>
-      <div id="activeFiltersBar" class="active-filters" style="display:none"></div>
-      <div class="list-filters" id="listFilters">
-        <button class="chip active" data-tipo="all">Tutto</button>
-        <button class="chip" data-tipo="uscita">Uscite</button>
-        <button class="chip" data-tipo="entrata">Entrate</button>
-      </div>
-      <div id="txTrendWrap" class="tx-trend-wrap"></div>
-      <div id="txList"></div>
+      <div class="view-blank">Transazioni<br><small>da ricostruire</small></div>
     </section>
 
     <!-- CATEGORIE -->
     <section id="view-cat" class="view">
-      <div class="cat-tabs" id="catTabs">
-        <button class="active" data-tipo="uscita">Uscite</button>
-        <button data-tipo="entrata">Entrate</button>
-      </div>
-      <div id="catList"></div>
-      <button id="btnAddCat" class="add-cat-btn">+ Aggiungi categoria</button>
+      <div class="view-blank">Categorie<br><small>da ricostruire</small></div>
     </section>
 
-    <!-- GESTIONE PERSONALE — placeholder "in sviluppo" -->
+    <!-- GESTIONE PERSONALE -->
     <section id="view-personale" class="view">
-      <div class="personale-wip">
-        <div class="personale-wip-ic">👤</div>
-        <h2 class="personale-wip-title">Gestione personale</h2>
-        <p class="personale-wip-sub">in sviluppo…</p>
-        <p class="personale-wip-info" id="personaleWipInfo">
-          Qui vedrai le transazioni segnate come <b>personali</b> da te.
-          Solo tu potrai accedere a questo riepilogo.
-        </p>
-        <div class="personale-wip-counter">
-          <div class="pwc-label">Tue transazioni personali:</div>
-          <div class="pwc-num" id="personaleCount">0</div>
-        </div>
-      </div>
+      <div class="view-blank">Personale<br><small>da ricostruire</small></div>
     </section>
 
     <!-- LISTA DELLA SPESA — un solo block-notes con due sub-sezioni -->

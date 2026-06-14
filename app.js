@@ -2945,6 +2945,9 @@ function invalidateTxCharts() {
 }
 
 function renderConti() {
+  // Pagina Riepilogo svuotata (rebuild in corso): se i container non
+  // esistono nel DOM, esci senza fare nulla.
+  if (!D.saldoNum) return;
   if (!S.currentMonth) return;
   // PRIMA CARD: saldo + ultime sempre del MESE selezionato in alto
   const arr = txInCurrentMonth();
@@ -4347,6 +4350,8 @@ function _detectQuickPeriodKey(from, to) {
 }
 
 function renderList() {
+  // Pagina Transazioni svuotata (rebuild in corso): no-op se manca il DOM.
+  if (!D.txList) return;
   const range = getListPeriodRange();
   // Sincronizza l'header (range vs mese + visibilità frecce)
   renderHeader();
@@ -4765,6 +4770,8 @@ function renderPersonale() {
 }
 
 function renderCatView() {
+  // Pagina Categorie svuotata (rebuild in corso): no-op se manca il DOM.
+  if (!D.catList) return;
   const cats = S.cats.filter(c => c.tipo === activeCatTab);
   if (!cats.length) {
     D.catList.innerHTML = '<div class="empty"><div class="emoji">📁</div><div>Nessuna categoria.</div></div>';
@@ -6160,7 +6167,7 @@ async function saveCatEdit() {
       }
       closeModal('modalCat');
       activeCatTab = payload.tipo;
-      $$('button', D.catTabs).forEach(b => b.classList.toggle('active', b.getAttribute('data-tipo') === activeCatTab));
+      if (D.catTabs) $$('button', D.catTabs).forEach(b => b.classList.toggle('active', b.getAttribute('data-tipo') === activeCatTab));
       renderCatView();
       toast('Categoria creata', 'success');
     } else {
@@ -7064,15 +7071,18 @@ function bindEvents() {
   // Modulo Conti: pulsanti per andare a sotto-pagine
   if (D.goToList)      D.goToList.addEventListener('click', () => switchView('list'));
   if (D.goToCategorie) D.goToCategorie.addEventListener('click', () => switchView('cat'));
-  // cat edit
-  D.catEditSave.addEventListener('click', saveCatEdit);
-  D.catEditDelete.addEventListener('click', deleteCatEdit);
-  D.btnAddCat.addEventListener('click', () => openCatEdit(null));
-  $$('button', D.catTabs).forEach(b => b.addEventListener('click', () => {
-    activeCatTab = b.getAttribute('data-tipo');
-    $$('button', D.catTabs).forEach(x => x.classList.toggle('active', x === b));
-    renderCatView();
-  }));
+  // cat edit (modalCat resta nel DOM; i trigger della pagina Categorie
+  // sono stati rimossi nel rebuild → guardie su btnAddCat / catTabs)
+  if (D.catEditSave)   D.catEditSave.addEventListener('click', saveCatEdit);
+  if (D.catEditDelete) D.catEditDelete.addEventListener('click', deleteCatEdit);
+  if (D.btnAddCat)     D.btnAddCat.addEventListener('click', () => openCatEdit(null));
+  if (D.catTabs) {
+    $$('button', D.catTabs).forEach(b => b.addEventListener('click', () => {
+      activeCatTab = b.getAttribute('data-tipo');
+      $$('button', D.catTabs).forEach(x => x.classList.toggle('active', x === b));
+      renderCatView();
+    }));
+  }
   // budget edit (modal ancora presente, ma non più accessibile dall'UI principale)
   if (D.budgetEditSave)   D.budgetEditSave.addEventListener('click', saveBudgetEdit);
   if (D.budgetEditDelete) D.budgetEditDelete.addEventListener('click', deleteBudgetEdit);
