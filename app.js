@@ -158,6 +158,7 @@ function cacheDOM() {
    // Wizard nuova transazione (fullscreen multi-step)
    'modalWizard','wizClose','wizProgress','wizStepNum','wizTipo','wizAutori','wizCats','wizCatLabel','wizPersonale','wizBack','wizNext',
    'wizAmt','wizAmtVal','wizNumpad',
+   'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizCompQuick','wizCompDa','wizCompA','wizRecap',
    'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete','txEditPersonale',
    'view-personale','personaleCount','personaleWipInfo',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
@@ -5565,7 +5566,7 @@ function renderAnalisiBudgetBars() {
 // Step 1: tipo (entrata/uscita) + chi paga + categoria + personale
 // Step 2: (da definire)
 // ═══════════════════════════════════════════════════════════════
-const WIZ_STEPS = 2;
+const WIZ_STEPS = 4;
 const WIZ = {
   step: 1,
   tipo: 'uscita',          // 'entrata' | 'uscita'
@@ -5573,6 +5574,10 @@ const WIZ = {
   personale: false,
   categoria_id: undefined, // undefined = non scelta; null = "Altro"; number = sotto-cat
   amt: '',                 // stringa importo digitata sul tastierino (step 2)
+  data: '',                // giorno del pagamento (step 3, default oggi)
+  compTipo: null,          // 'annuale'|'semestrale'|'bimestrale'|'mensile' (step 3)
+  compDa: '',              // periodo competenza inizio (YYYY-MM-DD)
+  compA: '',               // periodo competenza fine
 };
 let _wizMacroId = null;     // null = mostra macro; id = mostra sotto-cat di quella macro
 
@@ -5585,12 +5590,20 @@ function openTxWizard(tipo) {
   WIZ.personale = false;
   WIZ.categoria_id = undefined;
   WIZ.amt = '';
+  WIZ.data = today();
+  WIZ.compTipo = null;
+  WIZ.compDa = '';
+  WIZ.compA = '';
   _wizMacroId = null;
   setWizTipo(WIZ.tipo);
   if (D.wizPersonale) D.wizPersonale.checked = false;
   renderWizAutori();
   renderWizCats();
   setWizAmt('');
+  // Step 3: data pagamento = oggi, competenza pre-impostata a "Mensile"
+  if (D.wizDataPag) D.wizDataPag.value = WIZ.data;
+  renderWizDataPagLabel();
+  setWizComp('mensile');
   showWizStep(1);
   if (D.modalWizard) D.modalWizard.classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -5618,6 +5631,10 @@ function showWizStep(n) {
   if (D.wizStepNum) D.wizStepNum.textContent = n + ' / ' + WIZ_STEPS;
   // Indietro: disabilitato nel primo step
   if (D.wizBack) D.wizBack.disabled = (n === 1);
+  // Ultimo step → il bottone Continua diventa "Salva"
+  if (D.wizNext) D.wizNext.textContent = (n === WIZ_STEPS) ? '✓ Salva' : 'Continua';
+  // Render contenuto specifico dello step
+  if (n === 4) renderWizRecap();
   updateWizNext();
 }
 
@@ -5761,6 +5778,126 @@ function wizNumpadPress(k) {
   vibrate(8);
 }
 
+// ─── Step 3: data pagamento + periodo competenza ────────────
+function renderWizDataPagLabel() {
+  if (!D.wizDataPagLabel) return;
+  const val = (D.wizDataPag && D.wizDataPag.value) || WIZ.data || today();
+  WIZ.data = val;
+  const t = today();
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  const ystr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  let label;
+  if (val === t) label = 'Oggi';
+  else if (val === ystr) label = 'Ieri';
+  else { const [yy, mm, dd] = val.split('-'); label = dd + ' ' + MESI_SHORT[Number(mm)-1] + ' ' + yy; }
+  D.wizDataPagLabel.textContent = label;
+}
+
+// Calcola il periodo di competenza dell'ANNO CORRENTE che contiene
+// la data di pagamento, in base al tipo scelto.
+function compPeriodFor(type, refStr) {
+  const ref = refStr ? new Date(refStr + 'T00:00:00') : new Date();
+  const y = ref.getFullYear();
+  const m = ref.getMonth() + 1; // 1-12
+  const pad = n => String(n).padStart(2, '0');
+  const lastDay = (yy, mm) => new Date(yy, mm, 0).getDate();
+  let sm, em;
+  if (type === 'annuale')          { sm = 1;  em = 12; }
+  else if (type === 'semestrale')  { if (m <= 6) { sm = 1; em = 6; } else { sm = 7; em = 12; } }
+  else if (type === 'bimestrale')  { const idx = Math.floor((m - 1) / 2); sm = idx * 2 + 1; em = sm + 1; }
+  else                             { sm = m; em = m; } // mensile
+  return {
+    da: y + '-' + pad(sm) + '-01',
+    a:  y + '-' + pad(em) + '-' + pad(lastDay(y, em))
+  };
+}
+
+function setWizComp(type) {
+  WIZ.compTipo = type;
+  const p = compPeriodFor(type, WIZ.data || today());
+  WIZ.compDa = p.da;
+  WIZ.compA  = p.a;
+  if (D.wizCompDa) D.wizCompDa.value = p.da;
+  if (D.wizCompA)  D.wizCompA.value  = p.a;
+  if (D.wizCompQuick) {
+    $$('button', D.wizCompQuick).forEach(b => b.classList.toggle('active', b.getAttribute('data-comp') === type));
+  }
+  updateWizNext();
+}
+
+// L'utente ha modificato manualmente una data → deseleziona i preset
+function onWizCompDateChange() {
+  WIZ.compDa = (D.wizCompDa && D.wizCompDa.value) || '';
+  WIZ.compA  = (D.wizCompA && D.wizCompA.value) || '';
+  // se le date non corrispondono più a nessun preset, togli highlight
+  WIZ.compTipo = null;
+  if (D.wizCompQuick) $$('button', D.wizCompQuick).forEach(b => b.classList.remove('active'));
+  updateWizNext();
+}
+
+// ─── Step 4: riepilogo ──────────────────────────────────────
+function fmtRecapDate(s) {
+  if (!s) return '—';
+  const [y, m, d] = s.split('-');
+  return d + ' ' + MESI_SHORT[Number(m)-1] + ' ' + y;
+}
+function renderWizRecap() {
+  if (!D.wizRecap) return;
+  const imp = parseAmount(WIZ.amt) || 0;
+  let catLabel, catIcon;
+  if (WIZ.categoria_id === null) { catLabel = 'Altro'; catIcon = '📦'; }
+  else {
+    const c = catById(WIZ.categoria_id);
+    catLabel = c ? c.nome : '?';
+    catIcon = c ? (c.icona || '🏷') : '🏷';
+  }
+  const tipoLabel = WIZ.tipo === 'entrata' ? 'Entrata' : 'Uscita';
+  const compLabel = WIZ.compTipo ? (WIZ.compTipo.charAt(0).toUpperCase() + WIZ.compTipo.slice(1)) : 'Personalizzato';
+  const rows = [
+    ['Tipo', '<span class="wiz-recap-v ' + (WIZ.tipo === 'entrata' ? 'pos' : 'neg') + '">' + tipoLabel + '</span>'],
+    ['Importo', '<span class="wiz-recap-v big ' + (WIZ.tipo === 'entrata' ? 'pos' : 'neg') + '">' + (WIZ.tipo === 'entrata' ? '+' : '−') + fmtEur(imp) + '</span>'],
+    ['Categoria', '<span class="wiz-recap-v">' + catIcon + ' ' + esc(catLabel) + '</span>'],
+    ['Chi paga', '<span class="wiz-recap-v">' + esc(WIZ.autore || '—') + '</span>'],
+    ['Personale', '<span class="wiz-recap-v">' + (WIZ.personale ? '👤 Sì' : 'No') + '</span>'],
+    ['Pagato il', '<span class="wiz-recap-v">' + fmtRecapDate(WIZ.data) + '</span>'],
+    ['Competenza', '<span class="wiz-recap-v"><span class="wiz-recap-badge">' + compLabel + '</span></span>'],
+    ['Periodo', '<span class="wiz-recap-v">' + fmtRecapDate(WIZ.compDa) + ' → ' + fmtRecapDate(WIZ.compA) + '</span>'],
+  ];
+  D.wizRecap.innerHTML = rows.map(([k, v]) =>
+    '<div class="wiz-recap-row"><span class="wiz-recap-k">' + k + '</span>' + v + '</div>'
+  ).join('');
+  twemojify(D.wizRecap);
+}
+
+// ─── Salvataggio finale ─────────────────────────────────────
+async function wizSave() {
+  const imp = parseAmount(WIZ.amt);
+  if (!imp || imp <= 0) { toast('Importo non valido', 'warn'); return; }
+  const payload = {
+    importo: imp,
+    tipo: WIZ.tipo,
+    categoria_id: (WIZ.categoria_id === null || WIZ.categoria_id === undefined) ? null : WIZ.categoria_id,
+    descrizione: null,
+    data: WIZ.data || today(),
+    autore: WIZ.autore || null,
+    personale: !!WIZ.personale,
+    competenza_da: WIZ.compDa || null,
+    competenza_a: WIZ.compA || null,
+    competenza_tipo: WIZ.compTipo || null
+  };
+  setBtnLoading(D.wizNext, true);
+  try {
+    await saveTransaction(payload);
+    vibrate(20);
+    closeTxWizard();
+    toast('Transazione salvata', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'salvataggio non riuscito'), 'error');
+  } finally {
+    setBtnLoading(D.wizNext, false);
+  }
+}
+
 // Continua si accende solo se: tipo (sempre ok), chi paga, categoria scelta
 function updateWizNext() {
   if (!D.wizNext) return;
@@ -5770,8 +5907,10 @@ function updateWizNext() {
   } else if (WIZ.step === 2) {
     const imp = parseAmount(WIZ.amt);
     ok = !!imp && imp > 0;
+  } else if (WIZ.step === 3) {
+    ok = !!WIZ.data && !!WIZ.compDa && !!WIZ.compA && WIZ.compDa <= WIZ.compA;
   } else {
-    ok = true;
+    ok = true; // step 4 (riepilogo): salva sempre abilitato
   }
   D.wizNext.disabled = !ok;
 }
@@ -5780,8 +5919,7 @@ function wizNext() {
   if (WIZ.step < WIZ_STEPS) {
     showWizStep(WIZ.step + 1);
   } else {
-    // ultimo step → salvataggio (da implementare quando definiamo step 2)
-    // wizSave();
+    wizSave(); // ultimo step (riepilogo) → salva su DB
   }
 }
 
@@ -7163,6 +7301,30 @@ function bindEvents() {
   if (D.wizNumpad) {
     $$('button', D.wizNumpad).forEach(b => b.addEventListener('click', () => wizNumpadPress(b.getAttribute('data-k'))));
   }
+  // Step 3: data pagamento
+  if (D.wizDataPag) {
+    D.wizDataPag.addEventListener('change', () => {
+      renderWizDataPagLabel();
+      // se un preset competenza è attivo, ricalcola il periodo sulla nuova data
+      if (WIZ.compTipo) setWizComp(WIZ.compTipo);
+    });
+  }
+  if (D.wizDataPagBtn && D.wizDataPag) {
+    let _opening = false;
+    D.wizDataPagBtn.addEventListener('click', e => {
+      if (e.target === D.wizDataPag) return;
+      if (_opening) return;
+      _opening = true; setTimeout(() => { _opening = false; }, 400);
+      try { if (typeof D.wizDataPag.showPicker === 'function') { D.wizDataPag.showPicker(); return; } } catch (err) {}
+      try { D.wizDataPag.focus(); D.wizDataPag.click(); } catch (err) {}
+    });
+  }
+  // Step 3: preset competenza
+  if (D.wizCompQuick) {
+    $$('button', D.wizCompQuick).forEach(b => b.addEventListener('click', () => setWizComp(b.getAttribute('data-comp'))));
+  }
+  if (D.wizCompDa) D.wizCompDa.addEventListener('change', onWizCompDateChange);
+  if (D.wizCompA)  D.wizCompA.addEventListener('change', onWizCompDateChange);
   // qa
   $$('button', D.qaToggle).forEach(b => b.addEventListener('click', () => setQaTipo(b.getAttribute('data-tipo'))));
   $$('button', D.numpad).forEach(b => b.addEventListener('click', () => numpadPress(b.getAttribute('data-k'))));

@@ -282,8 +282,10 @@
       <div class="wiz-progress" id="wizProgress">
         <span class="wiz-dot active" data-step="1"></span>
         <span class="wiz-dot" data-step="2"></span>
+        <span class="wiz-dot" data-step="3"></span>
+        <span class="wiz-dot" data-step="4"></span>
       </div>
-      <span class="wiz-step-num" id="wizStepNum">1 / 2</span>
+      <span class="wiz-step-num" id="wizStepNum">1 / 4</span>
     </div>
 
     <!-- Corpo: gli step si alternano -->
@@ -326,6 +328,39 @@
           <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
           <button type="button" data-k=",">,</button><button type="button" data-k="0">0</button><button type="button" class="bs" data-k="bs">⌫</button>
         </div>
+      </section>
+
+      <!-- ── STEP 3: data pagamento + periodo competenza ── -->
+      <section class="wiz-step" data-step="3" hidden>
+        <h2 class="wiz-title">Quando e per quale periodo?</h2>
+
+        <h3 class="wiz-label">Giorno del pagamento</h3>
+        <label class="wiz-date-pill" id="wizDataPagBtn" for="wizDataPag">
+          <span class="wiz-date-ic">🗓</span>
+          <span id="wizDataPagLabel">Oggi</span>
+          <span class="wiz-date-arrow">▾</span>
+          <input type="date" id="wizDataPag" class="wiz-date-hidden">
+        </label>
+
+        <h3 class="wiz-label">Periodo di competenza</h3>
+        <p class="wiz-hint">Su quale periodo va spalmata questa cifra?</p>
+        <div class="wiz-comp-quick" id="wizCompQuick">
+          <button type="button" data-comp="annuale">Annuale</button>
+          <button type="button" data-comp="semestrale">Semestrale</button>
+          <button type="button" data-comp="bimestrale">Bimestrale</button>
+          <button type="button" data-comp="mensile">Mensile</button>
+        </div>
+        <div class="wiz-comp-dates">
+          <input type="date" id="wizCompDa" aria-label="Competenza da">
+          <span class="wiz-comp-sep">→</span>
+          <input type="date" id="wizCompA" aria-label="Competenza a">
+        </div>
+      </section>
+
+      <!-- ── STEP 4: riepilogo + salva ── -->
+      <section class="wiz-step" data-step="4" hidden>
+        <h2 class="wiz-title">Riepilogo</h2>
+        <div class="wiz-recap" id="wizRecap"></div>
       </section>
 
     </div>

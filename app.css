@@ -3499,6 +3499,126 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .wiz-numpad button:active { background: var(--border); transform: scale(.96); }
 .wiz-numpad button.bs { color: var(--danger); font-size: 20px; }
 
+/* Step 3: data pagamento + periodo competenza */
+.wiz-hint {
+  font-size: 13px;
+  color: var(--text-faint);
+  margin: -2px 0 10px;
+  font-style: italic;
+}
+.wiz-date-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  min-height: 48px;
+}
+.wiz-date-pill .wiz-date-ic { font-size: 18px; }
+.wiz-date-pill .wiz-date-arrow { font-size: 12px; color: var(--text-faint); }
+.wiz-date-hidden {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  padding: 0;
+  font-size: 16px;
+  color: transparent;
+  pointer-events: none;
+}
+.wiz-comp-quick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.wiz-comp-quick button {
+  height: 48px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.wiz-comp-quick button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f1419;
+}
+.wiz-comp-dates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.wiz-comp-dates input[type=date] {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-size: 14px;
+  color: var(--text);
+  color-scheme: dark;
+}
+.wiz-comp-sep { color: var(--text-faint); flex-shrink: 0; }
+
+/* Step 4: riepilogo */
+.wiz-recap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.wiz-recap-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.wiz-recap-row:last-child { border-bottom: none; }
+.wiz-recap-k {
+  font-size: 13px;
+  color: var(--text-faint);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.wiz-recap-v {
+  font-size: 15px;
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wiz-recap-v img.emoji { width: 18px; height: 18px; }
+.wiz-recap-v.big { font-size: 22px; font-weight: 800; }
+.wiz-recap-v.pos { color: var(--ok); }
+.wiz-recap-v.neg { color: var(--danger); }
+.wiz-recap-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(var(--accent-rgb,100,80,230),.15);
+  color: var(--accent);
+}
+
 /* Footer Indietro / Continua */
 .wiz-footer {
   display: flex;
