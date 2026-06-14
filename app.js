@@ -4973,7 +4973,8 @@ const MODULI = {
       { go: 'list', label: '📋', caption: 'Transazioni', aria: 'Lista transazioni', active: cv === 'list' },
       { go: 'cat',  label: '📁', caption: 'Categorie',  aria: 'Categorie',         active: cv === 'cat'  },
       { id: 'actAddTx', cls: 'action-add', label: '+', aria: 'Nuova transazione', onClick: openTxWizard },
-      { go: 'personale', label: '👤', caption: 'Personale', aria: 'Gestione personale', active: cv === 'personale' }
+      { go: 'personale', label: '👤', caption: 'Personale', aria: 'Gestione personale', active: cv === 'personale' },
+      { go: 'conti', label: '🏠', caption: 'Home', aria: 'Home Conti (Riepilogo)', active: cv === 'conti' }
     ]
   },
   spesa: {
