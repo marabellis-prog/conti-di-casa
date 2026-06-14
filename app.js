@@ -157,6 +157,7 @@ function cacheDOM() {
    'qaDateBtn','qaDateLabel','qaDatePicker','qaSaveBtn','qaSaveLabel',
    // Wizard nuova transazione (fullscreen multi-step)
    'modalWizard','wizClose','wizProgress','wizStepNum','wizTipo','wizAutori','wizCats','wizCatLabel','wizPersonale','wizBack','wizNext',
+   'wizAmt','wizAmtVal','wizNumpad',
    'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete','txEditPersonale',
    'view-personale','personaleCount','personaleWipInfo',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
@@ -5571,6 +5572,7 @@ const WIZ = {
   autore: null,            // chi paga (nome)
   personale: false,
   categoria_id: undefined, // undefined = non scelta; null = "Altro"; number = sotto-cat
+  amt: '',                 // stringa importo digitata sul tastierino (step 2)
 };
 let _wizMacroId = null;     // null = mostra macro; id = mostra sotto-cat di quella macro
 
@@ -5582,11 +5584,13 @@ function openTxWizard(tipo) {
   WIZ.autore = getDefaultAutore() || null;  // default: utente loggato
   WIZ.personale = false;
   WIZ.categoria_id = undefined;
+  WIZ.amt = '';
   _wizMacroId = null;
   setWizTipo(WIZ.tipo);
   if (D.wizPersonale) D.wizPersonale.checked = false;
   renderWizAutori();
   renderWizCats();
+  setWizAmt('');
   showWizStep(1);
   if (D.modalWizard) D.modalWizard.classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -5730,14 +5734,44 @@ function renderWizCats() {
   }
 }
 
+// ─── Step 2: tastierino importo ─────────────────────────────
+function setWizAmt(v) {
+  WIZ.amt = v;
+  if (D.wizAmtVal) D.wizAmtVal.textContent = v || '0';
+  if (D.wizAmt) D.wizAmt.classList.toggle('empty', !v);
+  updateWizNext();
+}
+function wizNumpadPress(k) {
+  let v = WIZ.amt || '';
+  if (k === 'bs') {
+    v = v.slice(0, -1);
+  } else if (k === ',') {
+    if (!v.includes(',')) v = (v || '0') + ',';
+  } else {
+    if (v === '0') v = '';
+    // max 2 decimali
+    if (v.includes(',')) {
+      const dec = v.split(',')[1];
+      if (dec.length >= 2) return;
+    }
+    if (v.replace(',', '').length >= 9) return;
+    v += k;
+  }
+  setWizAmt(v);
+  vibrate(8);
+}
+
 // Continua si accende solo se: tipo (sempre ok), chi paga, categoria scelta
 function updateWizNext() {
   if (!D.wizNext) return;
   let ok = false;
   if (WIZ.step === 1) {
     ok = !!WIZ.tipo && !!WIZ.autore && WIZ.categoria_id !== undefined;
+  } else if (WIZ.step === 2) {
+    const imp = parseAmount(WIZ.amt);
+    ok = !!imp && imp > 0;
   } else {
-    ok = true; // step 2: validazione da definire
+    ok = true;
   }
   D.wizNext.disabled = !ok;
 }
@@ -7126,6 +7160,9 @@ function bindEvents() {
     $$('button', D.wizTipo).forEach(b => b.addEventListener('click', () => setWizTipo(b.getAttribute('data-tipo'))));
   }
   if (D.wizPersonale) D.wizPersonale.addEventListener('change', () => { WIZ.personale = D.wizPersonale.checked; });
+  if (D.wizNumpad) {
+    $$('button', D.wizNumpad).forEach(b => b.addEventListener('click', () => wizNumpadPress(b.getAttribute('data-k'))));
+  }
   // qa
   $$('button', D.qaToggle).forEach(b => b.addEventListener('click', () => setQaTipo(b.getAttribute('data-tipo'))));
   $$('button', D.numpad).forEach(b => b.addEventListener('click', () => numpadPress(b.getAttribute('data-k'))));

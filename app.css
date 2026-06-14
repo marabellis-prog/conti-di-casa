@@ -3455,6 +3455,50 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   line-height: 1.6;
 }
 
+/* Step 2: importo gigante + tastierino */
+.wiz-amt {
+  text-align: center;
+  font-size: 56px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1.5px;
+  margin: 18px 0 20px;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  word-break: break-all;
+  line-height: 1;
+  color: var(--text);
+}
+.wiz-amt .wiz-euro {
+  font-size: 30px;
+  color: var(--text-dim);
+  margin-right: 6px;
+  font-weight: 500;
+}
+.wiz-amt.empty { color: var(--text-faint); }
+.wiz-numpad {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  max-width: 360px;
+  margin: 0 auto;
+}
+.wiz-numpad button {
+  height: 60px;
+  background: var(--surface-2);
+  border: none;
+  border-radius: 14px;
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: background .1s, transform .1s;
+}
+.wiz-numpad button:active { background: var(--border); transform: scale(.96); }
+.wiz-numpad button.bs { color: var(--danger); font-size: 20px; }
+
 /* Footer Indietro / Continua */
 .wiz-footer {
   display: flex;
