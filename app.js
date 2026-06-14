@@ -155,6 +155,8 @@ function cacheDOM() {
    // modals
    'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaDesc','qaAutore','qaPersonale',
    'qaDateBtn','qaDateLabel','qaDatePicker','qaSaveBtn','qaSaveLabel',
+   // Wizard nuova transazione (fullscreen multi-step)
+   'modalWizard','wizClose','wizProgress','wizStepNum','wizTipo','wizAutori','wizCats','wizCatLabel','wizPersonale','wizBack','wizNext',
    'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete','txEditPersonale',
    'view-personale','personaleCount','personaleWipInfo',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
@@ -4970,7 +4972,7 @@ const MODULI = {
     getActions: (cv) => [
       { go: 'list', label: '📋', caption: 'Transazioni', aria: 'Lista transazioni', active: cv === 'list' },
       { go: 'cat',  label: '📁', caption: 'Categorie',  aria: 'Categorie',         active: cv === 'cat'  },
-      { id: 'actAddTx', cls: 'action-add', label: '+', aria: 'Nuova transazione', onClick: openQuickAdd },
+      { id: 'actAddTx', cls: 'action-add', label: '+', aria: 'Nuova transazione', onClick: openTxWizard },
       { go: 'personale', label: '👤', caption: 'Personale', aria: 'Gestione personale', active: cv === 'personale' }
     ]
   },
@@ -5554,6 +5556,202 @@ function renderAnalisiBudgetBars() {
     return;
   }
   Charts.renderBudgetBars(D.budgetBarsAnalisi, visible);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WIZARD NUOVA TRANSAZIONE — procedura guidata fullscreen multi-step
+// Step 1: tipo (entrata/uscita) + chi paga + categoria + personale
+// Step 2: (da definire)
+// ═══════════════════════════════════════════════════════════════
+const WIZ_STEPS = 2;
+const WIZ = {
+  step: 1,
+  tipo: 'uscita',          // 'entrata' | 'uscita'
+  autore: null,            // chi paga (nome)
+  personale: false,
+  categoria_id: undefined, // undefined = non scelta; null = "Altro"; number = sotto-cat
+};
+let _wizMacroId = null;     // null = mostra macro; id = mostra sotto-cat di quella macro
+
+function openTxWizard(tipo) {
+  WIZ.step = 1;
+  // tipo può arrivare dalle PWA shortcut (add-uscita/add-entrata);
+  // se non è una stringa valida usa l'ultimo tipo o 'uscita'
+  WIZ.tipo = (tipo === 'entrata' || tipo === 'uscita') ? tipo : (localStorage.getItem(LS.LAST_TIPO) || 'uscita');
+  WIZ.autore = getDefaultAutore() || null;  // default: utente loggato
+  WIZ.personale = false;
+  WIZ.categoria_id = undefined;
+  _wizMacroId = null;
+  setWizTipo(WIZ.tipo);
+  if (D.wizPersonale) D.wizPersonale.checked = false;
+  renderWizAutori();
+  renderWizCats();
+  showWizStep(1);
+  if (D.modalWizard) D.modalWizard.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeTxWizard() {
+  if (D.modalWizard) D.modalWizard.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function showWizStep(n) {
+  WIZ.step = n;
+  $$('.wiz-step', D.modalWizard).forEach(s => {
+    const sn = Number(s.getAttribute('data-step'));
+    const on = sn === n;
+    s.classList.toggle('active', on);
+    s.hidden = !on;
+  });
+  // progress dots
+  if (D.wizProgress) {
+    $$('.wiz-dot', D.wizProgress).forEach(d => {
+      d.classList.toggle('active', Number(d.getAttribute('data-step')) <= n);
+    });
+  }
+  if (D.wizStepNum) D.wizStepNum.textContent = n + ' / ' + WIZ_STEPS;
+  // Indietro: disabilitato nel primo step
+  if (D.wizBack) D.wizBack.disabled = (n === 1);
+  updateWizNext();
+}
+
+function setWizTipo(tipo) {
+  WIZ.tipo = tipo;
+  if (D.wizTipo) {
+    D.wizTipo.setAttribute('data-tipo', tipo);
+    $$('button', D.wizTipo).forEach(b => b.classList.toggle('active', b.getAttribute('data-tipo') === tipo));
+  }
+  localStorage.setItem(LS.LAST_TIPO, tipo);
+  // cambiando tipo, le categorie disponibili cambiano → reset selezione
+  WIZ.categoria_id = undefined;
+  _wizMacroId = null;
+  renderWizCats();
+  updateWizNext();
+}
+
+function renderWizAutori() {
+  if (!D.wizAutori) return;
+  const list = getAutoriList();
+  D.wizAutori.innerHTML = list.map(nome =>
+    '<button type="button" class="wiz-chip' + (nome === WIZ.autore ? ' active' : '') + '" data-autore="' + esc(nome) + '">' +
+      esc(nome) +
+    '</button>'
+  ).join('');
+  $$('.wiz-chip', D.wizAutori).forEach(el => {
+    el.addEventListener('click', () => {
+      WIZ.autore = el.getAttribute('data-autore');
+      renderWizAutori();
+      updateWizNext();
+    });
+  });
+}
+
+function renderWizCats() {
+  if (!D.wizCats) return;
+  const allCats = S.cats.filter(c => c.tipo === WIZ.tipo);
+  if (!allCats.length) {
+    D.wizCats.innerHTML = '<div class="wiz-placeholder" style="grid-column:1/-1;padding:24px 8px">Nessuna categoria ' +
+      (WIZ.tipo === 'entrata' ? 'di entrata' : 'di uscita') + '.<br><small>Creane una in Categorie</small></div>';
+    if (D.wizCatLabel) D.wizCatLabel.textContent = 'Categoria';
+    return;
+  }
+
+  // recency per ranking (ultimi 90 giorni)
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
+  const cutoffStr = cutoff.getFullYear() + '-' + String(cutoff.getMonth()+1).padStart(2,'0') + '-' + String(cutoff.getDate()).padStart(2,'0');
+  const recent = txComune().filter(t => t.tipo === WIZ.tipo && t.data >= cutoffStr);
+  const useByCat = {};
+  recent.forEach(t => { if (t.categoria_id != null) useByCat[t.categoria_id] = (useByCat[t.categoria_id] || 0) + 1; });
+
+  if (_wizMacroId == null) {
+    // LIVELLO 1: macro-categorie
+    if (D.wizCatLabel) D.wizCatLabel.textContent = 'Categoria';
+    const groups = new Map();
+    allCats.forEach(c => {
+      const mid = c.macro_categoria || 'altro';
+      if (!groups.has(mid)) groups.set(mid, { count: 0, useTotal: 0 });
+      const g = groups.get(mid);
+      g.count++;
+      g.useTotal += (useByCat[c.id] || 0);
+    });
+    const sorted = Array.from(groups.entries()).sort((a, b) => (b[1].useTotal - a[1].useTotal) || a[0].localeCompare(b[0]));
+    let html = sorted.map(([mid, g]) => {
+      const m = macroById(mid);
+      return '<button type="button" class="wiz-cat" data-macro="' + mid + '">' +
+        '<span class="wiz-cat-badge">' + g.count + '</span>' +
+        '<span class="wiz-cat-icon">' + (m ? m.icon : '📦') + '</span>' +
+        '<span class="wiz-cat-name">' + esc(macroLabel(mid)) + '</span>' +
+      '</button>';
+    }).join('');
+    // chip "Altro" (senza categoria)
+    html += '<button type="button" class="wiz-cat' + (WIZ.categoria_id === null ? ' active' : '') + '" data-altro="1">' +
+      '<span class="wiz-cat-icon">📦</span><span class="wiz-cat-name">Altro</span></button>';
+    D.wizCats.innerHTML = html;
+    twemojify(D.wizCats);
+    $$('.wiz-cat[data-macro]', D.wizCats).forEach(el => {
+      el.addEventListener('click', () => { _wizMacroId = el.getAttribute('data-macro'); renderWizCats(); });
+    });
+    $$('.wiz-cat[data-altro]', D.wizCats).forEach(el => {
+      el.addEventListener('click', () => {
+        WIZ.categoria_id = (WIZ.categoria_id === null) ? undefined : null;
+        renderWizCats();
+        updateWizNext();
+      });
+    });
+  } else {
+    // LIVELLO 2: sotto-categorie della macro selezionata
+    const m = macroById(_wizMacroId);
+    if (D.wizCatLabel) D.wizCatLabel.textContent = 'Categoria · ' + macroLabel(_wizMacroId);
+    const subs = allCats
+      .filter(c => (c.macro_categoria || 'altro') === _wizMacroId)
+      .sort((a, b) => (useByCat[b.id] || 0) - (useByCat[a.id] || 0) || a.ordine - b.ordine);
+    let html = '<button type="button" class="wiz-cat wiz-back-cat" data-wizback="1">' +
+      '<span class="wiz-cat-icon">‹</span><span class="wiz-cat-name">Indietro</span></button>';
+    html += subs.map(c =>
+      '<button type="button" class="wiz-cat' + (WIZ.categoria_id === c.id ? ' active' : '') + '" data-cat-id="' + c.id + '">' +
+        '<span class="wiz-cat-icon" style="color:' + (c.colore || '#666') + '">' + (c.icona || '?') + '</span>' +
+        '<span class="wiz-cat-name">' + esc(c.nome) + '</span>' +
+      '</button>'
+    ).join('');
+    D.wizCats.innerHTML = html;
+    twemojify(D.wizCats);
+    const back = $('.wiz-cat[data-wizback]', D.wizCats);
+    if (back) back.addEventListener('click', () => { _wizMacroId = null; renderWizCats(); });
+    $$('.wiz-cat[data-cat-id]', D.wizCats).forEach(el => {
+      el.addEventListener('click', () => {
+        const id = Number(el.getAttribute('data-cat-id'));
+        WIZ.categoria_id = (WIZ.categoria_id === id) ? undefined : id;
+        renderWizCats();
+        updateWizNext();
+      });
+    });
+  }
+}
+
+// Continua si accende solo se: tipo (sempre ok), chi paga, categoria scelta
+function updateWizNext() {
+  if (!D.wizNext) return;
+  let ok = false;
+  if (WIZ.step === 1) {
+    ok = !!WIZ.tipo && !!WIZ.autore && WIZ.categoria_id !== undefined;
+  } else {
+    ok = true; // step 2: validazione da definire
+  }
+  D.wizNext.disabled = !ok;
+}
+
+function wizNext() {
+  if (WIZ.step < WIZ_STEPS) {
+    showWizStep(WIZ.step + 1);
+  } else {
+    // ultimo step → salvataggio (da implementare quando definiamo step 2)
+    // wizSave();
+  }
+}
+
+function wizBack() {
+  if (WIZ.step > 1) showWizStep(WIZ.step - 1);
 }
 
 // ─── QUICK ADD ──────────────────────────────────────────────
@@ -6919,6 +7117,14 @@ function bindEvents() {
   if (D.btnOpenFilters)   D.btnOpenFilters.addEventListener('click', openFiltersModal);
   if (D.btnApplyFilters)  D.btnApplyFilters.addEventListener('click', applyFiltersFromModal);
   if (D.btnResetFilters)  D.btnResetFilters.addEventListener('click', resetFiltersFromModal);
+  // ── Wizard nuova transazione ──
+  if (D.wizClose) D.wizClose.addEventListener('click', closeTxWizard);
+  if (D.wizBack)  D.wizBack.addEventListener('click', wizBack);
+  if (D.wizNext)  D.wizNext.addEventListener('click', wizNext);
+  if (D.wizTipo) {
+    $$('button', D.wizTipo).forEach(b => b.addEventListener('click', () => setWizTipo(b.getAttribute('data-tipo'))));
+  }
+  if (D.wizPersonale) D.wizPersonale.addEventListener('change', () => { WIZ.personale = D.wizPersonale.checked; });
   // qa
   $$('button', D.qaToggle).forEach(b => b.addEventListener('click', () => setQaTipo(b.getAttribute('data-tipo'))));
   $$('button', D.numpad).forEach(b => b.addEventListener('click', () => numpadPress(b.getAttribute('data-k'))));
@@ -7105,8 +7311,8 @@ function bindEvents() {
   // shortcut da URL ?action=add-uscita / add-entrata
   const params = new URLSearchParams(location.search);
   const action = params.get('action');
-  if (action === 'add-uscita') setTimeout(() => openQuickAdd('uscita'), 300);
-  else if (action === 'add-entrata') setTimeout(() => openQuickAdd('entrata'), 300);
+  if (action === 'add-uscita') setTimeout(() => openTxWizard('uscita'), 300);
+  else if (action === 'add-entrata') setTimeout(() => openTxWizard('entrata'), 300);
 }
 
 // ─── PULL TO REFRESH ────────────────────────────────────────

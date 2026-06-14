@@ -274,7 +274,64 @@
 
   <!-- ─────────── MODALS ─────────── -->
 
-  <!-- Quick Add -->
+  <!-- ══ WIZARD NUOVA TRANSAZIONE (fullscreen, multi-step) ══ -->
+  <div class="wiz" id="modalWizard">
+    <!-- Header: progress + chiudi -->
+    <div class="wiz-header">
+      <button class="wiz-close" id="wizClose" type="button" aria-label="Chiudi">✕</button>
+      <div class="wiz-progress" id="wizProgress">
+        <span class="wiz-dot active" data-step="1"></span>
+        <span class="wiz-dot" data-step="2"></span>
+      </div>
+      <span class="wiz-step-num" id="wizStepNum">1 / 2</span>
+    </div>
+
+    <!-- Corpo: gli step si alternano -->
+    <div class="wiz-body">
+
+      <!-- ── STEP 1 ── -->
+      <section class="wiz-step active" data-step="1">
+        <h2 class="wiz-title">Che movimento è?</h2>
+
+        <!-- Entrata / Uscita -->
+        <div class="wiz-seg" id="wizTipo" data-tipo="uscita">
+          <div class="wiz-seg-bg"></div>
+          <button type="button" data-tipo="uscita" class="active">↙ Uscita</button>
+          <button type="button" data-tipo="entrata">↗ Entrata</button>
+        </div>
+
+        <!-- Chi paga -->
+        <h3 class="wiz-label">Chi paga?</h3>
+        <div class="wiz-chips" id="wizAutori"></div>
+
+        <!-- Categoria -->
+        <h3 class="wiz-label" id="wizCatLabel">Categoria</h3>
+        <div class="wiz-cats" id="wizCats"></div>
+
+        <!-- Personale -->
+        <label class="wiz-pers" for="wizPersonale">
+          <input type="checkbox" id="wizPersonale">
+          <span class="wiz-pers-track"></span>
+          <span class="wiz-pers-label"><span class="wiz-pers-ic">👤</span> Spesa <b>personale</b> (non in comune)</span>
+        </label>
+      </section>
+
+      <!-- ── STEP 2 (placeholder, da definire) ── -->
+      <section class="wiz-step" data-step="2" hidden>
+        <h2 class="wiz-title">Step 2</h2>
+        <div class="wiz-placeholder">In costruzione…<br><small>dimmi cosa mettere qui</small></div>
+      </section>
+
+    </div>
+
+    <!-- Footer: Indietro / Continua -->
+    <div class="wiz-footer">
+      <button class="wiz-btn wiz-back" id="wizBack" type="button" disabled>Indietro</button>
+      <button class="wiz-btn wiz-next" id="wizNext" type="button" disabled>Continua</button>
+    </div>
+  </div>
+
+  <!-- Quick Add (legacy, non più usato — sostituito dal wizard) -->
   <div class="modal" id="modalQa">
     <div class="sheet" id="sheetQa">
       <div class="sheet-handle" data-drag></div>

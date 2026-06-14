@@ -3204,6 +3204,289 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   -webkit-overflow-scrolling: touch;
 }
 
+/* ═══ WIZARD NUOVA TRANSAZIONE (fullscreen, mobile-first) ═══ */
+.wiz {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: var(--bg);
+  display: none;
+  flex-direction: column;
+  /* safe areas iOS */
+  padding-top: var(--safe-t);
+  padding-bottom: var(--safe-b);
+  box-sizing: border-box;
+  animation: wiz-in .22s cubic-bezier(.2,.8,.3,1);
+}
+.wiz.open { display: flex; }
+@keyframes wiz-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+.wiz-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 6px;
+  flex-shrink: 0;
+}
+.wiz-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+.wiz-progress {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+.wiz-dot {
+  height: 4px;
+  flex: 1;
+  max-width: 60px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background .2s;
+}
+.wiz-dot.active { background: var(--accent); }
+.wiz-step-num {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  min-width: 34px;
+  text-align: right;
+}
+
+.wiz-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 16px 16px;
+}
+.wiz-step { display: none; }
+.wiz-step.active { display: block; }
+.wiz-step[hidden] { display: none !important; }
+
+.wiz-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 6px 0 18px;
+  text-align: center;
+}
+.wiz-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin: 20px 0 8px;
+}
+
+/* Segmented Entrata/Uscita (grande, mobile-friendly) */
+.wiz-seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--surface-2);
+  border-radius: 16px;
+  padding: 4px;
+  position: relative;
+}
+.wiz-seg button {
+  height: 48px;
+  border: none;
+  background: transparent;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-dim);
+  z-index: 1;
+  cursor: pointer;
+}
+.wiz-seg button.active { color: #0f1419; }
+.wiz-seg-bg {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  border-radius: 12px;
+  background: var(--danger);
+  transition: transform .2s, background .2s;
+}
+.wiz-seg[data-tipo="entrata"] .wiz-seg-bg {
+  transform: translateX(100%);
+  background: var(--ok);
+}
+
+/* Chips (chi paga) */
+.wiz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wiz-chip {
+  padding: 10px 16px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.wiz-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f1419;
+}
+
+/* Categorie: griglia macro → sub */
+.wiz-cats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+}
+.wiz-cat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  transition: all .15s ease;
+  position: relative;
+  min-height: 76px;
+  justify-content: center;
+}
+.wiz-cat:active { transform: scale(.96); }
+.wiz-cat.active {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb, 100, 80, 230), .12);
+}
+.wiz-cat-icon { font-size: 28px; line-height: 1; }
+.wiz-cat-icon img.emoji { width: 28px; height: 28px; }
+.wiz-cat-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.wiz-cat-badge {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+.wiz-cat.wiz-back-cat {
+  border-style: dashed;
+  color: var(--text-dim);
+}
+
+/* Toggle personale */
+.wiz-pers {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  margin-top: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.wiz-pers input { position: absolute; opacity: 0; pointer-events: none; }
+.wiz-pers-track {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: 14px;
+  background: var(--border);
+  flex-shrink: 0;
+  transition: background .18s;
+}
+.wiz-pers-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform .18s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+.wiz-pers input:checked + .wiz-pers-track { background: var(--accent); }
+.wiz-pers input:checked + .wiz-pers-track::after { transform: translateX(18px); }
+.wiz-pers-label { font-size: 14px; color: var(--text); line-height: 1.3; }
+.wiz-pers:has(input:checked) {
+  background: rgba(var(--accent-rgb, 100, 80, 230), .10);
+  border-color: var(--accent);
+}
+
+.wiz-placeholder {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-faint);
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* Footer Indietro / Continua */
+.wiz-footer {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg);
+}
+.wiz-btn {
+  flex: 1;
+  height: 50px;
+  border-radius: 14px;
+  border: none;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s, background .15s, transform .12s;
+}
+.wiz-btn:active { transform: scale(.98); }
+.wiz-back {
+  background: var(--surface-2);
+  color: var(--text);
+  flex: 0 0 38%;
+}
+.wiz-back:disabled { opacity: .35; pointer-events: none; }
+.wiz-next {
+  background: var(--accent);
+  color: #0f1419;
+}
+.wiz-next:disabled { opacity: .4; pointer-events: none; }
+
 /* ─── QUICK ADD ───────────────────────────────────────────── */
 /* Quick-add: modal compatto pensato per stare nello schermo senza scroll.
    Padding ridotto, sheet header più snello, titolo categoria piccolo. */
