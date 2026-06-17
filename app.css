@@ -1595,6 +1595,21 @@ button { cursor: pointer; touch-action: manipulation; }
   /* Permettiamo alle pill child di uscire dal bordo inferiore */
   overflow: visible;
 }
+/* "Apron": fascia di sfondo solida sotto l'header che copre la zona dove
+   sporgono le pill del modulo. Senza, le righe che scorrono passano dietro
+   le pill creando un brutto intreccio. Attiva solo quando un modulo è
+   aperto (body.has-modulebar). Sta sopra il contenuto (è figlia
+   dell'header, z-index 50) ma sotto le pill (z-index 60). */
+body.has-modulebar .app-header::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 74px;
+  background: var(--bg);
+  pointer-events: none;
+}
 
 .app-header-inner {
   width: 100%;

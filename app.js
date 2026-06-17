@@ -5241,6 +5241,8 @@ function switchView(name) {
   // header breadcrumb + module-actions-bar
   const moduloMeta = MODULI[mod];
   renderBreadcrumb(mod, name, moduloMeta);
+  // Apron di sfondo dietro le pill: attivo solo nei moduli (non home)
+  document.body.classList.toggle('has-modulebar', mod !== 'home' && !!moduloMeta);
   if (D.moduleActions && D.moduleActionPills) {
     if (mod === 'home') {
       D.moduleActions.style.display = 'none';
