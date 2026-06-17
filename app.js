@@ -151,8 +151,8 @@ function cacheDOM() {
    'modalFilters','filterCats','filterAutori','btnApplyFilters','btnResetFilters',
    'listPeriodCustom','listPeriodFrom','listPeriodTo','listPeriodSummary',
    // Transazioni v2
-   'tx2Search','tx2SearchClear','tx2Quick','tx2From','tx2To','tx2DatesClear',
-   'tx2CatToggle','tx2CatCount','tx2CatFilter','tx2Summary','tx2List',
+   'tx2Search','tx2SearchClear','tx2FiltBtn','tx2FiltBadge','tx2ActiveBar','tx2Panel',
+   'tx2Quick','tx2From','tx2To','tx2DatesClear','tx2CatFilter','tx2Summary','tx2List',
    'tx2PerPage','tx2Prev','tx2Next','tx2PageInfo',
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
@@ -4416,6 +4416,16 @@ function tx2Filtered() {
   return arr;
 }
 
+const TX2_QUICK_LABELS = { month: 'Questo mese', lastmonth: 'Mese scorso', '3m': 'Ultimi 3 mesi', '6m': 'Ultimi 6 mesi', year: "Quest'anno" };
+
+function tx2FilterCount() {
+  const st = _tx2State();
+  let n = 0;
+  if (st.quick || st.from || st.to) n++;
+  n += st.cats.length;
+  return n;
+}
+
 function tx2SyncToolbar() {
   const st = _tx2State();
   if (D.tx2Search && document.activeElement !== D.tx2Search) D.tx2Search.value = st.search;
@@ -4423,7 +4433,54 @@ function tx2SyncToolbar() {
   if (D.tx2From) D.tx2From.value = st.from || '';
   if (D.tx2To)   D.tx2To.value   = st.to   || '';
   if (D.tx2Quick) $$('button', D.tx2Quick).forEach(b => b.classList.toggle('active', b.getAttribute('data-q') === st.quick));
-  if (D.tx2CatCount) D.tx2CatCount.textContent = st.cats.length ? '(' + st.cats.length + ')' : '';
+  // badge sul bottone filtri
+  if (D.tx2FiltBadge) {
+    const n = tx2FilterCount();
+    D.tx2FiltBadge.hidden = n === 0;
+    D.tx2FiltBadge.textContent = String(n);
+  }
+  renderTx2Active();
+}
+
+// Badge dei filtri attivi (chip removibili) sopra la lista
+function renderTx2Active() {
+  if (!D.tx2ActiveBar) return;
+  const st = _tx2State();
+  const chips = [];
+  if (st.quick) chips.push({ type: 'period', label: '📅 ' + (TX2_QUICK_LABELS[st.quick] || 'Periodo') });
+  else if (st.from && st.to) chips.push({ type: 'period', label: '📅 ' + fmtData(st.from) + ' – ' + fmtData(st.to) });
+  else if (st.from) chips.push({ type: 'period', label: '📅 dal ' + fmtData(st.from) });
+  else if (st.to)   chips.push({ type: 'period', label: '📅 fino al ' + fmtData(st.to) });
+  st.cats.forEach(id => {
+    let l;
+    if (id === 0) l = '📦 Altro';
+    else { const c = catById(id); l = c ? ((c.icona ? c.icona + ' ' : '') + c.nome) : '?'; }
+    chips.push({ type: 'cat', id, label: l });
+  });
+  if (!chips.length) { D.tx2ActiveBar.hidden = true; D.tx2ActiveBar.innerHTML = ''; return; }
+  D.tx2ActiveBar.hidden = false;
+  D.tx2ActiveBar.innerHTML = chips.map(ch =>
+    '<span class="tx2-abadge" data-type="' + ch.type + '"' + (ch.id != null ? ' data-id="' + ch.id + '"' : '') + '>' +
+      esc(ch.label) + '<b class="tx2-abadge-x">✕</b></span>'
+  ).join('') + '<button type="button" class="tx2-aclear" id="tx2ClearAll">Azzera tutto</button>';
+  twemojify(D.tx2ActiveBar);
+  $$('.tx2-abadge', D.tx2ActiveBar).forEach(b => {
+    const x = b.querySelector('.tx2-abadge-x');
+    if (!x) return;
+    x.addEventListener('click', () => {
+      const type = b.getAttribute('data-type');
+      if (type === 'period') { st.quick = null; st.from = null; st.to = null; }
+      else { const id = Number(b.getAttribute('data-id')); const i = st.cats.indexOf(id); if (i >= 0) st.cats.splice(i, 1); }
+      st.page = 1;
+      renderList();
+    });
+  });
+  const ca = $('#tx2ClearAll', D.tx2ActiveBar);
+  if (ca) ca.addEventListener('click', () => {
+    st.quick = null; st.from = null; st.to = null; st.cats = []; st.search = ''; st.page = 1;
+    if (D.tx2Search) D.tx2Search.value = '';
+    renderList();
+  });
 }
 
 function renderTx2CatChips() {
@@ -4463,8 +4520,12 @@ function renderList() {
   const st = _tx2State();
   renderTx2CatChips();
   tx2SyncToolbar();
-  // se c'è un range, assicura il caricamento dei mesi e poi ridisegna
-  if (st.from && st.to) ensurePeriodLoaded(st.from, st.to).then(drawTx2);
+  // Garantisce che i dati ci siano: carica il range attivo, oppure di
+  // default l'ANNO CORRENTE (così la lista non è mai vuota per cache stale).
+  const now = new Date();
+  const defFrom = now.getFullYear() + '-01-01';
+  const defTo   = now.getFullYear() + '-12-31';
+  ensurePeriodLoaded(st.from || defFrom, st.to || defTo).then(drawTx2);
   drawTx2();
 }
 
@@ -7456,8 +7517,13 @@ function bindEvents() {
     const st = _tx2State(); st.from = null; st.to = null; st.quick = null; st.page = 1;
     tx2SyncToolbar(); drawTx2();
   });
-  if (D.tx2CatToggle && D.tx2CatFilter) {
-    D.tx2CatToggle.addEventListener('click', () => { D.tx2CatFilter.hidden = !D.tx2CatFilter.hidden; });
+  // Bottone ⚙ → mostra/nasconde il pannello filtri
+  if (D.tx2FiltBtn && D.tx2Panel) {
+    D.tx2FiltBtn.addEventListener('click', () => {
+      const open = D.tx2Panel.hidden;
+      D.tx2Panel.hidden = !open;
+      D.tx2FiltBtn.classList.toggle('open', open);
+    });
   }
   if (D.tx2PerPage) {
     $$('button', D.tx2PerPage).forEach(b => b.addEventListener('click', () => {

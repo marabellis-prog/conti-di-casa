@@ -2044,20 +2044,25 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .tx-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 4px;
+  gap: 12px;
+  padding: 13px 10px;          /* tap target più alto, touch-friendly */
   border-bottom: 1px solid var(--border);
   cursor: pointer;
+  border-radius: 12px;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .12s ease, transform .1s ease;
 }
 .tx-row:last-child { border-bottom: none; }
+.tx-row:active { background: var(--hover); transform: scale(.99); }
 .tx-icon {
-  width: 36px; height: 36px;
+  width: 42px; height: 42px;    /* icona più grande per il touch */
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 17px;
+  font-size: 20px;
   flex-shrink: 0;
 }
+.tx-icon img.emoji { width: 22px; height: 22px; }
 .tx-body { flex: 1; min-width: 0; }
 .tx-cat {
   font-weight: 600;
@@ -3204,14 +3209,105 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   -webkit-overflow-scrolling: touch;
 }
 
-/* ═══ TRANSAZIONI v2 — toolbar, lista, paginazione ═══ */
-.tx2-toolbar {
+/* ═══ TRANSAZIONI v2 — touch-first, filtri a scomparsa ═══ */
+/* Barra fissa: ricerca + bottone filtri */
+.tx2-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 0 6px;
+}
+.tx2-filtbtn {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 20px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background .12s ease, border-color .12s ease;
+}
+.tx2-filtbtn.open { background: var(--accent); border-color: var(--accent); }
+.tx2-filtbadge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+/* Badge filtri attivi (chip removibili) */
+.tx2-activebar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 0 6px;
+}
+.tx2-abadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(var(--accent-rgb,100,80,230),.14);
+  border: 1px solid rgba(var(--accent-rgb,100,80,230),.4);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 14px;
+}
+.tx2-abadge img.emoji { width: 14px; height: 14px; }
+.tx2-abadge-x {
+  font-size: 11px;
+  cursor: pointer;
+  opacity: .8;
+  font-weight: 700;
+}
+.tx2-aclear {
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 5px 4px;
+}
+/* Pannello filtri a scomparsa */
+.tx2-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 0 4px;
+  gap: 14px;
+  animation: tx2panel .18s ease;
+}
+@keyframes tx2panel { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+.tx2-panel-sec { display: flex; flex-direction: column; gap: 8px; }
+.tx2-panel-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
 .tx2-search {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3298,27 +3394,10 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   cursor: pointer;
   flex-shrink: 0;
 }
-.tx2-catbtn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 9px 14px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-  cursor: pointer;
-  width: 100%;
-}
-.tx2-catcount { color: var(--accent); font-weight: 700; }
-.tx2-catchev { margin-left: auto; color: var(--text-faint); font-size: 12px; }
 .tx2-catfilter {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .tx2-cat-sub {
   font-size: 11px;
