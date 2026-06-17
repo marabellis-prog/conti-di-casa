@@ -184,7 +184,7 @@
           <button class="tx2-search-clear" id="tx2SearchClear" type="button" hidden aria-label="Pulisci">✕</button>
         </div>
         <button class="tx2-filtbtn" id="tx2FiltBtn" type="button" aria-label="Filtri">
-          <span class="tx2-filtbtn-ic">⚙️</span>
+          <svg class="tx2-filtbtn-ic" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
           <span class="tx2-filtbadge" id="tx2FiltBadge" hidden>0</span>
         </button>
       </div>
@@ -530,6 +530,20 @@
             Transazione <b>personale</b> (non in comune)
           </span>
         </label>
+        <div class="form-field">
+          <label>Periodo di competenza</label>
+          <div class="tx2-quick" id="txEditCompQuick">
+            <button type="button" data-comp="annuale">Annuale</button>
+            <button type="button" data-comp="semestrale">Semestrale</button>
+            <button type="button" data-comp="bimestrale">Bimestrale</button>
+            <button type="button" data-comp="mensile">Mensile</button>
+          </div>
+          <div class="tx2-dates" style="margin-top:8px">
+            <input type="date" id="txEditCompDa" aria-label="Competenza da">
+            <span class="tx2-dates-sep">→</span>
+            <input type="date" id="txEditCompA" aria-label="Competenza a">
+          </div>
+        </div>
         <button id="txEditSave" class="btn-primary">Salva</button>
         <button id="txEditDelete" class="btn-danger">Elimina</button>
       </div>

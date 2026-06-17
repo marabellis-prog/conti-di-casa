@@ -3224,13 +3224,14 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 12px;
-  font-size: 20px;
+  color: var(--text);
   cursor: pointer;
   display: grid;
   place-items: center;
-  transition: background .12s ease, border-color .12s ease;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
 }
-.tx2-filtbtn.open { background: var(--accent); border-color: var(--accent); }
+.tx2-filtbtn-ic { display: block; }
+.tx2-filtbtn.open { background: var(--accent); border-color: var(--accent); color: #0f1419; }
 .tx2-filtbadge {
   position: absolute;
   top: -6px;

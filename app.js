@@ -164,6 +164,7 @@ function cacheDOM() {
    'wizAmt','wizAmtVal','wizNumpad',
    'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizCompQuick','wizCompDa','wizCompA','wizRecap',
    'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete','txEditPersonale',
+   'txEditCompQuick','txEditCompDa','txEditCompA',
    'view-personale','personaleCount','personaleWipInfo',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
@@ -5247,7 +5248,10 @@ function switchView(name) {
     } else if (moduloMeta) {
       D.moduleActions.style.display = 'flex';
       D.moduleActionPills.style.display = 'flex';
-      if (D.moduleMonth) D.moduleMonth.style.display = moduloMeta.hasMonthNav ? 'flex' : 'none';
+      // Nav mese: solo dove serve. NON nella vista Transazioni (ha i suoi
+      // filtri data) né in Categorie/Personale.
+      const showMonth = moduloMeta.hasMonthNav && !(name === 'list' || name === 'cat' || name === 'personale');
+      if (D.moduleMonth) D.moduleMonth.style.display = showMonth ? 'flex' : 'none';
       renderModuleActionPills(moduloMeta, name);
     } else {
       D.moduleActions.style.display = 'none';
@@ -5262,7 +5266,12 @@ function switchView(name) {
     refreshScadenzeNow();
   }
   else if (name === 'conti') renderConti();
-  else if (name === 'list') renderList();
+  else if (name === 'list') {
+    // entrando in Transazioni: pannello filtri sempre chiuso di default
+    if (D.tx2Panel) D.tx2Panel.hidden = true;
+    if (D.tx2FiltBtn) D.tx2FiltBtn.classList.remove('open');
+    renderList();
+  }
   else if (name === 'cat')  renderCatView();
   else if (name === 'personale') renderPersonale();
   else if (name === 'spesa') {
@@ -6413,6 +6422,18 @@ async function saveTransaction(payload) {
 }
 
 // ─── EDIT TRANSAZIONE ───────────────────────────────────────
+let _txEditCompTipo = null; // preset competenza selezionato nel modal modifica
+
+// Imposta il periodo di competenza nel modal modifica da un preset
+function setTxEditComp(type) {
+  _txEditCompTipo = type;
+  const ref = (D.txEditData && D.txEditData.value) || today();
+  const p = compPeriodFor(type, ref);
+  if (D.txEditCompDa) D.txEditCompDa.value = p.da;
+  if (D.txEditCompA)  D.txEditCompA.value  = p.a;
+  if (D.txEditCompQuick) $$('button', D.txEditCompQuick).forEach(b => b.classList.toggle('active', b.getAttribute('data-comp') === type));
+}
+
 function openTxEdit(idStr) {
   const id = isNaN(Number(idStr)) ? idStr : Number(idStr);
   const t = S.tx.find(x => x.id === id);
@@ -6425,6 +6446,12 @@ function openTxEdit(idStr) {
   D.txEditDesc.value = t.descrizione || '';
   if (D.txEditAutore) populateAutoreSelect(D.txEditAutore, t.autore || getDefaultAutore());
   if (D.txEditPersonale) D.txEditPersonale.checked = !!t.personale;
+  // Periodo di competenza
+  _txEditCompTipo = t.competenza_tipo || null;
+  if (D.txEditCompDa) D.txEditCompDa.value = t.competenza_da || '';
+  if (D.txEditCompA)  D.txEditCompA.value  = t.competenza_a  || '';
+  if (D.txEditCompQuick) $$('button', D.txEditCompQuick).forEach(b => b.classList.toggle('active', b.getAttribute('data-comp') === _txEditCompTipo));
+  // Cambiando tipo: ricarica le categorie di quel tipo
   D.txEditTipo.onchange = () => populateCatSelect(D.txEditCat, D.txEditTipo.value, null);
   openModal('modalTx');
 }
@@ -6438,7 +6465,10 @@ async function saveTxEdit() {
     data: D.txEditData.value || today(),
     descrizione: D.txEditDesc.value.trim() || null,
     autore: (D.txEditAutore && D.txEditAutore.value) || null,
-    personale: !!(D.txEditPersonale && D.txEditPersonale.checked)
+    personale: !!(D.txEditPersonale && D.txEditPersonale.checked),
+    competenza_da: (D.txEditCompDa && D.txEditCompDa.value) || null,
+    competenza_a:  (D.txEditCompA && D.txEditCompA.value) || null,
+    competenza_tipo: _txEditCompTipo || null
   };
   if (!payload.importo || payload.importo <= 0) { toast('Importo non valido', 'warn'); return; }
   setBtnLoading(D.txEditSave, true);
@@ -7623,6 +7653,16 @@ function bindEvents() {
   // tx edit
   D.txEditSave.addEventListener('click', saveTxEdit);
   D.txEditDelete.addEventListener('click', deleteTxEdit);
+  // Edit: preset periodo competenza + modifica manuale date (deseleziona preset)
+  if (D.txEditCompQuick) {
+    $$('button', D.txEditCompQuick).forEach(b => b.addEventListener('click', () => setTxEditComp(b.getAttribute('data-comp'))));
+  }
+  const _txEditCompManual = () => {
+    _txEditCompTipo = null;
+    if (D.txEditCompQuick) $$('button', D.txEditCompQuick).forEach(x => x.classList.remove('active'));
+  };
+  if (D.txEditCompDa) D.txEditCompDa.addEventListener('change', _txEditCompManual);
+  if (D.txEditCompA)  D.txEditCompA.addEventListener('change', _txEditCompManual);
   // Lista della spesa: modal add/edit
   if (D.spesaEditSave)     D.spesaEditSave.addEventListener('click', saveSpesaEdit);
   if (D.spesaEditDelete)   D.spesaEditDelete.addEventListener('click', deleteSpesaEdit);
