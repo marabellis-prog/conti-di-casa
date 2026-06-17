@@ -3312,6 +3312,11 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   gap: 14px;
   animation: tx2panel .18s ease;
 }
+/* L'attributo hidden DEVE vincere sul display:flex/grid sopra,
+   altrimenti pannello/badge restano sempre visibili */
+.tx2-panel[hidden],
+.tx2-activebar[hidden],
+.tx2-filtbadge[hidden] { display: none !important; }
 @keyframes tx2panel { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 .tx2-panel-sec { display: flex; flex-direction: column; gap: 8px; }
 .tx2-panel-lbl {
