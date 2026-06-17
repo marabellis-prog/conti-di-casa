@@ -3204,6 +3204,194 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   -webkit-overflow-scrolling: touch;
 }
 
+/* ═══ TRANSAZIONI v2 — toolbar, lista, paginazione ═══ */
+.tx2-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0 4px;
+}
+.tx2-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0 12px;
+}
+.tx2-search-ic { font-size: 15px; color: var(--text-faint); flex-shrink: 0; }
+.tx2-search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  padding: 11px 0;
+  font-size: 15px;
+  color: var(--text);
+  outline: none;
+}
+.tx2-search input::placeholder { color: var(--text-faint); }
+.tx2-search-clear {
+  background: var(--border);
+  border: none;
+  color: var(--text);
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+.tx2-quick {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+.tx2-quick::-webkit-scrollbar { display: none; }
+.tx2-quick button {
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .12s ease;
+}
+.tx2-quick button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f1419;
+}
+.tx2-dates {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tx2-dates input[type=date] {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text);
+  color-scheme: dark;
+}
+.tx2-dates-sep { color: var(--text-faint); flex-shrink: 0; }
+.tx2-dates-clear {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.tx2-catbtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  width: 100%;
+}
+.tx2-catcount { color: var(--accent); font-weight: 700; }
+.tx2-catchev { margin-left: auto; color: var(--text-faint); font-size: 12px; }
+.tx2-catfilter {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+}
+.tx2-cat-sub {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin: 6px 2px 6px;
+}
+.tx2-cat-sub:first-child { margin-top: 0; }
+.tx2-cat-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.tx2-cat-chip {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  padding: 6px 11px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .12s ease;
+}
+.tx2-cat-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f1419;
+  font-weight: 600;
+}
+.tx2-summary {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  padding: 10px 2px 8px;
+  font-weight: 600;
+}
+.tx2-summary .pos { color: var(--ok); }
+.tx2-summary .neg { color: var(--danger); }
+.tx2-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 2px 80px;
+  flex-wrap: wrap;
+}
+.tx2-perpage { display: flex; align-items: center; gap: 6px; }
+.tx2-perpage-lbl { font-size: 12px; color: var(--text-faint); }
+.tx2-perpage button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  width: 38px; height: 32px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.tx2-perpage button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f1419;
+}
+.tx2-pagenav { display: flex; align-items: center; gap: 10px; }
+.tx2-pagenav button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 38px; height: 32px;
+  border-radius: 9px;
+  font-size: 18px;
+  cursor: pointer;
+}
+.tx2-pagenav button:disabled { opacity: .35; pointer-events: none; }
+#tx2PageInfo { font-size: 13px; font-weight: 600; color: var(--text); min-width: 44px; text-align: center; }
+
 /* ═══ WIZARD NUOVA TRANSAZIONE (fullscreen, mobile-first) ═══ */
 .wiz {
   position: fixed;

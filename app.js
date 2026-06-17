@@ -150,6 +150,10 @@ function cacheDOM() {
    'btnTogglePeriod','btnOpenFilters','filterBadge',
    'modalFilters','filterCats','filterAutori','btnApplyFilters','btnResetFilters',
    'listPeriodCustom','listPeriodFrom','listPeriodTo','listPeriodSummary',
+   // Transazioni v2
+   'tx2Search','tx2SearchClear','tx2Quick','tx2From','tx2To','tx2DatesClear',
+   'tx2CatToggle','tx2CatCount','tx2CatFilter','tx2Summary','tx2List',
+   'tx2PerPage','tx2Prev','tx2Next','tx2PageInfo',
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
    // modals
@@ -4353,41 +4357,179 @@ function _detectQuickPeriodKey(from, to) {
   return null;
 }
 
+// ══════════════════════════════════════════════════════════════
+// TRANSAZIONI v2 — ricerca + filtri periodo/categoria + paginazione
+// Stato in S.tx2. Mostra SOLO transazioni "in comune" (txComune).
+// ══════════════════════════════════════════════════════════════
+function _tx2State() {
+  if (!S.tx2) S.tx2 = { search: '', from: null, to: null, quick: null, cats: [], perPage: 20, page: 1 };
+  return S.tx2;
+}
+
+// Calcola range {from,to} per i preset rapidi (basati su OGGI reale)
+function tx2QuickRange(key) {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth() + 1;
+  const pad = n => String(n).padStart(2, '0');
+  const lastDay = (yy, mm) => new Date(yy, mm, 0).getDate();
+  const monthsAgo = (months) => { let yy = y, mm = m - months; while (mm < 1) { mm += 12; yy--; } return { yy, mm }; };
+  if (key === 'month')     return { from: y + '-' + pad(m) + '-01', to: y + '-' + pad(m) + '-' + pad(lastDay(y, m)) };
+  if (key === 'lastmonth') { let yy = y, mm = m - 1; if (mm < 1) { mm = 12; yy--; } return { from: yy + '-' + pad(mm) + '-01', to: yy + '-' + pad(mm) + '-' + pad(lastDay(yy, mm)) }; }
+  if (key === '3m')        { const s = monthsAgo(2); return { from: s.yy + '-' + pad(s.mm) + '-01', to: y + '-' + pad(m) + '-' + pad(lastDay(y, m)) }; }
+  if (key === '6m')        { const s = monthsAgo(5); return { from: s.yy + '-' + pad(s.mm) + '-01', to: y + '-' + pad(m) + '-' + pad(lastDay(y, m)) }; }
+  if (key === 'year')      return { from: y + '-01-01', to: y + '-12-31' };
+  return { from: null, to: null };
+}
+
+function tx2Filtered() {
+  const st = _tx2State();
+  let arr = txComune();
+  if (st.from) arr = arr.filter(t => t.data >= st.from);
+  if (st.to)   arr = arr.filter(t => t.data <= st.to);
+  if (st.cats.length) {
+    const set = new Set(st.cats);
+    const inclAltro = set.has(0);
+    arr = arr.filter(t => (t.categoria_id == null) ? inclAltro : set.has(t.categoria_id));
+  }
+  const q = (st.search || '').toLowerCase().trim();
+  if (q) {
+    arr = arr.filter(t => {
+      const c = catById(t.categoria_id);
+      const hay = [
+        t.descrizione || '',
+        c ? c.nome : 'Altro',
+        c && c.macro_categoria ? macroLabel(c.macro_categoria) : '',
+        t.autore || '',
+        String(t.importo).replace('.', ','),
+        fmtData(t.data),
+        t.tipo
+      ].join(' ').toLowerCase();
+      return hay.indexOf(q) !== -1;
+    });
+  }
+  // più recente prima (per data, poi created_at)
+  arr = arr.slice().sort((a, b) => {
+    if (a.data !== b.data) return a.data < b.data ? 1 : -1;
+    const ca = a.created_at || '', cb = b.created_at || '';
+    return ca < cb ? 1 : (ca > cb ? -1 : 0);
+  });
+  return arr;
+}
+
+function tx2SyncToolbar() {
+  const st = _tx2State();
+  if (D.tx2Search && document.activeElement !== D.tx2Search) D.tx2Search.value = st.search;
+  if (D.tx2SearchClear) D.tx2SearchClear.hidden = !st.search;
+  if (D.tx2From) D.tx2From.value = st.from || '';
+  if (D.tx2To)   D.tx2To.value   = st.to   || '';
+  if (D.tx2Quick) $$('button', D.tx2Quick).forEach(b => b.classList.toggle('active', b.getAttribute('data-q') === st.quick));
+  if (D.tx2CatCount) D.tx2CatCount.textContent = st.cats.length ? '(' + st.cats.length + ')' : '';
+}
+
+function renderTx2CatChips() {
+  if (!D.tx2CatFilter) return;
+  const st = _tx2State();
+  const sortCats = (a, b) => {
+    const ma = a.macro_categoria || 'zzz', mb = b.macro_categoria || 'zzz';
+    if (ma !== mb) return ma.localeCompare(mb);
+    return (a.ordine || 0) - (b.ordine || 0);
+  };
+  const usc = S.cats.filter(c => c.tipo === 'uscita').sort(sortCats);
+  const ent = S.cats.filter(c => c.tipo === 'entrata').sort(sortCats);
+  const chip = c => '<button type="button" class="tx2-cat-chip' + (st.cats.indexOf(c.id) !== -1 ? ' active' : '') + '" data-cat-id="' + c.id + '">' +
+    (c.icona ? c.icona + ' ' : '') + esc(c.nome) + '</button>';
+  let html = '';
+  if (usc.length) html += '<div class="tx2-cat-sub">Uscite</div><div class="tx2-cat-row">' + usc.map(chip).join('') + '</div>';
+  if (ent.length) html += '<div class="tx2-cat-sub">Entrate</div><div class="tx2-cat-row">' + ent.map(chip).join('') + '</div>';
+  html += '<div class="tx2-cat-sub">Senza categoria</div><div class="tx2-cat-row"><button type="button" class="tx2-cat-chip' + (st.cats.indexOf(0) !== -1 ? ' active' : '') + '" data-cat-id="0">📦 Altro</button></div>';
+  D.tx2CatFilter.innerHTML = html;
+  twemojify(D.tx2CatFilter);
+  $$('.tx2-cat-chip', D.tx2CatFilter).forEach(el => {
+    el.addEventListener('click', () => {
+      const id = Number(el.getAttribute('data-cat-id'));
+      const i = st.cats.indexOf(id);
+      if (i >= 0) st.cats.splice(i, 1); else st.cats.push(id);
+      st.page = 1;
+      el.classList.toggle('active');
+      tx2SyncToolbar();
+      drawTx2();
+    });
+  });
+}
+
 function renderList() {
-  // Pagina Transazioni svuotata (rebuild in corso): no-op se manca il DOM.
-  if (!D.txList) return;
-  const range = getListPeriodRange();
-  // Sincronizza l'header (range vs mese + visibilità frecce)
+  if (!D.tx2List) return;          // pagina non montata
   renderHeader();
-  // Aggiorna stato del pulsante "Seleziona periodo" (active quando custom)
-  if (D.btnTogglePeriod) D.btnTogglePeriod.classList.toggle('active', S.listPeriod === 'custom');
-  if (D.listPeriodCustom) D.listPeriodCustom.style.display = (S.listPeriod === 'custom') ? 'flex' : 'none';
-  // Riflette eventuale custom range scelto da altre viste (es. trend click)
-  if (S.listPeriod === 'custom') {
-    if (D.listPeriodFrom && S.listFrom) D.listPeriodFrom.value = S.listFrom;
-    if (D.listPeriodTo   && S.listTo)   D.listPeriodTo.value   = S.listTo;
-    // Evidenzia chip quick-period se il range corrisponde a un preset
-    refreshListQuickActive();
-  }
-  // Badge sul pulsante "Seleziona filtri": numero filtri attivi
-  updateFilterBadge();
-  // Barra dei badge dei filtri attivi (sopra Tutto/Uscite/Entrate)
-  renderActiveFilters();
+  const st = _tx2State();
+  renderTx2CatChips();
+  tx2SyncToolbar();
+  // se c'è un range, assicura il caricamento dei mesi e poi ridisegna
+  if (st.from && st.to) ensurePeriodLoaded(st.from, st.to).then(drawTx2);
+  drawTx2();
+}
 
-  // Validazione custom: se manca uno dei due estremi, mostra messaggio
-  if (S.listPeriod === 'custom' && (!S.listFrom || !S.listTo)) {
-    if (D.txList) D.txList.innerHTML = '<div class="empty"><div class="emoji">📅</div><div>Scegli le date "Da" e "A" per filtrare.</div></div>';
-    if (D.listPeriodSummary) D.listPeriodSummary.innerHTML = '';
-    return;
-  }
-  if (S.listPeriod === 'custom' && S.listFrom > S.listTo) {
-    if (D.txList) D.txList.innerHTML = '<div class="empty"><div class="emoji">⚠️</div><div>La data "Da" deve precedere "A".</div></div>';
-    if (D.listPeriodSummary) D.listPeriodSummary.innerHTML = '';
-    return;
+function drawTx2() {
+  if (!D.tx2List) return;
+  const st = _tx2State();
+  const all = tx2Filtered();
+
+  // Riepilogo
+  if (D.tx2Summary) {
+    const inSum  = all.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
+    const outSum = all.filter(t => t.tipo === 'uscita').reduce((s, t) => s + Number(t.importo), 0);
+    D.tx2Summary.innerHTML = all.length + (all.length === 1 ? ' transazione' : ' transazioni') +
+      ' · <span class="pos">+' + fmtEur(inSum) + '</span> · <span class="neg">−' + fmtEur(outSum) + '</span>';
   }
 
-  // Lazy load dei mesi se range è custom o "last" non in cache
-  ensurePeriodLoaded(range.fromStr, range.toStr).then(() => _drawList(range));
+  // Paginazione
+  const pp = st.perPage;
+  const pages = Math.max(1, Math.ceil(all.length / pp));
+  if (st.page > pages) st.page = pages;
+  if (st.page < 1) st.page = 1;
+  const startIdx = (st.page - 1) * pp;
+  const pageItems = all.slice(startIdx, startIdx + pp);
+
+  if (!all.length) {
+    D.tx2List.innerHTML = '<div class="empty"><div class="emoji">📭</div><div>Nessuna transazione</div></div>';
+  } else {
+    let html = '', lastDate = null;
+    pageItems.forEach(t => {
+      if (t.data !== lastDate) { html += '<div class="tx-day-header">' + fmtDataLong(t.data) + '</div>'; lastDate = t.data; }
+      html += txRowHtml(t);
+    });
+    D.tx2List.innerHTML = html;
+    bindTxRows(D.tx2List);
+    twemojify(D.tx2List);
+  }
+
+  // Pager controls
+  if (D.tx2PageInfo) D.tx2PageInfo.textContent = st.page + ' / ' + pages;
+  if (D.tx2Prev) D.tx2Prev.disabled = st.page <= 1;
+  if (D.tx2Next) D.tx2Next.disabled = st.page >= pages;
+  if (D.tx2PerPage) $$('button', D.tx2PerPage).forEach(b => b.classList.toggle('active', Number(b.getAttribute('data-pp')) === pp));
+}
+
+// Applica/toggla un preset rapido di periodo
+function tx2ApplyQuick(key) {
+  const st = _tx2State();
+  if (st.quick === key) { st.quick = null; st.from = null; st.to = null; }
+  else { const r = tx2QuickRange(key); st.quick = key; st.from = r.from; st.to = r.to; }
+  st.page = 1;
+  tx2SyncToolbar();
+  if (st.from && st.to) ensurePeriodLoaded(st.from, st.to).then(drawTx2);
+  drawTx2();
+}
+
+// Modifica manuale delle date → annulla il preset
+function tx2OnDateChange() {
+  const st = _tx2State();
+  st.from = (D.tx2From && D.tx2From.value) || null;
+  st.to   = (D.tx2To && D.tx2To.value) || null;
+  st.quick = null;
+  st.page = 1;
+  tx2SyncToolbar();
+  if (st.from && st.to) ensurePeriodLoaded(st.from, st.to).then(drawTx2);
+  drawTx2();
 }
 
 // ─── Grafico Andamento sopra la lista transazioni ─────────────
@@ -7290,6 +7432,42 @@ function bindEvents() {
   if (D.btnOpenFilters)   D.btnOpenFilters.addEventListener('click', openFiltersModal);
   if (D.btnApplyFilters)  D.btnApplyFilters.addEventListener('click', applyFiltersFromModal);
   if (D.btnResetFilters)  D.btnResetFilters.addEventListener('click', resetFiltersFromModal);
+  // ── Transazioni v2: ricerca / periodo / categorie / paginazione ──
+  if (D.tx2Search) {
+    D.tx2Search.addEventListener('input', () => {
+      _tx2State().search = D.tx2Search.value || '';
+      _tx2State().page = 1;
+      if (D.tx2SearchClear) D.tx2SearchClear.hidden = !D.tx2Search.value;
+      drawTx2();
+    });
+  }
+  if (D.tx2SearchClear) D.tx2SearchClear.addEventListener('click', () => {
+    _tx2State().search = ''; _tx2State().page = 1;
+    if (D.tx2Search) D.tx2Search.value = '';
+    D.tx2SearchClear.hidden = true;
+    drawTx2();
+  });
+  if (D.tx2Quick) {
+    $$('button', D.tx2Quick).forEach(b => b.addEventListener('click', () => tx2ApplyQuick(b.getAttribute('data-q'))));
+  }
+  if (D.tx2From) D.tx2From.addEventListener('change', tx2OnDateChange);
+  if (D.tx2To)   D.tx2To.addEventListener('change', tx2OnDateChange);
+  if (D.tx2DatesClear) D.tx2DatesClear.addEventListener('click', () => {
+    const st = _tx2State(); st.from = null; st.to = null; st.quick = null; st.page = 1;
+    tx2SyncToolbar(); drawTx2();
+  });
+  if (D.tx2CatToggle && D.tx2CatFilter) {
+    D.tx2CatToggle.addEventListener('click', () => { D.tx2CatFilter.hidden = !D.tx2CatFilter.hidden; });
+  }
+  if (D.tx2PerPage) {
+    $$('button', D.tx2PerPage).forEach(b => b.addEventListener('click', () => {
+      _tx2State().perPage = Number(b.getAttribute('data-pp')) || 20;
+      _tx2State().page = 1;
+      drawTx2();
+    }));
+  }
+  if (D.tx2Prev) D.tx2Prev.addEventListener('click', () => { const st = _tx2State(); if (st.page > 1) { st.page--; drawTx2(); window.scrollTo({top:0,behavior:'instant'}); } });
+  if (D.tx2Next) D.tx2Next.addEventListener('click', () => { const st = _tx2State(); st.page++; drawTx2(); window.scrollTo({top:0,behavior:'instant'}); });
   // ── Wizard nuova transazione ──
   if (D.wizClose) D.wizClose.addEventListener('click', closeTxWizard);
   if (D.wizBack)  D.wizBack.addEventListener('click', wizBack);

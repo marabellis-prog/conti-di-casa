@@ -176,7 +176,53 @@
 
     <!-- TRANSAZIONI -->
     <section id="view-list" class="view">
-      <div class="view-blank">Transazioni<br><small>da ricostruire</small></div>
+      <div class="tx2-toolbar">
+        <!-- Ricerca -->
+        <div class="tx2-search">
+          <span class="tx2-search-ic">🔍</span>
+          <input type="search" id="tx2Search" placeholder="Cerca nelle transazioni…" autocomplete="off">
+          <button class="tx2-search-clear" id="tx2SearchClear" type="button" hidden aria-label="Pulisci ricerca">✕</button>
+        </div>
+        <!-- Scelte rapide periodo -->
+        <div class="tx2-quick" id="tx2Quick">
+          <button type="button" data-q="month">Questo mese</button>
+          <button type="button" data-q="lastmonth">Mese scorso</button>
+          <button type="button" data-q="3m">Ultimi 3 mesi</button>
+          <button type="button" data-q="6m">Ultimi 6 mesi</button>
+          <button type="button" data-q="year">Quest'anno</button>
+        </div>
+        <!-- Date picker custom -->
+        <div class="tx2-dates">
+          <input type="date" id="tx2From" aria-label="Da">
+          <span class="tx2-dates-sep">→</span>
+          <input type="date" id="tx2To" aria-label="A">
+          <button class="tx2-dates-clear" id="tx2DatesClear" type="button" aria-label="Azzera date">✕</button>
+        </div>
+        <!-- Filtro categorie (collassabile) -->
+        <button class="tx2-catbtn" id="tx2CatToggle" type="button">
+          <span>📁 Filtra per categoria</span>
+          <span class="tx2-catcount" id="tx2CatCount"></span>
+          <span class="tx2-catchev">▾</span>
+        </button>
+        <div class="tx2-catfilter" id="tx2CatFilter" hidden></div>
+      </div>
+
+      <div class="tx2-summary" id="tx2Summary"></div>
+      <div id="tx2List"></div>
+
+      <div class="tx2-pager" id="tx2Pager">
+        <div class="tx2-perpage" id="tx2PerPage">
+          <span class="tx2-perpage-lbl">Per pagina:</span>
+          <button type="button" data-pp="20" class="active">20</button>
+          <button type="button" data-pp="50">50</button>
+          <button type="button" data-pp="100">100</button>
+        </div>
+        <div class="tx2-pagenav">
+          <button type="button" id="tx2Prev" aria-label="Pagina precedente">‹</button>
+          <span id="tx2PageInfo">1 / 1</span>
+          <button type="button" id="tx2Next" aria-label="Pagina successiva">›</button>
+        </div>
+      </div>
     </section>
 
     <!-- CATEGORIE -->
