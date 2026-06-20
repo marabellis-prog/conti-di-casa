@@ -160,7 +160,7 @@ function cacheDOM() {
    'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaDesc','qaAutore','qaPersonale',
    'qaDateBtn','qaDateLabel','qaDatePicker','qaSaveBtn','qaSaveLabel',
    // Wizard nuova transazione (fullscreen multi-step)
-   'modalWizard','wizClose','wizProgress','wizStepNum','wizCats','wizCatLabel','wizBack','wizNext',
+   'modalWizard','wizClose','wizProgress','wizStepNum','wizCats','wizCatLabel','wizBack','wizNext','wizDelFooter',
    'wizStep1Title','wizMov','wizSpesaBlock','wizComune','wizFonti',
    'wizSplit','wizSplitChips','wizSplitCustom','wizSplitRange','wizSplitReadout','wizStraord','wizStraordRow',
    'wizBoxBlock','wizBoxInfo','wizChiLabel','wizChi','wizMotivoWrap','wizMotivo',
@@ -5999,6 +5999,7 @@ function openTxWizard(arg) {
   WIZ.compA = '';
   _wizMacroId = null;
   if (D.wizStraord) D.wizStraord.checked = false;
+  if (D.wizDelFooter) D.wizDelFooter.hidden = true;   // inserimento: niente elimina
   applyWizMov();           // imposta blocchi/etichette in base a WIZ.mov + render chips
   renderWizCats();
   setWizAmt(WIZ.amt);
@@ -6063,6 +6064,7 @@ function openTxWizardEdit(idStr) {
     _wizMacroId = null;
   }
   if (D.wizStraord) D.wizStraord.checked = WIZ.straord;
+  if (D.wizDelFooter) D.wizDelFooter.hidden = false;   // modifica: mostra Elimina nel footer
   applyWizMov();
   renderWizCats();
   setWizAmt(WIZ.amt);
@@ -6465,15 +6467,6 @@ function renderWizRecap() {
   D.wizRecap.innerHTML = rows.map(([k, v]) =>
     '<div class="wiz-recap-row"><span class="wiz-recap-k">' + k + '</span>' + v + '</div>'
   ).join('');
-  // In modifica: bottone elimina sotto il riepilogo
-  if (WIZ.editId != null) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'wiz-delete-btn';
-    b.textContent = '🗑 Elimina movimento';
-    b.addEventListener('click', wizDelete);
-    D.wizRecap.appendChild(b);
-  }
   twemojify(D.wizRecap);
 }
 
@@ -8139,6 +8132,7 @@ function bindEvents() {
   if (D.wizClose) D.wizClose.addEventListener('click', closeTxWizard);
   if (D.wizBack)  D.wizBack.addEventListener('click', wizBack);
   if (D.wizNext)  D.wizNext.addEventListener('click', wizNext);
+  if (D.wizDelFooter) D.wizDelFooter.addEventListener('click', wizDelete);
   // Tipo di movimento (spesa / versamento / prelievo)
   if (D.wizMov) {
     $$('button', D.wizMov).forEach(b => b.addEventListener('click', () => setWizMov(b.getAttribute('data-mov'))));

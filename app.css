@@ -4016,15 +4016,16 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .tx-edit-typebadge.neg { color: var(--danger); }
 .tx-edit-typebadge img.emoji { width: 16px; height: 16px; vertical-align: -2px; }
 
-/* Bottone elimina nel wizard (modalità modifica) */
-.wiz-delete-btn {
-  display: block; width: 100%; margin-top: 18px;
-  padding: 13px;
-  border: 1.5px solid var(--danger); border-radius: 14px;
-  background: transparent; color: var(--danger);
-  font-weight: 700; font-size: 15px; cursor: pointer;
+/* Bottone elimina nel footer del wizard (solo in modifica) */
+.wiz-btn.wiz-del {
+  flex: 0 0 auto;
+  width: 54px;
+  background: transparent;
+  border: 1.5px solid var(--danger);
+  color: var(--danger);
+  font-size: 20px;
 }
-.wiz-delete-btn img.emoji { width: 16px; height: 16px; vertical-align: -2px; }
+.wiz-btn.wiz-del img.emoji { width: 20px; height: 20px; vertical-align: -3px; }
 
 /* Footer Indietro / Continua */
 .wiz-footer {
