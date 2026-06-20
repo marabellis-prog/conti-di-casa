@@ -4825,7 +4825,7 @@ button.btn-danger {
   border-radius: 22px;
   font-size: 14px;
   font-weight: 600;
-  z-index: 200;
+  z-index: 10000; /* sopra wizard/modali: il toast dev'essere SEMPRE visibile */
   opacity: 0;
   pointer-events: none;
   transition: opacity .22s, transform .22s;
