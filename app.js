@@ -5957,6 +5957,7 @@ function renderAnalisiBudgetBars() {
 const WIZ_STEPS = 4;
 const WIZ = {
   step: 1,
+  editId: null,            // null = nuovo movimento; id = modifica di un movimento esistente
   mov: 'spesa',            // 'spesa' | 'versamento' | 'prelievo'
   tipo: 'uscita',          // derivato (per il filtro categorie)
   comune: true,            // spesa in comune (true) o personale (false)
@@ -5979,6 +5980,7 @@ let _wizMacroId = null;     // null = mostra macro; id = mostra sotto-cat di que
 function openTxWizard(arg) {
   const opts = (arg && typeof arg === 'object') ? arg : {};
   WIZ.step = 1;
+  WIZ.editId = null;
   WIZ.mov = opts.mov || 'spesa';
   WIZ.tipo = 'uscita';
   WIZ.comune = true;
@@ -6011,6 +6013,70 @@ function openTxWizard(arg) {
 function closeTxWizard() {
   if (D.modalWizard) D.modalWizard.classList.remove('open');
   document.body.style.overflow = '';
+  WIZ.editId = null;
+}
+
+function motivoKeyFromPlain(s) {
+  return s === 'Riequilibrio' ? 'riequilibrio' : (s === 'Spesa personale' ? 'personale' : 'altro');
+}
+
+// Apre il wizard in modalità MODIFICA, precompilato col movimento esistente.
+function openTxWizardEdit(idStr) {
+  const id = isNaN(Number(idStr)) ? idStr : Number(idStr);
+  const t = S.tx.find(x => x.id === id);
+  if (!t) return;
+  WIZ.editId = id;
+  WIZ.step = 1;
+  const mov = t.tipo_movimento || 'spesa';
+  WIZ.mov = mov;
+  WIZ.tipo = 'uscita';
+  WIZ.amt = (t.importo != null) ? String(t.importo).replace('.', ',') : '';
+  WIZ.data = t.data || today();
+  if (mov === 'spesa') {
+    WIZ.comune = !t.personale;
+    WIZ.fonte = t.fonte || 'scatolo';
+    WIZ.fonteAutore = (t.fonte && t.fonte !== 'scatolo') ? (t.autore || null) : null;
+    WIZ.autore = t.autore || getDefaultAutore();
+    WIZ.straord = !!t.straordinaria;
+    WIZ.categoria_id = (t.categoria_id == null) ? null : t.categoria_id;
+    const A = getAutoriList();
+    const q = t.quota;
+    if (q && typeof q === 'object') {
+      const pa = Number(q[A[0]]);
+      if (pa === 100) { WIZ.splitMode = 'allA'; WIZ.splitA = 100; }
+      else if (pa === 0) { WIZ.splitMode = 'allB'; WIZ.splitA = 0; }
+      else { WIZ.splitMode = 'custom'; WIZ.splitA = isNaN(pa) ? 50 : pa; }
+    } else { WIZ.splitMode = '5050'; WIZ.splitA = 50; }
+    WIZ.compTipo = t.competenza_tipo || null;
+    WIZ.compDa = t.competenza_da || '';
+    WIZ.compA = t.competenza_a || '';
+    const c = (t.categoria_id != null) ? catById(t.categoria_id) : null;
+    _wizMacroId = c ? (c.macro_categoria || 'altro') : null;
+  } else {
+    WIZ.comune = true;
+    WIZ.fonte = 'scatolo'; WIZ.fonteAutore = null;
+    WIZ.autore = t.autore || getDefaultAutore();
+    WIZ.motivo = (mov === 'prelievo') ? motivoKeyFromPlain(t.descrizione || 'Riequilibrio') : 'riequilibrio';
+    WIZ.straord = false;
+    WIZ.categoria_id = undefined;
+    WIZ.compTipo = null; WIZ.compDa = ''; WIZ.compA = '';
+    _wizMacroId = null;
+  }
+  if (D.wizStraord) D.wizStraord.checked = WIZ.straord;
+  applyWizMov();
+  renderWizCats();
+  setWizAmt(WIZ.amt);
+  if (D.wizDataPag) D.wizDataPag.value = WIZ.data;
+  renderWizDataPagLabel();
+  // competenza: rifletti i valori salvati senza forzare un preset
+  if (mov === 'spesa') {
+    if (D.wizCompDa) D.wizCompDa.value = WIZ.compDa || '';
+    if (D.wizCompA)  D.wizCompA.value  = WIZ.compA || '';
+    if (D.wizCompQuick) $$('button', D.wizCompQuick).forEach(b => b.classList.toggle('active', b.getAttribute('data-comp') === WIZ.compTipo));
+  }
+  showWizStep(1);
+  if (D.modalWizard) D.modalWizard.classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
 
 function showWizStep(n) {
@@ -6028,7 +6094,7 @@ function showWizStep(n) {
   }
   if (D.wizStepNum) D.wizStepNum.textContent = n + ' / ' + WIZ_STEPS;
   if (D.wizBack) D.wizBack.disabled = (n === 1);
-  if (D.wizNext) D.wizNext.textContent = (n === WIZ_STEPS) ? '✓ Salva' : 'Continua';
+  if (D.wizNext) D.wizNext.textContent = (n === WIZ_STEPS) ? (WIZ.editId != null ? '✓ Salva modifiche' : '✓ Salva') : 'Continua';
   if (n === 4) renderWizRecap();
   updateWizNext();
 }
@@ -6399,6 +6465,15 @@ function renderWizRecap() {
   D.wizRecap.innerHTML = rows.map(([k, v]) =>
     '<div class="wiz-recap-row"><span class="wiz-recap-k">' + k + '</span>' + v + '</div>'
   ).join('');
+  // In modifica: bottone elimina sotto il riepilogo
+  if (WIZ.editId != null) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'wiz-delete-btn';
+    b.textContent = '🗑 Elimina movimento';
+    b.addEventListener('click', wizDelete);
+    D.wizRecap.appendChild(b);
+  }
   twemojify(D.wizRecap);
 }
 
@@ -6436,16 +6511,65 @@ async function wizSave() {
   } else {
     payload = boxPayload('prelievo', WIZ.autore, imp, WIZ.data, motivoPlain(WIZ.motivo));
   }
+  const isEdit = WIZ.editId != null;
   setBtnLoading(D.wizNext, true);
   try {
-    await saveTransaction(payload);
-    vibrate(20);
-    closeTxWizard();
-    toast(WIZ.mov === 'versamento' ? 'Versamento salvato' : (WIZ.mov === 'prelievo' ? 'Prelievo salvato' : 'Spesa salvata'), 'success');
+    if (isEdit) {
+      await updateTransaction(WIZ.editId, payload);
+      vibrate(20);
+      closeTxWizard();
+      toast('Movimento modificato', 'success');
+    } else {
+      await saveTransaction(payload);
+      vibrate(20);
+      closeTxWizard();
+      toast(WIZ.mov === 'versamento' ? 'Versamento salvato' : (WIZ.mov === 'prelievo' ? 'Prelievo salvato' : 'Spesa salvata'), 'success');
+    }
   } catch (e) {
     toast('Errore: ' + (e && e.message ? e.message : 'salvataggio non riuscito'), 'error');
   } finally {
     setBtnLoading(D.wizNext, false);
+  }
+}
+
+// PATCH di un movimento esistente (optimistic + coda offline).
+async function updateTransaction(id, payload) {
+  const idx = S.tx.findIndex(t => t.id === id);
+  if (idx >= 0) S.tx[idx] = Object.assign({}, S.tx[idx], payload);
+  invalidateTxCharts();
+  saveLocalCache();
+  renderHomeGestione(); renderConti(); renderList();
+  const path = T.TX + '?id=eq.' + id;
+  const options = { method: 'PATCH', body: JSON.stringify(payload) };
+  if (isOnline()) {
+    try { await supaFetch(path, options); } catch (e) { enqueue({ path, options }); }
+  } else {
+    enqueue({ path, options });
+  }
+}
+
+// Elimina il movimento in modifica (dal wizard).
+async function wizDelete() {
+  if (WIZ.editId == null) return;
+  const id = WIZ.editId;
+  const ok = await confirmDlg({ title: 'Elimina movimento', message: 'Vuoi davvero eliminarlo? L\'azione non è reversibile.', confirmLabel: 'Elimina', danger: true });
+  if (!ok) return;
+  try {
+    S.tx = S.tx.filter(t => t.id !== id);
+    invalidateTxCharts();
+    saveLocalCache();
+    renderHomeGestione(); renderConti(); renderList();
+    const path = T.TX + '?id=eq.' + id;
+    const options = { method: 'DELETE' };
+    if (isOnline()) {
+      try { await supaFetch(path, options); } catch (e) { enqueue({ path, options }); }
+    } else {
+      enqueue({ path, options });
+    }
+    closeTxWizard();
+    toast('Movimento eliminato', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'non riuscito'), 'error');
   }
 }
 
@@ -6822,6 +6946,11 @@ function updateTxEditPersonaleUI() {
 }
 
 function openTxEdit(idStr) {
+  // La modifica usa lo STESSO wizard guidato dell'inserimento (precompilato).
+  openTxWizardEdit(idStr);
+}
+// (legacy) vecchia scheda di modifica a modal singolo — non più usata.
+function openTxEditLegacy(idStr) {
   const id = isNaN(Number(idStr)) ? idStr : Number(idStr);
   const t = S.tx.find(x => x.id === id);
   if (!t) return;
