@@ -3058,6 +3058,26 @@ function commonSpese() {
   return (S.tx || []).filter(t => isNuovoModello(t) && (t.tipo_movimento || 'spesa') === 'spesa' && !t.personale);
 }
 
+// Mesi coperti dal periodo di competenza di una spesa (per spalmare l'importo).
+// Se manca la competenza, ricade sul mese del pagamento.
+function spesaCompMonths(t) {
+  const da = t.competenza_da, a = t.competenza_a;
+  if (da && a && da <= a) {
+    const [sy, sm] = da.split('-').map(Number);
+    const [ey, em] = a.split('-').map(Number);
+    const out = [];
+    let cy = sy, cmn = sm, guard = 0;
+    while ((cy < ey || (cy === ey && cmn <= em)) && guard < 120) {
+      out.push({ y: cy, m: cmn });
+      cmn++; if (cmn > 12) { cmn = 1; cy++; }
+      guard++;
+    }
+    if (out.length) return out;
+  }
+  const [yy, mm] = (t.data || today()).split('-').map(Number);
+  return [{ y: yy, m: mm }];
+}
+
 function renderConti() {
   if (!D.cdScatolo) return; // DOM non pronto
   const A = getAutoriList();
@@ -3101,26 +3121,36 @@ function renderConti() {
   if (D.cdEquityInstr) D.cdEquityInstr.textContent = instrTxt;
   if (D.cdSettleBtn) D.cdSettleBtn.hidden = !showBtn;
 
-  // ── MEDIE SPESE COMUNI ──
+  // ── MEDIE SPESE COMUNI (spalmate sul periodo di competenza) ──
   const cm = S.currentMonth || { anno: new Date().getFullYear(), mese: new Date().getMonth() + 1 };
-  const validForAvg = commonSpese().filter(t => !t.straordinaria);
-  const monthSum = validForAvg.filter(t => inMonth(t.data, cm.anno, cm.mese)).reduce((acc, t) => acc + Number(t.importo), 0);
-  // media sugli ultimi 6 mesi (incluso il mese selezionato)
-  const NM = 6;
-  let span = 0; const seen = {};
-  for (let i = 0; i < NM; i++) {
-    let y = cm.anno, m = cm.mese - i;
-    while (m < 1) { m += 12; y--; }
-    seen[y + '-' + m] = true; span++;
-  }
-  const sixSum = validForAvg.filter(t => {
-    const [yy, mm] = t.data.split('-');
-    return seen[Number(yy) + '-' + Number(mm)];
-  }).reduce((acc, t) => acc + Number(t.importo), 0);
+  // Mappa mese→importo: ogni spesa comune (non straordinaria) viene divisa
+  // sui mesi del suo periodo di competenza (es. TARI semestrale = 1/6 al mese).
+  const alloc = {};
+  commonSpese().filter(t => !t.straordinaria).forEach(t => {
+    const months = spesaCompMonths(t);
+    if (!months.length) return;
+    const per = (Number(t.importo) || 0) / months.length;
+    months.forEach(({ y, m }) => { const k = y + '-' + m; alloc[k] = (alloc[k] || 0) + per; });
+  });
+  const monthSum = alloc[cm.anno + '-' + cm.mese] || 0;
+  // Denominatore "onesto": dal primo mese con spese fino al mese selezionato
+  // (max 12 mesi), così la media non viene diluita quando i dati sono pochi.
+  let firstY = null, firstM = null;
+  Object.keys(alloc).forEach(k => {
+    const [y, m] = k.split('-').map(Number);
+    if (y < cm.anno || (y === cm.anno && m <= cm.mese)) {
+      if (firstY === null || y < firstY || (y === firstY && m < firstM)) { firstY = y; firstM = m; }
+    }
+  });
+  let elapsed = 1;
+  if (firstY !== null) elapsed = (cm.anno - firstY) * 12 + (cm.mese - firstM) + 1;
+  const win = Math.max(1, Math.min(elapsed, 12));
+  let sumWin = 0;
+  for (let i = 0; i < win; i++) { let y = cm.anno, m = cm.mese - i; while (m < 1) { m += 12; y--; } sumWin += alloc[y + '-' + m] || 0; }
   if (D.cdAvgMonth) D.cdAvgMonth.textContent = fmtEur(monthSum);
   if (D.cdAvgMonthK) D.cdAvgMonthK.textContent = (MESI_FULL[cm.mese - 1] || '').toLowerCase();
-  if (D.cdAvgMean) D.cdAvgMean.textContent = fmtEur(sixSum / (span || 1));
-  if (D.cdAvgNote) D.cdAvgNote.textContent = 'Media sugli ultimi ' + NM + ' mesi · spese straordinarie escluse.';
+  if (D.cdAvgMean) D.cdAvgMean.textContent = fmtEur(sumWin / win);
+  if (D.cdAvgNote) D.cdAvgNote.textContent = 'Spese spalmate sul periodo di competenza · media su ' + win + (win === 1 ? ' mese' : ' mesi') + ' · straordinarie escluse.';
 
   // ── ULTIME OPERAZIONI ──
   if (D.cdRecent) {
