@@ -171,7 +171,44 @@
          Le 4 pill in alto (Transazioni, +, Categorie, Personale) restano
          attive. I dati restano nel DB (cdc_transazioni, cdc_categorie...). -->
     <section id="view-conti" class="view">
-      <div class="view-blank">Riepilogo<br><small>da ricostruire</small></div>
+      <div class="cd-wrap">
+        <!-- Scatolo: contante comune disponibile -->
+        <div class="cd-card cd-scatolo">
+          <div class="cd-scatolo-top">
+            <span class="cd-scatolo-ic">📦</span>
+            <div class="cd-scatolo-info">
+              <div class="cd-card-lbl">Nello scatolo</div>
+              <div class="cd-scatolo-num" id="cdScatolo">— €</div>
+            </div>
+          </div>
+          <div class="cd-scatolo-foot" id="cdScatoloFoot">Fondo comune in contanti</div>
+        </div>
+
+        <!-- Equilibrio spese comuni -->
+        <div class="cd-card cd-equity">
+          <div class="cd-card-lbl">Equilibrio spese comuni</div>
+          <div class="cd-equity-main" id="cdEquityMain">—</div>
+          <div class="cd-equity-instr" id="cdEquityInstr"></div>
+          <div class="cd-equity-persons" id="cdEquityPersons"></div>
+          <button class="cd-settle-btn" id="cdSettleBtn" type="button" hidden>⚖️ Registra il riequilibrio</button>
+        </div>
+
+        <!-- Medie di spesa comune -->
+        <div class="cd-card cd-avg">
+          <div class="cd-card-lbl">Spese comuni</div>
+          <div class="cd-avg-grid">
+            <div class="cd-avg-cell"><div class="cd-avg-v" id="cdAvgMonth">—</div><div class="cd-avg-k" id="cdAvgMonthK">questo mese</div></div>
+            <div class="cd-avg-cell"><div class="cd-avg-v" id="cdAvgMean">—</div><div class="cd-avg-k">media mensile</div></div>
+          </div>
+          <div class="cd-avg-note" id="cdAvgNote"></div>
+        </div>
+
+        <!-- Ultime operazioni -->
+        <div class="cd-card cd-recent">
+          <div class="cd-card-lbl">Ultime operazioni</div>
+          <div id="cdRecent"></div>
+        </div>
+      </div>
     </section>
 
     <!-- TRANSAZIONI -->
@@ -351,29 +388,64 @@
 
       <!-- ── STEP 1 ── -->
       <section class="wiz-step active" data-step="1">
-        <h2 class="wiz-title">Che movimento è?</h2>
+        <h2 class="wiz-title" id="wizStep1Title">Che movimento è?</h2>
 
-        <!-- Entrata / Uscita -->
-        <div class="wiz-seg" id="wizTipo" data-tipo="uscita">
-          <div class="wiz-seg-bg"></div>
-          <button type="button" data-tipo="uscita" class="active">↙ Uscita</button>
-          <button type="button" data-tipo="entrata">↗ Entrata</button>
+        <!-- Tipo di movimento -->
+        <div class="wiz-mov" id="wizMov">
+          <button type="button" data-mov="spesa" class="active"><span class="wm-ic">💸</span><span class="wm-lbl">Spesa</span></button>
+          <button type="button" data-mov="versamento"><span class="wm-ic">📥</span><span class="wm-lbl">Versamento</span></button>
+          <button type="button" data-mov="prelievo"><span class="wm-ic">📤</span><span class="wm-lbl">Prelievo</span></button>
         </div>
 
-        <!-- Chi paga -->
-        <h3 class="wiz-label">Chi paga?</h3>
-        <div class="wiz-chips" id="wizAutori"></div>
+        <!-- ════ BLOCCO SPESA ════ -->
+        <div id="wizSpesaBlock">
+          <!-- In comune / Personale -->
+          <div class="wiz-seg" id="wizComune" data-val="comune">
+            <div class="wiz-seg-bg"></div>
+            <button type="button" data-val="comune" class="active">🤝 In comune</button>
+            <button type="button" data-val="personale">👤 Personale</button>
+          </div>
 
-        <!-- Categoria -->
-        <h3 class="wiz-label" id="wizCatLabel">Categoria</h3>
-        <div class="wiz-cats" id="wizCats"></div>
+          <!-- Fonte -->
+          <h3 class="wiz-label">Da dove escono i soldi?</h3>
+          <div class="wiz-chips" id="wizFonti"></div>
 
-        <!-- Personale -->
-        <label class="wiz-pers" for="wizPersonale">
-          <input type="checkbox" id="wizPersonale">
-          <span class="wiz-pers-track"></span>
-          <span class="wiz-pers-label"><span class="wiz-pers-ic">👤</span> Spesa <b>personale</b> (non in comune)</span>
-        </label>
+          <!-- Categoria -->
+          <h3 class="wiz-label" id="wizCatLabel">Categoria</h3>
+          <div class="wiz-cats" id="wizCats"></div>
+
+          <!-- Divisione (solo spese in comune) -->
+          <div class="wiz-split" id="wizSplit">
+            <h3 class="wiz-label">Come si divide?</h3>
+            <div class="wiz-chips wiz-split-chips" id="wizSplitChips"></div>
+            <div class="wiz-split-custom" id="wizSplitCustom" hidden>
+              <input type="range" id="wizSplitRange" min="0" max="100" step="5" value="50" aria-label="Percentuale di divisione">
+              <div class="wiz-split-readout" id="wizSplitReadout"></div>
+            </div>
+          </div>
+
+          <!-- Straordinaria -->
+          <label class="wiz-pers" id="wizStraordRow" for="wizStraord">
+            <input type="checkbox" id="wizStraord">
+            <span class="wiz-pers-track"></span>
+            <span class="wiz-pers-label"><span class="wiz-pers-ic">✨</span> Spesa <b>straordinaria</b> (esclusa dalle medie)</span>
+          </label>
+        </div>
+
+        <!-- ════ BLOCCO VERSAMENTO / PRELIEVO ════ -->
+        <div id="wizBoxBlock" hidden>
+          <div class="wiz-boxinfo" id="wizBoxInfo"></div>
+          <h3 class="wiz-label" id="wizChiLabel">Chi mette i soldi nello scatolo?</h3>
+          <div class="wiz-chips" id="wizChi"></div>
+          <div id="wizMotivoWrap" hidden>
+            <h3 class="wiz-label">Motivo del prelievo</h3>
+            <div class="wiz-chips" id="wizMotivo">
+              <button type="button" class="wiz-chip active" data-motivo="riequilibrio">⚖️ Riequilibrio</button>
+              <button type="button" class="wiz-chip" data-motivo="personale">👤 Spesa personale</button>
+              <button type="button" class="wiz-chip" data-motivo="altro">📝 Altro</button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- ── STEP 2: importo + tastierino ── -->
@@ -390,9 +462,9 @@
 
       <!-- ── STEP 3: data pagamento + periodo competenza ── -->
       <section class="wiz-step" data-step="3" hidden>
-        <h2 class="wiz-title">Quando e per quale periodo?</h2>
+        <h2 class="wiz-title" id="wizStep3Title">Quando e per quale periodo?</h2>
 
-        <h3 class="wiz-label">Giorno del pagamento</h3>
+        <h3 class="wiz-label" id="wizDataLbl">Giorno del pagamento</h3>
         <label class="wiz-date-pill" id="wizDataPagBtn" for="wizDataPag">
           <span class="wiz-date-ic">🗓</span>
           <span id="wizDataPagLabel">Oggi</span>
@@ -400,18 +472,20 @@
           <input type="date" id="wizDataPag" class="wiz-date-hidden">
         </label>
 
-        <h3 class="wiz-label">Periodo di competenza</h3>
-        <p class="wiz-hint">Su quale periodo va spalmata questa cifra?</p>
-        <div class="wiz-comp-quick" id="wizCompQuick">
-          <button type="button" data-comp="annuale">Annuale</button>
-          <button type="button" data-comp="semestrale">Semestrale</button>
-          <button type="button" data-comp="bimestrale">Bimestrale</button>
-          <button type="button" data-comp="mensile">Mensile</button>
-        </div>
-        <div class="wiz-comp-dates">
-          <input type="date" id="wizCompDa" aria-label="Competenza da">
-          <span class="wiz-comp-sep">→</span>
-          <input type="date" id="wizCompA" aria-label="Competenza a">
+        <div id="wizCompSection">
+          <h3 class="wiz-label">Periodo di competenza</h3>
+          <p class="wiz-hint">Su quale periodo va spalmata questa cifra?</p>
+          <div class="wiz-comp-quick" id="wizCompQuick">
+            <button type="button" data-comp="annuale">Annuale</button>
+            <button type="button" data-comp="semestrale">Semestrale</button>
+            <button type="button" data-comp="bimestrale">Bimestrale</button>
+            <button type="button" data-comp="mensile">Mensile</button>
+          </div>
+          <div class="wiz-comp-dates">
+            <input type="date" id="wizCompDa" aria-label="Competenza da">
+            <span class="wiz-comp-sep">→</span>
+            <input type="date" id="wizCompA" aria-label="Competenza a">
+          </div>
         </div>
       </section>
 

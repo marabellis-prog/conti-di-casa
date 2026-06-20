@@ -3907,6 +3907,102 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   color: var(--accent);
 }
 
+/* ── Wizard: tipo di movimento (3 opzioni) ── */
+.wiz-mov {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.wiz-mov button {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 12px 4px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-weight: 700; font-size: 12.5px;
+  cursor: pointer; transition: all .15s ease;
+}
+.wiz-mov button .wm-ic { font-size: 22px; line-height: 1; }
+.wiz-mov button .wm-ic img.emoji { width: 24px; height: 24px; }
+.wiz-mov button.active {
+  border-color: var(--accent);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* In comune / Personale (segmented data-val) */
+#wizComune { margin-bottom: 16px; }
+.wiz-seg[data-val="comune"] .wiz-seg-bg { transform: none; background: var(--accent); }
+.wiz-seg[data-val="personale"] .wiz-seg-bg { transform: translateX(100%); background: var(--accent); }
+.wiz-seg[data-val] button.active { color: #0f1419; }
+
+/* Divisione spesa */
+.wiz-split { margin-top: 16px; }
+.wiz-split-chips { margin-bottom: 8px; }
+.wiz-split-custom { margin-top: 8px; padding: 6px 2px 2px; }
+.wiz-split-custom input[type=range] { width: 100%; accent-color: var(--accent); height: 28px; }
+.wiz-split-readout { text-align: center; font-size: 15px; color: var(--text); margin-top: 4px; }
+
+/* Info box versamento/prelievo */
+.wiz-boxinfo {
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+/* ════ Dashboard Conti (Riepilogo: scatolo + equità) ════ */
+.cd-wrap { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 28px; }
+.cd-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px 18px;
+}
+.cd-card-lbl {
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-dim); margin-bottom: 10px;
+}
+/* Scatolo */
+.cd-scatolo { border-color: var(--accent); }
+.cd-scatolo-top { display: flex; align-items: center; gap: 14px; }
+.cd-scatolo-ic { font-size: 38px; line-height: 1; }
+.cd-scatolo-ic img.emoji { width: 40px; height: 40px; }
+.cd-scatolo .cd-card-lbl { margin-bottom: 3px; }
+.cd-scatolo-num { font-size: 32px; font-weight: 800; color: var(--text); line-height: 1; }
+.cd-scatolo-num.neg { color: var(--danger); }
+.cd-scatolo-foot { margin-top: 12px; font-size: 12px; color: var(--text-dim); }
+/* Equità */
+.cd-equity-main { font-size: 19px; font-weight: 800; color: var(--text); margin-bottom: 4px; line-height: 1.25; }
+.cd-equity-instr { font-size: 14px; color: var(--text-dim); line-height: 1.45; }
+.cd-equity-persons { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.cd-person { display: flex; justify-content: space-between; align-items: center; padding: 9px 13px; background: var(--surface-2); border-radius: 12px; }
+.cd-person-name { font-weight: 700; font-size: 15px; color: var(--text); }
+.cd-person-val { font-weight: 800; font-size: 15px; }
+.cd-person-val small { font-weight: 600; font-size: 11px; opacity: .85; margin-left: 5px; }
+.cd-person-val.pos { color: var(--ok); }
+.cd-person-val.neg { color: var(--danger); }
+.cd-person-val.zero { color: var(--text-dim); }
+.cd-settle-btn {
+  margin-top: 14px; width: 100%; padding: 13px;
+  border: none; border-radius: 14px;
+  background: var(--accent); color: #0f1419;
+  font-weight: 800; font-size: 15px; cursor: pointer;
+}
+/* Medie */
+.cd-avg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cd-avg-cell { background: var(--surface-2); border-radius: 14px; padding: 14px 8px; text-align: center; }
+.cd-avg-v { font-size: 21px; font-weight: 800; color: var(--text); }
+.cd-avg-k { font-size: 12px; color: var(--text-dim); margin-top: 3px; text-transform: capitalize; }
+.cd-avg-note { font-size: 11px; color: var(--text-dim); margin-top: 12px; line-height: 1.4; }
+/* Ultime operazioni */
+.cd-recent .tx-row:last-child { border-bottom: none; }
+
 /* Footer Indietro / Continua */
 .wiz-footer {
   display: flex;

@@ -160,9 +160,15 @@ function cacheDOM() {
    'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaDesc','qaAutore','qaPersonale',
    'qaDateBtn','qaDateLabel','qaDatePicker','qaSaveBtn','qaSaveLabel',
    // Wizard nuova transazione (fullscreen multi-step)
-   'modalWizard','wizClose','wizProgress','wizStepNum','wizTipo','wizAutori','wizCats','wizCatLabel','wizPersonale','wizBack','wizNext',
+   'modalWizard','wizClose','wizProgress','wizStepNum','wizCats','wizCatLabel','wizBack','wizNext',
+   'wizStep1Title','wizMov','wizSpesaBlock','wizComune','wizFonti',
+   'wizSplit','wizSplitChips','wizSplitCustom','wizSplitRange','wizSplitReadout','wizStraord','wizStraordRow',
+   'wizBoxBlock','wizBoxInfo','wizChiLabel','wizChi','wizMotivoWrap','wizMotivo',
    'wizAmt','wizAmtVal','wizNumpad',
-   'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizCompQuick','wizCompDa','wizCompA','wizRecap',
+   'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizDataLbl','wizStep3Title','wizCompSection','wizCompQuick','wizCompDa','wizCompA','wizRecap',
+   // Conti — dashboard Riepilogo (modello scatolo/equità)
+   'cdScatolo','cdScatoloFoot','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
+   'cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgNote','cdRecent',
    'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete','txEditPersonale',
    'txEditCompQuick','txEditCompDa','txEditCompA',
    'view-personale','personaleCount','personaleWipInfo',
@@ -2953,76 +2959,222 @@ function invalidateTxCharts() {
   S.trendCache = null;
 }
 
-function renderConti() {
-  // Pagina Riepilogo svuotata (rebuild in corso): se i container non
-  // esistono nel DOM, esci senza fare nulla.
-  if (!D.saldoNum) return;
-  if (!S.currentMonth) return;
-  // PRIMA CARD: saldo + ultime sempre del MESE selezionato in alto
-  const arr = txInCurrentMonth();
-  const inSum = arr.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
-  const outSum = arr.filter(t => t.tipo === 'uscita').reduce((s, t) => s + Number(t.importo), 0);
-  const saldo = inSum - outSum;
-  // Saldo SEMPRE con € (anche per zero/positivo/negativo)
-  D.saldoNum.textContent = (saldo >= 0 ? '+' : '−') + fmtEur(Math.abs(saldo));
-  D.saldoNum.className = 'saldo-num ' + (saldo >= 0 ? 'pos' : 'neg');
-  D.saldoIn.textContent = fmtEur(inSum);
-  D.saldoOut.textContent = fmtEur(outSum);
+// ─────────────────────────────────────────────────────────────
+// MODELLO CONTI CONDIVISI (scatolo + equità 50/50)
+// ─────────────────────────────────────────────────────────────
+function shortName(n) { return (n || '').trim().split(/\s+/)[0] || (n || ''); }
+function round2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
-  // Ultime 4
-  const ultime = arr.slice(0, 4);
-  if (!ultime.length) {
-    D.ultime.innerHTML = '<div class="txt-faint mt-8" style="font-size:13px">Nessuna transazione in questo mese.</div>';
-  } else {
-    D.ultime.innerHTML = '<div class="mt-16"></div>' + ultime.map(txRowHtml).join('');
-    bindTxRows(D.ultime);
-  twemojify(D.ultime);
+// Solo i movimenti del NUOVO modello hanno una `fonte` valorizzata: così le
+// vecchie transazioni di test restano nello storico ma non sporcano l'equità.
+function isNuovoModello(t) { return !!t.fonte; }
+
+// Quota di divisione di una spesa comune → { nome: percentuale } che somma 100.
+// quota null/assente ⇒ divisione equa (50/50).
+function parseQuota(q, A) {
+  const out = {};
+  if (q && typeof q === 'object' && !Array.isArray(q)) {
+    let sum = 0;
+    A.forEach(n => { out[n] = Number(q[n]) || 0; sum += out[n]; });
+    if (sum > 0) return out;
   }
+  const each = 100 / (A.length || 1);
+  A.forEach(n => out[n] = each);
+  return out;
+}
 
-  // SECONDA CARD (carousel): grafici per il RANGE custom (default = anno corrente)
-  ensureTrendRangeDefault();
-  populateTrendSelects();
-  const tr = S.trendRange;
-  const tComune = txComune();
-  const arrRange = tComune.filter(t => t.data >= tr.from && t.data <= tr.to);
-
-  // Donut "Uscite per categoria" → range trend (anno corrente di default)
-  const uscByMacro = {};
-  arrRange.filter(t => t.tipo === 'uscita').forEach(t => {
-    const c = catById(t.categoria_id);
-    const macroId = (c && c.macro_categoria) || 'simboli';
-    if (!uscByMacro[macroId]) uscByMacro[macroId] = { total: 0, breakdown: {} };
-    uscByMacro[macroId].total += Number(t.importo);
-    const cid = t.categoria_id || 0;
-    uscByMacro[macroId].breakdown[cid] = (uscByMacro[macroId].breakdown[cid] || 0) + Number(t.importo);
+// Calcola lo stato dello scatolo + l'equità cumulativa.
+//   box        = contanti nello scatolo (versamenti − spese da scatolo − prelievi)
+//   contrib[n] = quanto n ha messo (versamenti + spese pagate di tasca propria − prelievi)
+//   share[n]   = quota di n sul totale spese comuni
+//   over[n]    = contrib − share  (>0 ha anticipato, <0 deve ancora mettere)
+//   Identità garantita: Σ over[n] = box
+function computeEquity() {
+  const A = getAutoriList();
+  const res = { A, box: 0, contrib: {}, share: {}, over: {}, totComuni: 0 };
+  A.forEach(n => { res.contrib[n] = 0; res.share[n] = 0; });
+  (S.tx || []).forEach(t => {
+    if (!isNuovoModello(t)) return;            // ignora i dati pre-modello
+    const mov = t.tipo_movimento || 'spesa';
+    const imp = Number(t.importo) || 0;
+    if (!imp) return;
+    if (mov === 'versamento') {
+      res.box += imp;
+      if (res.contrib[t.autore] != null) res.contrib[t.autore] += imp;
+    } else if (mov === 'prelievo') {
+      res.box -= imp;
+      if (res.contrib[t.autore] != null) res.contrib[t.autore] -= imp;
+    } else { // spesa
+      if (t.personale) return;                 // le personali sono fuori dall'equità
+      res.totComuni += imp;
+      if (t.fonte === 'scatolo') res.box -= imp;
+      else if (res.contrib[t.autore] != null) res.contrib[t.autore] += imp;
+      const q = parseQuota(t.quota, A);
+      A.forEach(n => res.share[n] += imp * (q[n] || 0) / 100);
+    }
   });
-  const segs = Object.keys(uscByMacro).map(macroId => {
-    const m = macroById(macroId);
-    return {
-      label: m ? (m.icon + ' ' + macroLabel(macroId)) : 'Senza categoria',
-      value: uscByMacro[macroId].total,
-      color: MACRO_COLORS[macroId] || '#666',
-      macroId: macroId,
-      onClick: function () {
-        // Slide "Uscite per categoria": vai alla lista filtrando per quella
-        // macro nel RANGE del trend (es. anno corrente)
-        S.donutFilter = { type: 'macro', value: macroId };
-        S.listFilter = 'uscita';
-        S.filtersCats = [];
-        S.filtersAutori = [];
-        S.listPeriod = 'custom';
-        S.listFrom = tr.from;
-        S.listTo   = tr.to;
-        switchView('list');
-      }
-    };
-  });
-  Charts.renderDonut(D.donutWrap, segs, { subLabel: 'uscite periodo' });
+  A.forEach(n => res.over[n] = round2(res.contrib[n] - res.share[n]));
+  res.box = round2(res.box);
+  return res;
+}
 
-  // Carousel: aggiorna anche le altre slide (trend + donut autori)
-  renderTrend3m();
-  renderAutoreDonut();
-  updateCarouselTitle();
+// Dato lo stato di equità (2 persone) calcola chi recupera quanto e da dove.
+function equitySettlement(eq) {
+  const A = eq.A;
+  if (A.length !== 2) return { state: 'na' };
+  const [a, b] = A;
+  const oa = round2(eq.over[a]), ob = round2(eq.over[b]);
+  const box = round2(eq.box);
+  if (Math.abs(oa) < 0.01 && Math.abs(ob) < 0.01) return { state: 'pari', box };
+  if (oa >= -0.01 && ob >= -0.01) return { state: 'credito', box }; // entrambi in credito: i soldi sono nello scatolo
+  const creditor = oa > 0 ? a : b;
+  const debtor   = oa > 0 ? b : a;
+  const owed     = round2(eq.over[creditor]);
+  const fromBox  = round2(Math.min(owed, Math.max(box, 0)));
+  const fromDebtor = round2(owed - fromBox);
+  return { state: 'sbilanciato', creditor, debtor, owed, fromBox, fromDebtor, box };
+}
+
+// Carica TUTTO lo storico transazioni (serve all'equità cumulativa).
+async function ensureAllTxLoaded() {
+  if (S.allTxLoaded) return;
+  try {
+    const rows = await supaFetch(T.TX + '?select=*&order=data.desc,id.desc');
+    if (Array.isArray(rows)) {
+      const ids = new Set(S.tx.map(t => t.id));
+      rows.forEach(r => { if (!ids.has(r.id)) S.tx.push(r); });
+      S.allTxLoaded = true;
+      saveLocalCache();
+    }
+  } catch (e) { /* offline: usa la cache disponibile */ }
+}
+
+// Spese comuni "valide" (nuovo modello, non personali) eventualmente filtrate.
+function commonSpese() {
+  return (S.tx || []).filter(t => isNuovoModello(t) && (t.tipo_movimento || 'spesa') === 'spesa' && !t.personale);
+}
+
+function renderConti() {
+  if (!D.cdScatolo) return; // DOM non pronto
+  const A = getAutoriList();
+  const eq = computeEquity();
+  const s = equitySettlement(eq);
+
+  // ── SCATOLO ──
+  D.cdScatolo.textContent = (eq.box < -0.005 ? '−' : '') + fmtEur(Math.abs(eq.box));
+  D.cdScatolo.className = 'cd-scatolo-num' + (eq.box < -0.005 ? ' neg' : '');
+
+  // ── EQUITÀ ──
+  if (D.cdEquityPersons) {
+    D.cdEquityPersons.innerHTML = A.map(n => {
+      const o = round2(eq.over[n] || 0);
+      const cls = o > 0.005 ? 'pos' : (o < -0.005 ? 'neg' : 'zero');
+      const txt = Math.abs(o) < 0.005 ? 'in pari' : (o > 0 ? 'in credito' : 'in debito');
+      const amt = Math.abs(o) < 0.005 ? '—' : (o > 0 ? '+' : '−') + fmtEur(Math.abs(o));
+      return '<div class="cd-person"><span class="cd-person-name">' + esc(shortName(n)) + '</span>' +
+        '<span class="cd-person-val ' + cls + '">' + amt + ' <small>' + txt + '</small></span></div>';
+    }).join('');
+  }
+  let mainTxt = '', instrTxt = '', showBtn = false;
+  if (s.state === 'pari') {
+    mainTxt = '✅ Siete in pari';
+    instrTxt = eq.box > 0.005 ? 'Nello scatolo ci sono ' + fmtEur(eq.box) + ' di fondo comune.' : 'Nessuno deve niente all\'altro.';
+  } else if (s.state === 'credito') {
+    mainTxt = '✅ Nessuno è in debito';
+    instrTxt = 'I soldi versati in più sono ancora nello scatolo (' + fmtEur(eq.box) + ').';
+  } else if (s.state === 'sbilanciato') {
+    mainTxt = shortName(s.creditor) + ' ha anticipato ' + fmtEur(s.owed) + ' in più';
+    const parts = [];
+    if (s.fromBox > 0.005) parts.push('prende ' + fmtEur(s.fromBox) + ' dallo scatolo');
+    if (s.fromDebtor > 0.005) parts.push((parts.length ? 'e ' : 'prende ') + fmtEur(s.fromDebtor) + ' da ' + shortName(s.debtor));
+    instrTxt = 'Per pareggiare: ' + (parts.join(' ') || '—') + '.';
+    showBtn = true;
+  } else {
+    mainTxt = '—';
+    instrTxt = 'Aggiungi movimenti per vedere l\'equilibrio.';
+  }
+  if (D.cdEquityMain) D.cdEquityMain.textContent = mainTxt;
+  if (D.cdEquityInstr) D.cdEquityInstr.textContent = instrTxt;
+  if (D.cdSettleBtn) D.cdSettleBtn.hidden = !showBtn;
+
+  // ── MEDIE SPESE COMUNI ──
+  const cm = S.currentMonth || { anno: new Date().getFullYear(), mese: new Date().getMonth() + 1 };
+  const validForAvg = commonSpese().filter(t => !t.straordinaria);
+  const monthSum = validForAvg.filter(t => inMonth(t.data, cm.anno, cm.mese)).reduce((acc, t) => acc + Number(t.importo), 0);
+  // media sugli ultimi 6 mesi (incluso il mese selezionato)
+  const NM = 6;
+  let span = 0; const seen = {};
+  for (let i = 0; i < NM; i++) {
+    let y = cm.anno, m = cm.mese - i;
+    while (m < 1) { m += 12; y--; }
+    seen[y + '-' + m] = true; span++;
+  }
+  const sixSum = validForAvg.filter(t => {
+    const [yy, mm] = t.data.split('-');
+    return seen[Number(yy) + '-' + Number(mm)];
+  }).reduce((acc, t) => acc + Number(t.importo), 0);
+  if (D.cdAvgMonth) D.cdAvgMonth.textContent = fmtEur(monthSum);
+  if (D.cdAvgMonthK) D.cdAvgMonthK.textContent = (MESI_FULL[cm.mese - 1] || '').toLowerCase();
+  if (D.cdAvgMean) D.cdAvgMean.textContent = fmtEur(sixSum / (span || 1));
+  if (D.cdAvgNote) D.cdAvgNote.textContent = 'Media sugli ultimi ' + NM + ' mesi · spese straordinarie escluse.';
+
+  // ── ULTIME OPERAZIONI ──
+  if (D.cdRecent) {
+    const recent = (S.tx || []).filter(t => isNuovoModello(t) && !t.personale)
+      .slice().sort((x, y) => {
+        if (x.data !== y.data) return x.data < y.data ? 1 : -1;
+        const cx = x.created_at || '', cy = y.created_at || '';
+        return cx < cy ? 1 : (cx > cy ? -1 : 0);
+      }).slice(0, 8);
+    if (!recent.length) {
+      D.cdRecent.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 0">Ancora nessuna operazione. Premi <b>+</b> per iniziare.</div>';
+    } else {
+      D.cdRecent.innerHTML = recent.map(txRowHtml).join('');
+      bindTxRows(D.cdRecent);
+      twemojify(D.cdRecent);
+    }
+  }
+}
+
+// Registra il riequilibrio: versamento del debitore (la sua parte) +
+// prelievo del creditore (quanto recupera), così scatolo e saldi tornano a zero.
+async function registerRiequilibrio() {
+  const eq = computeEquity();
+  const s = equitySettlement(eq);
+  if (!s || s.state !== 'sbilanciato') { toast('Siete già in pari', 'info'); return; }
+  const msg = shortName(s.creditor) + ' recupera ' + fmtEur(s.owed) + ': ' +
+    (s.fromBox > 0.005 ? fmtEur(s.fromBox) + ' dallo scatolo' : '') +
+    (s.fromBox > 0.005 && s.fromDebtor > 0.005 ? ' e ' : '') +
+    (s.fromDebtor > 0.005 ? fmtEur(s.fromDebtor) + ' da ' + shortName(s.debtor) : '') +
+    '. Registro il riequilibrio?';
+  const ok = await confirmDlg({ title: '⚖️ Riequilibrio', message: msg, confirmLabel: 'Registra', cancelLabel: 'Annulla' });
+  if (!ok) return;
+  const d = today();
+  try {
+    if (s.fromDebtor > 0.005) await saveTransaction(boxPayload('versamento', s.debtor, s.fromDebtor, d, 'Riequilibrio'));
+    await saveTransaction(boxPayload('prelievo', s.creditor, s.owed, d, 'Riequilibrio'));
+    toast('Riequilibrio registrato', 'success');
+  } catch (e) {
+    toast('Errore: ' + (e && e.message ? e.message : 'non riuscito'), 'error');
+  }
+}
+
+function boxPayload(mov, autore, importo, data, desc) {
+  return {
+    tipo_movimento: mov,
+    tipo: mov === 'versamento' ? 'entrata' : 'uscita',
+    importo: round2(importo),
+    categoria_id: null,
+    descrizione: desc || null,
+    data: data || today(),
+    autore: autore || null,
+    fonte: 'scatolo',
+    personale: false,
+    straordinaria: false,
+    quota: null,
+    competenza_da: null, competenza_a: null, competenza_tipo: null
+  };
 }
 
 // Donut "Uscite per autore" — usa lo stesso range del trend mesi
@@ -4207,24 +4359,43 @@ function renderBudgetBars() {
 // ─── HELPERS ────────────────────────────────────────────────
 function catById(id) { return S.cats.find(c => c.id === id); }
 
+function fonteShort(fonte, autore) {
+  if (fonte === 'scatolo') return '📦 scatolo';
+  if (fonte === 'conto')   return '💳 ' + shortName(autore || '');
+  if (fonte === 'buoni')   return '🍽 ' + shortName(autore || '');
+  return '';
+}
 function txRowHtml(t) {
+  const mov = t.tipo_movimento || 'spesa';
+  const pendingCls = S.pendingTxIds.has(t.id) ? ' pending' : '';
+  const amtCls = t.tipo === 'entrata' ? 'in' : 'out';
+  const amtHtml = '<div class="tx-amt ' + amtCls + '">' + (t.tipo === 'entrata' ? '+' : '−') + fmtEur(Number(t.importo)) + '</div>';
+  if (mov === 'versamento' || mov === 'prelievo') {
+    const isVers = mov === 'versamento';
+    const icon = isVers ? '📥' : '📤';
+    const color = isVers ? '#22c55e' : '#ef4444';
+    const name = isVers ? 'Versamento scatolo' : 'Prelievo scatolo';
+    const meta = [fmtData(t.data), t.descrizione || '', t.autore ? '👤 ' + t.autore : ''].filter(Boolean).join(' • ');
+    return '<div class="tx-row' + pendingCls + '" data-tx-id="' + t.id + '">' +
+      '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
+      '<div class="tx-body"><div class="tx-cat">' + esc(name) + '</div><div class="tx-meta">' + esc(meta) + '</div></div>' +
+      amtHtml + '</div>';
+  }
+  // spesa
   const c = catById(t.categoria_id);
   const icon = c ? c.icona : '📦';
   const color = c ? c.colore : '#94a3b8';
   const name = c ? c.nome : 'Altro';
   const macro = c && c.macro_categoria ? macroById(c.macro_categoria) : null;
   const macroPrefix = macro ? '<span class="tx-macro">' + macro.icon + ' ' + macroLabel(c.macro_categoria) + '</span> › ' : '';
-  const pendingCls = S.pendingTxIds.has(t.id) ? ' pending' : '';
-  const meta = [fmtData(t.data), t.descrizione || '', t.autore ? '👤 ' + t.autore : ''].filter(Boolean).join(' • ');
+  const meta = [fmtData(t.data), t.fonte ? fonteShort(t.fonte, t.autore) : (t.autore ? '👤 ' + t.autore : ''),
+    t.personale ? '👤 personale' : '', t.straordinaria ? '✨ straord.' : '', t.descrizione || ''].filter(Boolean).join(' • ');
   return '<div class="tx-row' + pendingCls + '" data-tx-id="' + t.id + '">' +
     '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
     '<div class="tx-body">' +
       '<div class="tx-cat">' + macroPrefix + esc(name) + '</div>' +
       '<div class="tx-meta">' + esc(meta) + '</div>' +
-    '</div>' +
-    '<div class="tx-amt ' + (t.tipo === 'entrata' ? 'in' : 'out') + '">' +
-      (t.tipo === 'entrata' ? '+' : '−') + fmtEur(Number(t.importo)) +
-    '</div>' +
+    '</div>' + amtHtml +
   '</div>';
 }
 function bindTxRows(container) {
@@ -5267,7 +5438,7 @@ function switchView(name) {
     refreshTodoNow();
     refreshScadenzeNow();
   }
-  else if (name === 'conti') renderConti();
+  else if (name === 'conti') { renderConti(); ensureAllTxLoaded().then(renderConti); }
   else if (name === 'list') {
     // entrando in Transazioni: pannello filtri sempre chiuso di default
     if (D.tx2Panel) D.tx2Panel.hidden = true;
@@ -5275,7 +5446,7 @@ function switchView(name) {
     renderList();
   }
   else if (name === 'cat')  renderCatView();
-  else if (name === 'personale') renderPersonale();
+  else if (name === 'personale') { renderPersonale(); ensureAllTxLoaded().then(renderPersonale); }
   else if (name === 'spesa') {
     renderSpesa();
     refreshSpesaNow();
@@ -5783,38 +5954,49 @@ function renderAnalisiBudgetBars() {
 const WIZ_STEPS = 4;
 const WIZ = {
   step: 1,
-  tipo: 'uscita',          // 'entrata' | 'uscita'
-  autore: null,            // chi paga (nome)
-  personale: false,
+  mov: 'spesa',            // 'spesa' | 'versamento' | 'prelievo'
+  tipo: 'uscita',          // derivato (per il filtro categorie)
+  comune: true,            // spesa in comune (true) o personale (false)
+  fonte: null,             // 'scatolo' | 'conto' | 'buoni' (per la spesa)
+  fonteAutore: null,       // persona del conto/buoni (null per scatolo)
+  autore: null,            // chi versa / preleva (versamento/prelievo)
+  motivo: 'riequilibrio',  // motivo del prelievo
+  straord: false,
+  splitMode: '5050',       // '5050' | 'allA' | 'allB' | 'custom'
+  splitA: 50,              // % a carico del 1° autore (custom)
   categoria_id: undefined, // undefined = non scelta; null = "Altro"; number = sotto-cat
-  amt: '',                 // stringa importo digitata sul tastierino (step 2)
-  data: '',                // giorno del pagamento (step 3, default oggi)
-  compTipo: null,          // 'annuale'|'semestrale'|'bimestrale'|'mensile' (step 3)
-  compDa: '',              // periodo competenza inizio (YYYY-MM-DD)
-  compA: '',               // periodo competenza fine
+  amt: '',
+  data: '',
+  compTipo: null,
+  compDa: '',
+  compA: '',
 };
 let _wizMacroId = null;     // null = mostra macro; id = mostra sotto-cat di quella macro
 
-function openTxWizard(tipo) {
+function openTxWizard(arg) {
+  const opts = (arg && typeof arg === 'object') ? arg : {};
   WIZ.step = 1;
-  // tipo può arrivare dalle PWA shortcut (add-uscita/add-entrata);
-  // se non è una stringa valida usa l'ultimo tipo o 'uscita'
-  WIZ.tipo = (tipo === 'entrata' || tipo === 'uscita') ? tipo : (localStorage.getItem(LS.LAST_TIPO) || 'uscita');
-  WIZ.autore = getDefaultAutore() || null;  // default: utente loggato
-  WIZ.personale = false;
+  WIZ.mov = opts.mov || 'spesa';
+  WIZ.tipo = 'uscita';
+  WIZ.comune = true;
+  WIZ.fonte = null;
+  WIZ.fonteAutore = null;
+  WIZ.autore = opts.autore || getDefaultAutore() || null;
+  WIZ.motivo = opts.motivo || 'riequilibrio';
+  WIZ.straord = false;
+  WIZ.splitMode = '5050';
+  WIZ.splitA = 50;
   WIZ.categoria_id = undefined;
-  WIZ.amt = '';
+  WIZ.amt = (opts.amt != null) ? String(opts.amt).replace('.', ',') : '';
   WIZ.data = today();
   WIZ.compTipo = null;
   WIZ.compDa = '';
   WIZ.compA = '';
   _wizMacroId = null;
-  setWizTipo(WIZ.tipo);
-  if (D.wizPersonale) D.wizPersonale.checked = false;
-  renderWizAutori();
+  if (D.wizStraord) D.wizStraord.checked = false;
+  applyWizMov();           // imposta blocchi/etichette in base a WIZ.mov + render chips
   renderWizCats();
-  setWizAmt('');
-  // Step 3: data pagamento = oggi, competenza pre-impostata a "Mensile"
+  setWizAmt(WIZ.amt);
   if (D.wizDataPag) D.wizDataPag.value = WIZ.data;
   renderWizDataPagLabel();
   setWizComp('mensile');
@@ -5836,51 +6018,170 @@ function showWizStep(n) {
     s.classList.toggle('active', on);
     s.hidden = !on;
   });
-  // progress dots
   if (D.wizProgress) {
     $$('.wiz-dot', D.wizProgress).forEach(d => {
       d.classList.toggle('active', Number(d.getAttribute('data-step')) <= n);
     });
   }
   if (D.wizStepNum) D.wizStepNum.textContent = n + ' / ' + WIZ_STEPS;
-  // Indietro: disabilitato nel primo step
   if (D.wizBack) D.wizBack.disabled = (n === 1);
-  // Ultimo step → il bottone Continua diventa "Salva"
   if (D.wizNext) D.wizNext.textContent = (n === WIZ_STEPS) ? '✓ Salva' : 'Continua';
-  // Render contenuto specifico dello step
   if (n === 4) renderWizRecap();
   updateWizNext();
 }
 
-function setWizTipo(tipo) {
-  WIZ.tipo = tipo;
-  if (D.wizTipo) {
-    D.wizTipo.setAttribute('data-tipo', tipo);
-    $$('button', D.wizTipo).forEach(b => b.classList.toggle('active', b.getAttribute('data-tipo') === tipo));
+// Imposta i blocchi visibili + le etichette in base al tipo di movimento.
+function applyWizMov() {
+  const mov = WIZ.mov;
+  const isSpesa = mov === 'spesa';
+  if (D.wizMov) $$('button', D.wizMov).forEach(b => b.classList.toggle('active', b.getAttribute('data-mov') === mov));
+  if (D.wizSpesaBlock) D.wizSpesaBlock.hidden = !isSpesa;
+  if (D.wizBoxBlock) D.wizBoxBlock.hidden = isSpesa;
+  if (D.wizStep1Title) D.wizStep1Title.textContent =
+    isSpesa ? 'Dettagli della spesa' : (mov === 'versamento' ? 'Versamento nello scatolo' : 'Prelievo dallo scatolo');
+  if (isSpesa) {
+    renderWizComune();
+    if (D.wizSplit) D.wizSplit.hidden = !WIZ.comune;
+    if (D.wizStraordRow) D.wizStraordRow.style.display = WIZ.comune ? '' : 'none';
+    renderWizFonti();
+    if (WIZ.comune) renderWizSplit();
+  } else {
+    const isPrel = mov === 'prelievo';
+    if (D.wizChiLabel) D.wizChiLabel.textContent = isPrel ? 'Chi preleva dallo scatolo?' : 'Chi mette i soldi nello scatolo?';
+    if (D.wizMotivoWrap) D.wizMotivoWrap.hidden = !isPrel;
+    if (D.wizBoxInfo) D.wizBoxInfo.textContent = isPrel
+      ? '📤 Esce denaro dallo scatolo (riequilibrio o spesa personale di chi è in credito).'
+      : '📥 Entra denaro nello scatolo (es. l\'affitto in contanti).';
+    if (isPrel) renderWizMotivo();
+    renderWizChi();
+    if (D.wizBoxInfo) twemojify(D.wizBoxInfo);
   }
-  localStorage.setItem(LS.LAST_TIPO, tipo);
-  // cambiando tipo, le categorie disponibili cambiano → reset selezione
-  WIZ.categoria_id = undefined;
-  _wizMacroId = null;
-  renderWizCats();
+  if (D.wizCompSection) D.wizCompSection.style.display = isSpesa ? '' : 'none';
+  if (D.wizDataLbl) D.wizDataLbl.textContent = isSpesa ? 'Giorno del pagamento' : (mov === 'versamento' ? 'Giorno del versamento' : 'Giorno del prelievo');
+  if (D.wizStep3Title) D.wizStep3Title.textContent = isSpesa ? 'Quando e per quale periodo?' : 'Quando?';
   updateWizNext();
 }
 
-function renderWizAutori() {
-  if (!D.wizAutori) return;
-  const list = getAutoriList();
-  D.wizAutori.innerHTML = list.map(nome =>
-    '<button type="button" class="wiz-chip' + (nome === WIZ.autore ? ' active' : '') + '" data-autore="' + esc(nome) + '">' +
-      esc(nome) +
-    '</button>'
-  ).join('');
-  $$('.wiz-chip', D.wizAutori).forEach(el => {
+function setWizMov(mov) {
+  WIZ.mov = mov;
+  WIZ.categoria_id = undefined;
+  _wizMacroId = null;
+  if (mov === 'spesa') { WIZ.fonte = null; WIZ.fonteAutore = null; }
+  else { WIZ.autore = WIZ.autore || getDefaultAutore(); }
+  applyWizMov();
+  renderWizCats();
+}
+
+function renderWizComune() {
+  if (!D.wizComune) return;
+  const val = WIZ.comune ? 'comune' : 'personale';
+  D.wizComune.setAttribute('data-val', val);
+  $$('button', D.wizComune).forEach(b => b.classList.toggle('active', b.getAttribute('data-val') === val));
+}
+
+function setWizComune(val) {
+  WIZ.comune = (val === 'comune');
+  renderWizComune();
+  if (D.wizSplit) D.wizSplit.hidden = !WIZ.comune;
+  if (D.wizStraordRow) D.wizStraordRow.style.display = WIZ.comune ? '' : 'none';
+  if (!WIZ.comune && WIZ.fonte === 'scatolo') { WIZ.fonte = null; WIZ.fonteAutore = null; }
+  renderWizFonti();
+  if (WIZ.comune) renderWizSplit();
+  updateWizNext();
+}
+
+function renderWizFonti() {
+  if (!D.wizFonti) return;
+  const A = getAutoriList();
+  const items = [];
+  if (WIZ.comune) items.push({ key: 'scatolo', autore: null, icon: '📦', label: 'Scatolo' });
+  A.forEach(n => items.push({ key: 'conto', autore: n, icon: '💳', label: 'Conto ' + shortName(n) }));
+  A.forEach(n => items.push({ key: 'buoni', autore: n, icon: '🍽', label: 'Buoni ' + shortName(n) }));
+  D.wizFonti.innerHTML = items.map((it, i) => {
+    const active = WIZ.fonte === it.key && (it.autore || null) === (WIZ.fonteAutore || null);
+    return '<button type="button" class="wiz-chip' + (active ? ' active' : '') + '" data-i="' + i + '">' + it.icon + ' ' + esc(it.label) + '</button>';
+  }).join('');
+  twemojify(D.wizFonti);
+  $$('.wiz-chip', D.wizFonti).forEach(el => {
     el.addEventListener('click', () => {
-      WIZ.autore = el.getAttribute('data-autore');
-      renderWizAutori();
-      updateWizNext();
+      const it = items[Number(el.getAttribute('data-i'))];
+      WIZ.fonte = it.key; WIZ.fonteAutore = it.autore;
+      renderWizFonti(); updateWizNext();
     });
   });
+}
+
+function renderWizChi() {
+  if (!D.wizChi) return;
+  const A = getAutoriList();
+  D.wizChi.innerHTML = A.map(n =>
+    '<button type="button" class="wiz-chip' + (n === WIZ.autore ? ' active' : '') + '" data-autore="' + esc(n) + '">' + esc(n) + '</button>'
+  ).join('');
+  $$('.wiz-chip', D.wizChi).forEach(el => {
+    el.addEventListener('click', () => { WIZ.autore = el.getAttribute('data-autore'); renderWizChi(); updateWizNext(); });
+  });
+}
+
+function renderWizMotivo() {
+  if (!D.wizMotivo) return;
+  $$('button', D.wizMotivo).forEach(b => b.classList.toggle('active', b.getAttribute('data-motivo') === WIZ.motivo));
+}
+
+function renderWizSplit() {
+  if (!D.wizSplitChips) return;
+  const A = getAutoriList();
+  const a = shortName(A[0] || 'Stefano'), b = shortName(A[1] || 'Flavia');
+  const modes = [
+    { key: '5050', label: '50 / 50' },
+    { key: 'allA', label: 'Tutta ' + a },
+    { key: 'allB', label: 'Tutta ' + b },
+    { key: 'custom', label: 'Personalizza' },
+  ];
+  D.wizSplitChips.innerHTML = modes.map(m =>
+    '<button type="button" class="wiz-chip' + (WIZ.splitMode === m.key ? ' active' : '') + '" data-split="' + m.key + '">' + esc(m.label) + '</button>'
+  ).join('');
+  $$('.wiz-chip', D.wizSplitChips).forEach(el => el.addEventListener('click', () => setWizSplitMode(el.getAttribute('data-split'))));
+  const showCustom = WIZ.splitMode === 'custom';
+  if (D.wizSplitCustom) D.wizSplitCustom.hidden = !showCustom;
+  if (showCustom) {
+    if (D.wizSplitRange) D.wizSplitRange.value = WIZ.splitA;
+    renderWizSplitReadout();
+  }
+}
+
+function setWizSplitMode(mode) {
+  WIZ.splitMode = mode;
+  if (mode === '5050') WIZ.splitA = 50;
+  else if (mode === 'allA') WIZ.splitA = 100;
+  else if (mode === 'allB') WIZ.splitA = 0;
+  renderWizSplit();
+  updateWizNext();
+}
+
+function renderWizSplitReadout() {
+  if (!D.wizSplitReadout) return;
+  const A = getAutoriList();
+  const a = shortName(A[0] || 'Stefano'), b = shortName(A[1] || 'Flavia');
+  D.wizSplitReadout.innerHTML = '<b>' + esc(a) + '</b> ' + WIZ.splitA + '%  ·  <b>' + esc(b) + '</b> ' + (100 - WIZ.splitA) + '%';
+}
+
+// Etichette di riepilogo
+function motivoLabel(m) { return m === 'riequilibrio' ? '⚖️ Riequilibrio' : (m === 'personale' ? '👤 Spesa personale' : '📝 Altro'); }
+function motivoPlain(m) { return m === 'riequilibrio' ? 'Riequilibrio' : (m === 'personale' ? 'Spesa personale' : 'Altro'); }
+function wizFonteLabel() {
+  if (WIZ.fonte === 'scatolo') return '📦 Scatolo';
+  if (WIZ.fonte === 'conto')   return '💳 Conto ' + shortName(WIZ.fonteAutore || '');
+  if (WIZ.fonte === 'buoni')   return '🍽 Buoni ' + shortName(WIZ.fonteAutore || '');
+  return '—';
+}
+function wizSplitLabel() {
+  const A = getAutoriList();
+  const a = shortName(A[0] || 'A'), b = shortName(A[1] || 'B');
+  if (!WIZ.comune) return '—';
+  if (Number(WIZ.splitA) === 50) return '50 / 50';
+  if (Number(WIZ.splitA) === 100) return 'Tutta ' + a;
+  if (Number(WIZ.splitA) === 0) return 'Tutta ' + b;
+  return a + ' ' + WIZ.splitA + '% · ' + b + ' ' + (100 - WIZ.splitA) + '%';
 }
 
 function renderWizCats() {
@@ -6058,25 +6359,40 @@ function fmtRecapDate(s) {
 function renderWizRecap() {
   if (!D.wizRecap) return;
   const imp = parseAmount(WIZ.amt) || 0;
-  let catLabel, catIcon;
-  if (WIZ.categoria_id === null) { catLabel = 'Altro'; catIcon = '📦'; }
-  else {
-    const c = catById(WIZ.categoria_id);
-    catLabel = c ? c.nome : '?';
-    catIcon = c ? (c.icona || '🏷') : '🏷';
+  let rows;
+  if (WIZ.mov === 'spesa') {
+    let catLabel, catIcon;
+    if (WIZ.categoria_id === null || WIZ.categoria_id === undefined) { catLabel = 'Altro'; catIcon = '📦'; }
+    else { const c = catById(WIZ.categoria_id); catLabel = c ? c.nome : '?'; catIcon = c ? (c.icona || '🏷') : '🏷'; }
+    const compLabel = WIZ.compTipo ? cap(WIZ.compTipo) : 'Personalizzato';
+    rows = [
+      ['Tipo', '<span class="wiz-recap-v neg">💸 Spesa</span>'],
+      ['Importo', '<span class="wiz-recap-v big neg">−' + fmtEur(imp) + '</span>'],
+      ['Categoria', '<span class="wiz-recap-v">' + catIcon + ' ' + esc(catLabel) + '</span>'],
+      ['Da', '<span class="wiz-recap-v">' + wizFonteLabel() + '</span>'],
+      [WIZ.comune ? 'Divisione' : 'Tipo spesa', '<span class="wiz-recap-v">' + (WIZ.comune ? wizSplitLabel() : '👤 Personale') + '</span>'],
+    ];
+    if (WIZ.comune && WIZ.straord) rows.push(['Straordinaria', '<span class="wiz-recap-v">✨ Sì</span>']);
+    rows.push(['Pagato il', '<span class="wiz-recap-v">' + fmtRecapDate(WIZ.data) + '</span>']);
+    rows.push(['Competenza', '<span class="wiz-recap-v"><span class="wiz-recap-badge">' + compLabel + '</span></span>']);
+    rows.push(['Periodo', '<span class="wiz-recap-v">' + fmtRecapDate(WIZ.compDa) + ' → ' + fmtRecapDate(WIZ.compA) + '</span>']);
+  } else if (WIZ.mov === 'versamento') {
+    rows = [
+      ['Tipo', '<span class="wiz-recap-v pos">📥 Versamento</span>'],
+      ['Importo', '<span class="wiz-recap-v big pos">+' + fmtEur(imp) + '</span>'],
+      ['Chi versa', '<span class="wiz-recap-v">' + esc(WIZ.autore || '—') + '</span>'],
+      ['Dove', '<span class="wiz-recap-v">📦 Scatolo (fondo comune)</span>'],
+      ['Data', '<span class="wiz-recap-v">' + fmtRecapDate(WIZ.data) + '</span>'],
+    ];
+  } else {
+    rows = [
+      ['Tipo', '<span class="wiz-recap-v neg">📤 Prelievo</span>'],
+      ['Importo', '<span class="wiz-recap-v big neg">−' + fmtEur(imp) + '</span>'],
+      ['Chi preleva', '<span class="wiz-recap-v">' + esc(WIZ.autore || '—') + '</span>'],
+      ['Motivo', '<span class="wiz-recap-v">' + motivoLabel(WIZ.motivo) + '</span>'],
+      ['Data', '<span class="wiz-recap-v">' + fmtRecapDate(WIZ.data) + '</span>'],
+    ];
   }
-  const tipoLabel = WIZ.tipo === 'entrata' ? 'Entrata' : 'Uscita';
-  const compLabel = WIZ.compTipo ? (WIZ.compTipo.charAt(0).toUpperCase() + WIZ.compTipo.slice(1)) : 'Personalizzato';
-  const rows = [
-    ['Tipo', '<span class="wiz-recap-v ' + (WIZ.tipo === 'entrata' ? 'pos' : 'neg') + '">' + tipoLabel + '</span>'],
-    ['Importo', '<span class="wiz-recap-v big ' + (WIZ.tipo === 'entrata' ? 'pos' : 'neg') + '">' + (WIZ.tipo === 'entrata' ? '+' : '−') + fmtEur(imp) + '</span>'],
-    ['Categoria', '<span class="wiz-recap-v">' + catIcon + ' ' + esc(catLabel) + '</span>'],
-    ['Chi paga', '<span class="wiz-recap-v">' + esc(WIZ.autore || '—') + '</span>'],
-    ['Personale', '<span class="wiz-recap-v">' + (WIZ.personale ? '👤 Sì' : 'No') + '</span>'],
-    ['Pagato il', '<span class="wiz-recap-v">' + fmtRecapDate(WIZ.data) + '</span>'],
-    ['Competenza', '<span class="wiz-recap-v"><span class="wiz-recap-badge">' + compLabel + '</span></span>'],
-    ['Periodo', '<span class="wiz-recap-v">' + fmtRecapDate(WIZ.compDa) + ' → ' + fmtRecapDate(WIZ.compA) + '</span>'],
-  ];
   D.wizRecap.innerHTML = rows.map(([k, v]) =>
     '<div class="wiz-recap-row"><span class="wiz-recap-k">' + k + '</span>' + v + '</div>'
   ).join('');
@@ -6087,24 +6403,42 @@ function renderWizRecap() {
 async function wizSave() {
   const imp = parseAmount(WIZ.amt);
   if (!imp || imp <= 0) { toast('Importo non valido', 'warn'); return; }
-  const payload = {
-    importo: imp,
-    tipo: WIZ.tipo,
-    categoria_id: (WIZ.categoria_id === null || WIZ.categoria_id === undefined) ? null : WIZ.categoria_id,
-    descrizione: null,
-    data: WIZ.data || today(),
-    autore: WIZ.autore || null,
-    personale: !!WIZ.personale,
-    competenza_da: WIZ.compDa || null,
-    competenza_a: WIZ.compA || null,
-    competenza_tipo: WIZ.compTipo || null
-  };
+  const A = getAutoriList();
+  let payload;
+  if (WIZ.mov === 'spesa') {
+    let quota = null;
+    if (WIZ.comune && Number(WIZ.splitA) !== 50) {
+      quota = {};
+      quota[A[0]] = Number(WIZ.splitA);
+      if (A[1]) quota[A[1]] = 100 - Number(WIZ.splitA);
+    }
+    payload = {
+      tipo_movimento: 'spesa',
+      tipo: 'uscita',
+      importo: imp,
+      categoria_id: (WIZ.categoria_id === null || WIZ.categoria_id === undefined) ? null : WIZ.categoria_id,
+      descrizione: null,
+      data: WIZ.data || today(),
+      autore: WIZ.fonte === 'scatolo' ? null : (WIZ.fonteAutore || null),
+      fonte: WIZ.fonte,
+      personale: !WIZ.comune,
+      straordinaria: WIZ.comune ? !!WIZ.straord : false,
+      quota: quota,
+      competenza_da: WIZ.compDa || null,
+      competenza_a: WIZ.compA || null,
+      competenza_tipo: WIZ.compTipo || null
+    };
+  } else if (WIZ.mov === 'versamento') {
+    payload = boxPayload('versamento', WIZ.autore, imp, WIZ.data, 'Versamento scatolo');
+  } else {
+    payload = boxPayload('prelievo', WIZ.autore, imp, WIZ.data, motivoPlain(WIZ.motivo));
+  }
   setBtnLoading(D.wizNext, true);
   try {
     await saveTransaction(payload);
     vibrate(20);
     closeTxWizard();
-    toast('Transazione salvata', 'success');
+    toast(WIZ.mov === 'versamento' ? 'Versamento salvato' : (WIZ.mov === 'prelievo' ? 'Prelievo salvato' : 'Spesa salvata'), 'success');
   } catch (e) {
     toast('Errore: ' + (e && e.message ? e.message : 'salvataggio non riuscito'), 'error');
   } finally {
@@ -6112,19 +6446,23 @@ async function wizSave() {
   }
 }
 
-// Continua si accende solo se: tipo (sempre ok), chi paga, categoria scelta
+// Continua si accende solo se i campi obbligatori dello step sono validi.
 function updateWizNext() {
   if (!D.wizNext) return;
   let ok = false;
+  const mov = WIZ.mov;
   if (WIZ.step === 1) {
-    ok = !!WIZ.tipo && !!WIZ.autore && WIZ.categoria_id !== undefined;
+    if (mov === 'spesa') ok = !!WIZ.fonte && WIZ.categoria_id !== undefined;
+    else if (mov === 'versamento') ok = !!WIZ.autore;
+    else ok = !!WIZ.autore && !!WIZ.motivo;
   } else if (WIZ.step === 2) {
     const imp = parseAmount(WIZ.amt);
     ok = !!imp && imp > 0;
   } else if (WIZ.step === 3) {
-    ok = !!WIZ.data && !!WIZ.compDa && !!WIZ.compA && WIZ.compDa <= WIZ.compA;
+    if (mov === 'spesa') ok = !!WIZ.data && !!WIZ.compDa && !!WIZ.compA && WIZ.compDa <= WIZ.compA;
+    else ok = !!WIZ.data;
   } else {
-    ok = true; // step 4 (riepilogo): salva sempre abilitato
+    ok = true;
   }
   D.wizNext.disabled = !ok;
 }
@@ -7570,10 +7908,24 @@ function bindEvents() {
   if (D.wizClose) D.wizClose.addEventListener('click', closeTxWizard);
   if (D.wizBack)  D.wizBack.addEventListener('click', wizBack);
   if (D.wizNext)  D.wizNext.addEventListener('click', wizNext);
-  if (D.wizTipo) {
-    $$('button', D.wizTipo).forEach(b => b.addEventListener('click', () => setWizTipo(b.getAttribute('data-tipo'))));
+  // Tipo di movimento (spesa / versamento / prelievo)
+  if (D.wizMov) {
+    $$('button', D.wizMov).forEach(b => b.addEventListener('click', () => setWizMov(b.getAttribute('data-mov'))));
   }
-  if (D.wizPersonale) D.wizPersonale.addEventListener('change', () => { WIZ.personale = D.wizPersonale.checked; });
+  // In comune / Personale
+  if (D.wizComune) {
+    $$('button', D.wizComune).forEach(b => b.addEventListener('click', () => setWizComune(b.getAttribute('data-val'))));
+  }
+  // Motivo prelievo (statico)
+  if (D.wizMotivo) {
+    $$('button', D.wizMotivo).forEach(b => b.addEventListener('click', () => { WIZ.motivo = b.getAttribute('data-motivo'); renderWizMotivo(); updateWizNext(); }));
+  }
+  // Spesa straordinaria
+  if (D.wizStraord) D.wizStraord.addEventListener('change', () => { WIZ.straord = D.wizStraord.checked; });
+  // Slider divisione personalizzata
+  if (D.wizSplitRange) D.wizSplitRange.addEventListener('input', () => { WIZ.splitA = Number(D.wizSplitRange.value); renderWizSplitReadout(); updateWizNext(); });
+  // Bottone "Registra riequilibrio" nella dashboard
+  if (D.cdSettleBtn) D.cdSettleBtn.addEventListener('click', registerRiequilibrio);
   if (D.wizNumpad) {
     $$('button', D.wizNumpad).forEach(b => b.addEventListener('click', () => wizNumpadPress(b.getAttribute('data-k'))));
   }
