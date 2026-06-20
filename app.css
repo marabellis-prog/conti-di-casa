@@ -3142,6 +3142,9 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   align-items: center;
   padding: max(20px, var(--safe-t)) 16px max(20px, var(--safe-b));
 }
+/* Il dialog di conferma deve stare SOPRA qualsiasi cosa lo apra
+   (es. il wizard fullscreen, z-index 300), ma sotto il toast (10000). */
+#modalConfirm { z-index: 9000; }
 .modal.modal-center .sheet {
   border-radius: 18px;
   max-height: calc(100vh - 80px);
