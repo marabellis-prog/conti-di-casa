@@ -4003,6 +4003,19 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 /* Ultime operazioni */
 .cd-recent .tx-row:last-child { border-bottom: none; }
 
+/* Badge tipo movimento nella scheda modifica */
+.tx-edit-typebadge {
+  display: inline-block;
+  font-size: 13px; font-weight: 800;
+  padding: 6px 12px; border-radius: 10px;
+  margin-bottom: 14px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.tx-edit-typebadge.pos { color: var(--ok); }
+.tx-edit-typebadge.neg { color: var(--danger); }
+.tx-edit-typebadge img.emoji { width: 16px; height: 16px; vertical-align: -2px; }
+
 /* Footer Indietro / Continua */
 .wiz-footer {
   display: flex;

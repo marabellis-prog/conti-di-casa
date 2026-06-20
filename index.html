@@ -565,59 +565,92 @@
     <div class="sheet" id="sheetTx">
       <div class="sheet-handle" data-drag></div>
       <div class="sheet-header">
-        <h3>Modifica transazione</h3>
+        <h3 id="txEditTitle">Modifica</h3>
         <button class="sheet-close" data-close="modalTx">✕</button>
       </div>
       <div class="sheet-body">
+        <div class="tx-edit-typebadge" id="txEditTypeBadge"></div>
+
         <div class="form-field">
           <label>Importo</label>
           <input type="number" id="txEditAmt" step="0.01" min="0">
         </div>
         <div class="form-field">
-          <label>Tipo</label>
-          <select id="txEditTipo">
-            <option value="uscita">Uscita</option>
-            <option value="entrata">Entrata</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label>Categoria</label>
-          <select id="txEditCat"></select>
-        </div>
-        <div class="form-field">
           <label>Data</label>
           <input type="date" id="txEditData">
         </div>
-        <div class="form-field">
-          <label>Descrizione</label>
-          <input type="text" id="txEditDesc">
-        </div>
-        <div class="form-field">
-          <label>Autore</label>
-          <select id="txEditAutore"></select>
-        </div>
-        <label class="pers-toggle" for="txEditPersonale">
-          <input type="checkbox" id="txEditPersonale">
-          <span class="pers-toggle-track"></span>
-          <span class="pers-toggle-label">
-            <span class="pers-toggle-ic">👤</span>
-            Transazione <b>personale</b> (non in comune)
-          </span>
-        </label>
-        <div class="form-field">
-          <label>Periodo di competenza</label>
-          <div class="tx2-quick" id="txEditCompQuick">
-            <button type="button" data-comp="annuale">Annuale</button>
-            <button type="button" data-comp="semestrale">Semestrale</button>
-            <button type="button" data-comp="bimestrale">Bimestrale</button>
-            <button type="button" data-comp="mensile">Mensile</button>
+
+        <!-- ════ Campi SPESA ════ -->
+        <div id="txEditSpesaFields">
+          <div class="form-field">
+            <label>Da dove escono i soldi</label>
+            <select id="txEditFonte"></select>
           </div>
-          <div class="tx2-dates" style="margin-top:8px">
-            <input type="date" id="txEditCompDa" aria-label="Competenza da">
-            <span class="tx2-dates-sep">→</span>
-            <input type="date" id="txEditCompA" aria-label="Competenza a">
+          <div class="form-field">
+            <label>Categoria</label>
+            <select id="txEditCat"></select>
+          </div>
+          <label class="pers-toggle" for="txEditPersonale">
+            <input type="checkbox" id="txEditPersonale">
+            <span class="pers-toggle-track"></span>
+            <span class="pers-toggle-label">
+              <span class="pers-toggle-ic">👤</span>
+              Spesa <b>personale</b> (fuori dall'equità)
+            </span>
+          </label>
+          <div class="form-field" id="txEditSplitWrap">
+            <label>Come si divide</label>
+            <select id="txEditSplit">
+              <option value="5050">50 / 50</option>
+              <option value="allA">Tutta …</option>
+              <option value="allB">Tutta …</option>
+              <option value="custom">Personalizzata…</option>
+            </select>
+            <div id="txEditSplitCustom" hidden style="margin-top:8px">
+              <input type="range" id="txEditSplitRange" min="0" max="100" step="5" value="50" style="width:100%;accent-color:var(--accent)">
+              <div id="txEditSplitReadout" style="text-align:center;font-size:14px;margin-top:4px"></div>
+            </div>
+          </div>
+          <label class="pers-toggle" id="txEditStraordRow" for="txEditStraord">
+            <input type="checkbox" id="txEditStraord">
+            <span class="pers-toggle-track"></span>
+            <span class="pers-toggle-label">
+              <span class="pers-toggle-ic">✨</span>
+              Spesa <b>straordinaria</b> (esclusa dalle medie)
+            </span>
+          </label>
+          <div class="form-field">
+            <label>Periodo di competenza</label>
+            <div class="tx2-quick" id="txEditCompQuick">
+              <button type="button" data-comp="annuale">Annuale</button>
+              <button type="button" data-comp="semestrale">Semestrale</button>
+              <button type="button" data-comp="bimestrale">Bimestrale</button>
+              <button type="button" data-comp="mensile">Mensile</button>
+            </div>
+            <div class="tx2-dates" style="margin-top:8px">
+              <input type="date" id="txEditCompDa" aria-label="Competenza da">
+              <span class="tx2-dates-sep">→</span>
+              <input type="date" id="txEditCompA" aria-label="Competenza a">
+            </div>
           </div>
         </div>
+
+        <!-- ════ Campi VERSAMENTO / PRELIEVO ════ -->
+        <div id="txEditBoxFields" hidden>
+          <div class="form-field">
+            <label id="txEditChiLabel">Chi</label>
+            <select id="txEditAutore"></select>
+          </div>
+          <div class="form-field" id="txEditMotivoWrap" hidden>
+            <label>Motivo</label>
+            <select id="txEditMotivo">
+              <option value="Riequilibrio">Riequilibrio</option>
+              <option value="Spesa personale">Spesa personale</option>
+              <option value="Altro">Altro</option>
+            </select>
+          </div>
+        </div>
+
         <button id="txEditSave" class="btn-primary">Salva</button>
         <button id="txEditDelete" class="btn-danger">Elimina</button>
       </div>

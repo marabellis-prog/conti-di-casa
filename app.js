@@ -169,7 +169,10 @@ function cacheDOM() {
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloFoot','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgNote','cdRecent',
-   'modalTx','txEditAmt','txEditTipo','txEditCat','txEditData','txEditDesc','txEditAutore','txEditSave','txEditDelete','txEditPersonale',
+   'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
+   'txEditSpesaFields','txEditFonte','txEditCat','txEditPersonale',
+   'txEditSplitWrap','txEditSplit','txEditSplitCustom','txEditSplitRange','txEditSplitReadout','txEditStraord','txEditStraordRow',
+   'txEditBoxFields','txEditChiLabel','txEditAutore','txEditMotivoWrap','txEditMotivo',
    'txEditCompQuick','txEditCompDa','txEditCompA',
    'view-personale','personaleCount','personaleWipInfo',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
@@ -6774,43 +6777,142 @@ function setTxEditComp(type) {
   if (D.txEditCompQuick) $$('button', D.txEditCompQuick).forEach(b => b.classList.toggle('active', b.getAttribute('data-comp') === type));
 }
 
+// Stato della scheda modifica (coerente col tipo di movimento)
+const TXE = { mov: 'spesa', comune: true, fonte: 'scatolo', fonteAutore: null, splitMode: '5050', splitA: 50 };
+
+function renderTxEditFonte() {
+  if (!D.txEditFonte) return;
+  const A = getAutoriList();
+  const opts = [];
+  if (TXE.comune) opts.push({ v: 'scatolo', label: '📦 Scatolo' });
+  A.forEach(n => opts.push({ v: 'conto|' + n, label: '💳 Conto ' + shortName(n) }));
+  A.forEach(n => opts.push({ v: 'buoni|' + n, label: '🍽 Buoni ' + shortName(n) }));
+  const cur = TXE.fonte === 'scatolo' ? 'scatolo' : (TXE.fonte ? TXE.fonte + '|' + (TXE.fonteAutore || '') : '');
+  D.txEditFonte.innerHTML = opts.map(o => '<option value="' + esc(o.v) + '"' + (o.v === cur ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('');
+  if (![...D.txEditFonte.options].some(o => o.selected)) { D.txEditFonte.selectedIndex = 0; onTxEditFonteChange(); }
+}
+function onTxEditFonteChange() {
+  const v = D.txEditFonte ? D.txEditFonte.value : '';
+  if (v === 'scatolo') { TXE.fonte = 'scatolo'; TXE.fonteAutore = null; }
+  else { const [k, n] = v.split('|'); TXE.fonte = k; TXE.fonteAutore = n; }
+}
+function renderTxEditSplit() {
+  if (!D.txEditSplit) return;
+  const A = getAutoriList();
+  const oa = D.txEditSplit.querySelector('option[value="allA"]');
+  const ob = D.txEditSplit.querySelector('option[value="allB"]');
+  if (oa) oa.textContent = 'Tutta ' + shortName(A[0] || 'A');
+  if (ob) ob.textContent = 'Tutta ' + shortName(A[1] || 'B');
+  D.txEditSplit.value = TXE.splitMode;
+  const showCustom = TXE.splitMode === 'custom';
+  if (D.txEditSplitCustom) D.txEditSplitCustom.hidden = !showCustom;
+  if (showCustom) { if (D.txEditSplitRange) D.txEditSplitRange.value = TXE.splitA; renderTxEditSplitReadout(); }
+}
+function renderTxEditSplitReadout() {
+  if (!D.txEditSplitReadout) return;
+  const A = getAutoriList();
+  D.txEditSplitReadout.innerHTML = '<b>' + esc(shortName(A[0] || 'A')) + '</b> ' + TXE.splitA + '%  ·  <b>' + esc(shortName(A[1] || 'B')) + '</b> ' + (100 - TXE.splitA) + '%';
+}
+function updateTxEditPersonaleUI() {
+  TXE.comune = !(D.txEditPersonale && D.txEditPersonale.checked);
+  if (D.txEditSplitWrap) D.txEditSplitWrap.style.display = TXE.comune ? '' : 'none';
+  if (D.txEditStraordRow) D.txEditStraordRow.style.display = TXE.comune ? '' : 'none';
+  if (!TXE.comune && TXE.fonte === 'scatolo') { TXE.fonte = null; TXE.fonteAutore = null; }
+  renderTxEditFonte();
+}
+
 function openTxEdit(idStr) {
   const id = isNaN(Number(idStr)) ? idStr : Number(idStr);
   const t = S.tx.find(x => x.id === id);
   if (!t) return;
   S.editTxId = id;
+  const mov = t.tipo_movimento || 'spesa';
+  TXE.mov = mov;
+  const isSpesa = mov === 'spesa';
+  if (D.txEditTitle) D.txEditTitle.textContent = isSpesa ? 'Modifica spesa' : (mov === 'versamento' ? 'Modifica versamento' : 'Modifica prelievo');
+  if (D.txEditTypeBadge) {
+    D.txEditTypeBadge.textContent = isSpesa ? '💸 Spesa' : (mov === 'versamento' ? '📥 Versamento nello scatolo' : '📤 Prelievo dallo scatolo');
+    D.txEditTypeBadge.className = 'tx-edit-typebadge ' + (mov === 'versamento' ? 'pos' : 'neg');
+    twemojify(D.txEditTypeBadge);
+  }
   D.txEditAmt.value = t.importo;
-  D.txEditTipo.value = t.tipo;
-  populateCatSelect(D.txEditCat, t.tipo, t.categoria_id);
   D.txEditData.value = t.data;
-  D.txEditDesc.value = t.descrizione || '';
-  if (D.txEditAutore) populateAutoreSelect(D.txEditAutore, t.autore || getDefaultAutore());
-  if (D.txEditPersonale) D.txEditPersonale.checked = !!t.personale;
-  // Periodo di competenza
-  _txEditCompTipo = t.competenza_tipo || null;
-  if (D.txEditCompDa) D.txEditCompDa.value = t.competenza_da || '';
-  if (D.txEditCompA)  D.txEditCompA.value  = t.competenza_a  || '';
-  if (D.txEditCompQuick) $$('button', D.txEditCompQuick).forEach(b => b.classList.toggle('active', b.getAttribute('data-comp') === _txEditCompTipo));
-  // Cambiando tipo: ricarica le categorie di quel tipo
-  D.txEditTipo.onchange = () => populateCatSelect(D.txEditCat, D.txEditTipo.value, null);
+  if (D.txEditSpesaFields) D.txEditSpesaFields.hidden = !isSpesa;
+  if (D.txEditBoxFields) D.txEditBoxFields.hidden = isSpesa;
+
+  if (isSpesa) {
+    if (D.txEditPersonale) D.txEditPersonale.checked = !!t.personale;
+    TXE.comune = !t.personale;
+    TXE.fonte = t.fonte || 'scatolo';
+    TXE.fonteAutore = (t.fonte && t.fonte !== 'scatolo') ? (t.autore || null) : null;
+    renderTxEditFonte();
+    populateCatSelect(D.txEditCat, 'uscita', t.categoria_id);
+    // divisione dalla quota
+    const A = getAutoriList();
+    const q = t.quota;
+    if (q && typeof q === 'object') {
+      const pa = Number(q[A[0]]);
+      if (pa === 100) { TXE.splitMode = 'allA'; TXE.splitA = 100; }
+      else if (pa === 0) { TXE.splitMode = 'allB'; TXE.splitA = 0; }
+      else { TXE.splitMode = 'custom'; TXE.splitA = isNaN(pa) ? 50 : pa; }
+    } else { TXE.splitMode = '5050'; TXE.splitA = 50; }
+    renderTxEditSplit();
+    if (D.txEditStraord) D.txEditStraord.checked = !!t.straordinaria;
+    _txEditCompTipo = t.competenza_tipo || null;
+    if (D.txEditCompDa) D.txEditCompDa.value = t.competenza_da || '';
+    if (D.txEditCompA)  D.txEditCompA.value  = t.competenza_a  || '';
+    if (D.txEditCompQuick) $$('button', D.txEditCompQuick).forEach(b => b.classList.toggle('active', b.getAttribute('data-comp') === _txEditCompTipo));
+    updateTxEditPersonaleUI();
+  } else {
+    if (D.txEditChiLabel) D.txEditChiLabel.textContent = mov === 'prelievo' ? 'Chi preleva' : 'Chi versa';
+    if (D.txEditAutore) populateAutoreSelect(D.txEditAutore, t.autore || getDefaultAutore());
+    if (D.txEditMotivoWrap) D.txEditMotivoWrap.hidden = (mov !== 'prelievo');
+    if (mov === 'prelievo' && D.txEditMotivo) {
+      const m = t.descrizione || 'Riequilibrio';
+      D.txEditMotivo.value = ['Riequilibrio', 'Spesa personale', 'Altro'].indexOf(m) !== -1 ? m : 'Altro';
+    }
+  }
   openModal('modalTx');
 }
 
 async function saveTxEdit() {
   if (S.editTxId == null) return;
-  const payload = {
-    importo: parseAmount(D.txEditAmt.value),
-    tipo: D.txEditTipo.value,
-    categoria_id: D.txEditCat.value ? Number(D.txEditCat.value) : null,
-    data: D.txEditData.value || today(),
-    descrizione: D.txEditDesc.value.trim() || null,
-    autore: (D.txEditAutore && D.txEditAutore.value) || null,
-    personale: !!(D.txEditPersonale && D.txEditPersonale.checked),
-    competenza_da: (D.txEditCompDa && D.txEditCompDa.value) || null,
-    competenza_a:  (D.txEditCompA && D.txEditCompA.value) || null,
-    competenza_tipo: _txEditCompTipo || null
-  };
-  if (!payload.importo || payload.importo <= 0) { toast('Importo non valido', 'warn'); return; }
+  const imp = parseAmount(D.txEditAmt.value);
+  if (!imp || imp <= 0) { toast('Importo non valido', 'warn'); return; }
+  const A = getAutoriList();
+  let payload;
+  if (TXE.mov === 'spesa') {
+    onTxEditFonteChange();
+    const comune = !(D.txEditPersonale && D.txEditPersonale.checked);
+    let quota = null;
+    if (comune && Number(TXE.splitA) !== 50) {
+      quota = {}; quota[A[0]] = Number(TXE.splitA); if (A[1]) quota[A[1]] = 100 - Number(TXE.splitA);
+    }
+    payload = {
+      tipo_movimento: 'spesa', tipo: 'uscita', importo: imp,
+      data: D.txEditData.value || today(),
+      categoria_id: D.txEditCat.value ? Number(D.txEditCat.value) : null,
+      fonte: TXE.fonte,
+      autore: TXE.fonte === 'scatolo' ? null : (TXE.fonteAutore || null),
+      personale: !comune,
+      straordinaria: comune ? !!(D.txEditStraord && D.txEditStraord.checked) : false,
+      quota: quota,
+      descrizione: null,
+      competenza_da: (D.txEditCompDa && D.txEditCompDa.value) || null,
+      competenza_a:  (D.txEditCompA && D.txEditCompA.value) || null,
+      competenza_tipo: _txEditCompTipo || null
+    };
+  } else {
+    const autore = (D.txEditAutore && D.txEditAutore.value) || null;
+    const desc = TXE.mov === 'prelievo' ? ((D.txEditMotivo && D.txEditMotivo.value) || 'Riequilibrio') : 'Versamento scatolo';
+    payload = {
+      tipo_movimento: TXE.mov, tipo: TXE.mov === 'versamento' ? 'entrata' : 'uscita', importo: imp,
+      data: D.txEditData.value || today(),
+      categoria_id: null, fonte: 'scatolo', autore: autore,
+      personale: false, straordinaria: false, quota: null, descrizione: desc,
+      competenza_da: null, competenza_a: null, competenza_tipo: null
+    };
+  }
   setBtnLoading(D.txEditSave, true);
   try {
     // optimistic
@@ -8007,6 +8109,17 @@ function bindEvents() {
   // tx edit
   D.txEditSave.addEventListener('click', saveTxEdit);
   D.txEditDelete.addEventListener('click', deleteTxEdit);
+  // Edit coerente per tipo movimento: personale, fonte, divisione
+  if (D.txEditPersonale) D.txEditPersonale.addEventListener('change', updateTxEditPersonaleUI);
+  if (D.txEditFonte) D.txEditFonte.addEventListener('change', onTxEditFonteChange);
+  if (D.txEditSplit) D.txEditSplit.addEventListener('change', () => {
+    TXE.splitMode = D.txEditSplit.value;
+    if (TXE.splitMode === '5050') TXE.splitA = 50;
+    else if (TXE.splitMode === 'allA') TXE.splitA = 100;
+    else if (TXE.splitMode === 'allB') TXE.splitA = 0;
+    renderTxEditSplit();
+  });
+  if (D.txEditSplitRange) D.txEditSplitRange.addEventListener('input', () => { TXE.splitA = Number(D.txEditSplitRange.value); renderTxEditSplitReadout(); });
   // Edit: preset periodo competenza + modifica manuale date (deseleziona preset)
   if (D.txEditCompQuick) {
     $$('button', D.txEditCompQuick).forEach(b => b.addEventListener('click', () => setTxEditComp(b.getAttribute('data-comp'))));
