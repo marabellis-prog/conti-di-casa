@@ -4409,10 +4409,11 @@ function txRowHtml(t) {
     const icon = isVers ? '📥' : '📤';
     const color = isVers ? '#22c55e' : '#ef4444';
     const name = isVers ? 'Versamento scatolo' : 'Prelievo scatolo';
-    const meta = [fmtData(t.data), t.descrizione || '', t.autore ? '👤 ' + t.autore : '', t.note || ''].filter(Boolean).join(' • ');
+    const meta = [fmtData(t.data), t.descrizione || '', t.autore ? '👤 ' + t.autore : ''].filter(Boolean).join(' • ');
+    const noteLine = t.note ? '<div class="tx-note">' + esc(t.note) + '</div>' : '';
     return '<div class="tx-row' + pendingCls + '" data-tx-id="' + t.id + '">' +
       '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
-      '<div class="tx-body"><div class="tx-cat">' + esc(name) + '</div><div class="tx-meta">' + esc(meta) + '</div></div>' +
+      '<div class="tx-body"><div class="tx-cat">' + esc(name) + '</div><div class="tx-meta">' + esc(meta) + '</div>' + noteLine + '</div>' +
       amtHtml + '</div>';
   }
   // spesa
@@ -4423,12 +4424,13 @@ function txRowHtml(t) {
   const macro = c && c.macro_categoria ? macroById(c.macro_categoria) : null;
   const macroPrefix = macro ? '<span class="tx-macro">' + macro.icon + ' ' + macroLabel(c.macro_categoria) + '</span> › ' : '';
   const meta = [fmtData(t.data), t.fonte ? fonteShort(t.fonte, t.autore) : (t.autore ? '👤 ' + t.autore : ''),
-    t.personale ? '👤 personale' : '', t.straordinaria ? '✨ straord.' : '', t.note || t.descrizione || ''].filter(Boolean).join(' • ');
+    t.personale ? '👤 personale' : '', t.straordinaria ? '✨ straord.' : ''].filter(Boolean).join(' • ');
+  const noteLine = t.note ? '<div class="tx-note">' + esc(t.note) + '</div>' : '';
   return '<div class="tx-row' + pendingCls + '" data-tx-id="' + t.id + '">' +
     '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
     '<div class="tx-body">' +
       '<div class="tx-cat">' + macroPrefix + esc(name) + '</div>' +
-      '<div class="tx-meta">' + esc(meta) + '</div>' +
+      '<div class="tx-meta">' + esc(meta) + '</div>' + noteLine +
     '</div>' + amtHtml +
   '</div>';
 }
