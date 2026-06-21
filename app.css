@@ -3959,6 +3959,21 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   line-height: 1.4;
 }
 
+/* Campo Note (step riepilogo del wizard) */
+.wiz-note-field { margin-top: 16px; }
+.wiz-note-opt { color: var(--text-dim); font-weight: 400; font-size: 12px; }
+.wiz-note {
+  width: 100%; box-sizing: border-box; margin-top: 6px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 15px; font-family: inherit; line-height: 1.4;
+  resize: vertical; min-height: 46px;
+}
+.wiz-note:focus { outline: none; border-color: var(--accent); }
+
 /* ════ Dashboard Conti (Riepilogo: scatolo + equità) ════ */
 .cd-wrap { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 28px; }
 .cd-card {

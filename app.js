@@ -165,7 +165,7 @@ function cacheDOM() {
    'wizSplit','wizSplitChips','wizSplitCustom','wizSplitRange','wizSplitReadout','wizStraord','wizStraordRow',
    'wizBoxBlock','wizBoxInfo','wizChiLabel','wizChi','wizMotivoWrap','wizMotivo',
    'wizAmt','wizAmtVal','wizNumpad',
-   'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizDataLbl','wizStep3Title','wizCompSection','wizCompQuick','wizCompDa','wizCompA','wizRecap',
+   'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizDataLbl','wizStep3Title','wizCompSection','wizCompQuick','wizCompDa','wizCompA','wizRecap','wizNote',
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloFoot','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgNote','cdRecent',
@@ -3193,13 +3193,14 @@ async function registerRiequilibrio() {
   }
 }
 
-function boxPayload(mov, autore, importo, data, desc) {
+function boxPayload(mov, autore, importo, data, desc, note) {
   return {
     tipo_movimento: mov,
     tipo: mov === 'versamento' ? 'entrata' : 'uscita',
     importo: round2(importo),
     categoria_id: null,
     descrizione: desc || null,
+    note: note || null,
     data: data || today(),
     autore: autore || null,
     fonte: 'scatolo',
@@ -4408,7 +4409,7 @@ function txRowHtml(t) {
     const icon = isVers ? '📥' : '📤';
     const color = isVers ? '#22c55e' : '#ef4444';
     const name = isVers ? 'Versamento scatolo' : 'Prelievo scatolo';
-    const meta = [fmtData(t.data), t.descrizione || '', t.autore ? '👤 ' + t.autore : ''].filter(Boolean).join(' • ');
+    const meta = [fmtData(t.data), t.descrizione || '', t.autore ? '👤 ' + t.autore : '', t.note || ''].filter(Boolean).join(' • ');
     return '<div class="tx-row' + pendingCls + '" data-tx-id="' + t.id + '">' +
       '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
       '<div class="tx-body"><div class="tx-cat">' + esc(name) + '</div><div class="tx-meta">' + esc(meta) + '</div></div>' +
@@ -4422,7 +4423,7 @@ function txRowHtml(t) {
   const macro = c && c.macro_categoria ? macroById(c.macro_categoria) : null;
   const macroPrefix = macro ? '<span class="tx-macro">' + macro.icon + ' ' + macroLabel(c.macro_categoria) + '</span> › ' : '';
   const meta = [fmtData(t.data), t.fonte ? fonteShort(t.fonte, t.autore) : (t.autore ? '👤 ' + t.autore : ''),
-    t.personale ? '👤 personale' : '', t.straordinaria ? '✨ straord.' : '', t.descrizione || ''].filter(Boolean).join(' • ');
+    t.personale ? '👤 personale' : '', t.straordinaria ? '✨ straord.' : '', t.note || t.descrizione || ''].filter(Boolean).join(' • ');
   return '<div class="tx-row' + pendingCls + '" data-tx-id="' + t.id + '">' +
     '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
     '<div class="tx-body">' +
@@ -6001,6 +6002,7 @@ const WIZ = {
   categoria_id: undefined, // undefined = non scelta; null = "Altro"; number = sotto-cat
   amt: '',
   data: '',
+  note: '',                // nota libera opzionale
   compTipo: null,
   compDa: '',
   compA: '',
@@ -6024,11 +6026,13 @@ function openTxWizard(arg) {
   WIZ.categoria_id = undefined;
   WIZ.amt = (opts.amt != null) ? String(opts.amt).replace('.', ',') : '';
   WIZ.data = today();
+  WIZ.note = '';
   WIZ.compTipo = null;
   WIZ.compDa = '';
   WIZ.compA = '';
   _wizMacroId = null;
   if (D.wizStraord) D.wizStraord.checked = false;
+  if (D.wizNote) D.wizNote.value = '';
   if (D.wizDelFooter) D.wizDelFooter.hidden = true;   // inserimento: niente elimina
   applyWizMov();           // imposta blocchi/etichette in base a WIZ.mov + render chips
   renderWizCats();
@@ -6063,6 +6067,7 @@ function openTxWizardEdit(idStr) {
   WIZ.tipo = 'uscita';
   WIZ.amt = (t.importo != null) ? String(t.importo).replace('.', ',') : '';
   WIZ.data = t.data || today();
+  WIZ.note = t.note || '';
   if (mov === 'spesa') {
     WIZ.comune = !t.personale;
     WIZ.fonte = t.fonte || 'scatolo';
@@ -6094,6 +6099,7 @@ function openTxWizardEdit(idStr) {
     _wizMacroId = null;
   }
   if (D.wizStraord) D.wizStraord.checked = WIZ.straord;
+  if (D.wizNote) D.wizNote.value = WIZ.note;
   if (D.wizDelFooter) D.wizDelFooter.hidden = false;   // modifica: mostra Elimina nel footer
   applyWizMov();
   renderWizCats();
@@ -6505,6 +6511,7 @@ async function wizSave() {
   const imp = parseAmount(WIZ.amt);
   if (!imp || imp <= 0) { toast('Importo non valido', 'warn'); return; }
   const A = getAutoriList();
+  const note = (WIZ.note || '').trim() || null;
   let payload;
   if (WIZ.mov === 'spesa') {
     let quota = null;
@@ -6519,6 +6526,7 @@ async function wizSave() {
       importo: imp,
       categoria_id: (WIZ.categoria_id === null || WIZ.categoria_id === undefined) ? null : WIZ.categoria_id,
       descrizione: null,
+      note: note,
       data: WIZ.data || today(),
       autore: WIZ.fonte === 'scatolo' ? null : (WIZ.fonteAutore || null),
       fonte: WIZ.fonte,
@@ -6530,9 +6538,9 @@ async function wizSave() {
       competenza_tipo: WIZ.compTipo || null
     };
   } else if (WIZ.mov === 'versamento') {
-    payload = boxPayload('versamento', WIZ.autore, imp, WIZ.data, 'Versamento scatolo');
+    payload = boxPayload('versamento', WIZ.autore, imp, WIZ.data, 'Versamento scatolo', note);
   } else {
-    payload = boxPayload('prelievo', WIZ.autore, imp, WIZ.data, motivoPlain(WIZ.motivo));
+    payload = boxPayload('prelievo', WIZ.autore, imp, WIZ.data, motivoPlain(WIZ.motivo), note);
   }
   const isEdit = WIZ.editId != null;
   setBtnLoading(D.wizNext, true);
@@ -8163,6 +8171,7 @@ function bindEvents() {
   if (D.wizBack)  D.wizBack.addEventListener('click', wizBack);
   if (D.wizNext)  D.wizNext.addEventListener('click', wizNext);
   if (D.wizDelFooter) D.wizDelFooter.addEventListener('click', wizDelete);
+  if (D.wizNote) D.wizNote.addEventListener('input', () => { WIZ.note = D.wizNote.value; });
   // Tipo di movimento (spesa / versamento / prelievo)
   if (D.wizMov) {
     $$('button', D.wizMov).forEach(b => b.addEventListener('click', () => setWizMov(b.getAttribute('data-mov'))));
