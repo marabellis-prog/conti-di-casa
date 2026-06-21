@@ -2987,16 +2987,26 @@ function parseQuota(q, A) {
   return out;
 }
 
-// Calcola lo stato dello scatolo + l'equità cumulativa.
+// Calcola lo stato dello scatolo + l'equità (modello a SOMMA ZERO).
 //   box        = contanti nello scatolo (versamenti − spese da scatolo − prelievi)
-//   contrib[n] = quanto n ha messo (versamenti + spese pagate di tasca propria − prelievi)
-//   share[n]   = quota di n sul totale spese comuni
-//   over[n]    = contrib − share  (>0 ha anticipato, <0 deve ancora mettere)
-//   Identità garantita: Σ over[n] = box
+//   contrib[n] = quanto n ha messo di tasca propria (versamenti + spese da conto/buoni − prelievi)
+//   over[n]    = saldo personale: >0 in credito (ha messo più della sua metà),
+//                <0 in debito. Garantito Σ over[n] = 0 → mai entrambi in credito.
+// Principio: ogni euro che n mette di tasca propria (versamento nello scatolo
+// o spesa pagata dal suo conto/buoni) è un contributo comune 50/50 → l'altro
+// gliene deve metà. Le spese pagate DALLO SCATOLO sono neutre (denaro comune).
 function computeEquity() {
   const A = getAutoriList();
-  const res = { A, box: 0, contrib: {}, share: {}, over: {}, totComuni: 0 };
-  A.forEach(n => { res.contrib[n] = 0; res.share[n] = 0; });
+  const res = { A, box: 0, contrib: {}, over: {}, totComuni: 0 };
+  A.forEach(n => { res.contrib[n] = 0; res.over[n] = 0; });
+  const otherOf = n => A.find(x => x !== n);   // coppia: l'altro autore
+  // Sposta `amt` di credito verso `who` (e debito sull'altro). Somma zero.
+  const credit = (who, amt) => {
+    if (!who) return;
+    const o = otherOf(who);
+    res.over[who] = (res.over[who] || 0) + amt;
+    if (o) res.over[o] = (res.over[o] || 0) - amt;
+  };
   (S.tx || []).forEach(t => {
     if (!isNuovoModello(t)) return;            // ignora i dati pre-modello
     const mov = t.tipo_movimento || 'spesa';
@@ -3005,19 +3015,26 @@ function computeEquity() {
     if (mov === 'versamento') {
       res.box += imp;
       if (res.contrib[t.autore] != null) res.contrib[t.autore] += imp;
+      credit(t.autore, imp / 2);               // contributo comune: l'altro ne deve metà
     } else if (mov === 'prelievo') {
       res.box -= imp;
       if (res.contrib[t.autore] != null) res.contrib[t.autore] -= imp;
+      credit(t.autore, -imp / 2);              // ha ripreso denaro comune
     } else { // spesa
       if (t.personale) return;                 // le personali sono fuori dall'equità
       res.totComuni += imp;
-      if (t.fonte === 'scatolo') res.box -= imp;
-      else if (res.contrib[t.autore] != null) res.contrib[t.autore] += imp;
-      const q = parseQuota(t.quota, A);
-      A.forEach(n => res.share[n] += imp * (q[n] || 0) / 100);
+      if (t.fonte === 'scatolo') {
+        res.box -= imp;                        // pagata con denaro comune: NEUTRA
+      } else if (t.autore) {
+        if (res.contrib[t.autore] != null) res.contrib[t.autore] += imp;
+        // pagata di tasca propria: l'altro deve la sua quota (default 50%)
+        const q = parseQuota(t.quota, A);
+        const o = otherOf(t.autore);
+        credit(t.autore, imp * ((o ? q[o] : 50) || 0) / 100);
+      }
     }
   });
-  A.forEach(n => res.over[n] = round2(res.contrib[n] - res.share[n]));
+  A.forEach(n => { res.over[n] = round2(res.over[n]); res.contrib[n] = round2(res.contrib[n]); });
   res.box = round2(res.box);
   return res;
 }
@@ -3030,7 +3047,6 @@ function equitySettlement(eq) {
   const oa = round2(eq.over[a]), ob = round2(eq.over[b]);
   const box = round2(eq.box);
   if (Math.abs(oa) < 0.01 && Math.abs(ob) < 0.01) return { state: 'pari', box };
-  if (oa >= -0.01 && ob >= -0.01) return { state: 'credito', box }; // entrambi in credito: i soldi sono nello scatolo
   const creditor = oa > 0 ? a : b;
   const debtor   = oa > 0 ? b : a;
   const owed     = round2(eq.over[creditor]);
