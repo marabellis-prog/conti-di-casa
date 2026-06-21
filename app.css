@@ -3581,8 +3581,12 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 8px 16px 16px;
 }
+/* Lo step IMPORTO (tastierino) non deve mai scrollare: così al primo tap
+   il contenuto non "scatta" verso l'alto (era un micro-scroll iOS). */
+.wiz-body:has(.wiz-step.active[data-step="2"]) { overflow: hidden; }
 .wiz-step { display: none; }
 .wiz-step.active { display: block; }
 .wiz-step[hidden] { display: none !important; }
@@ -3591,7 +3595,7 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   font-size: 22px;
   font-weight: 800;
   color: var(--text);
-  margin: 6px 0 18px;
+  margin: 4px 0 10px;
   text-align: center;
 }
 .wiz-label {
@@ -3769,12 +3773,12 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 /* Step 2: importo gigante + tastierino */
 .wiz-amt {
   text-align: center;
-  font-size: 56px;
+  font-size: clamp(40px, 11vw, 54px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -1.5px;
-  margin: 18px 0 20px;
-  min-height: 72px;
+  margin: 6px 0 10px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3792,12 +3796,12 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .wiz-numpad {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 10px;
+  gap: 8px;
   max-width: 360px;
   margin: 0 auto;
 }
 .wiz-numpad button {
-  height: 60px;
+  height: clamp(46px, 6.8vh, 58px);
   background: var(--surface-2);
   border: none;
   border-radius: 14px;
@@ -3805,6 +3809,7 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   font-weight: 500;
   color: var(--text);
   cursor: pointer;
+  touch-action: manipulation;
   transition: background .1s, transform .1s;
 }
 .wiz-numpad button:active { background: var(--border); transform: scale(.96); }
