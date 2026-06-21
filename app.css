@@ -3792,7 +3792,7 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   margin-right: 6px;
   font-weight: 500;
 }
-.wiz-amt.empty { color: var(--text-faint); }
+.wiz-amt.is-empty { color: var(--text-faint); }
 .wiz-numpad {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;

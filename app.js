@@ -6436,7 +6436,7 @@ function renderWizCats() {
 function setWizAmt(v) {
   WIZ.amt = v;
   if (D.wizAmtVal) D.wizAmtVal.textContent = v || '0';
-  if (D.wizAmt) D.wizAmt.classList.toggle('empty', !v);
+  if (D.wizAmt) D.wizAmt.classList.toggle('is-empty', !v);
   updateWizNext();
 }
 function wizNumpadPress(k) {
