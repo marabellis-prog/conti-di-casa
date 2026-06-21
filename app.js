@@ -3608,40 +3608,30 @@ function renderHomeGestione() {
   // Riordina i widget secondo le preferenze utente
   applyModuliOrder();
   bindModuliDrag();
-  // Widget Conti di Casa: mini donut uscite + saldo dell'ANNO IN CORSO
-  // (entrate dell'anno - uscite dell'anno, solo tx "in comune")
+  // Widget Conti di Casa: TOTALE delle spese comuni sostenute per la casa
+  // nell'ANNO IN CORSO (solo spese in comune del nuovo modello; niente
+  // versamenti/prelievi, niente personali).
   const annoCorrente = (S.currentMonth && S.currentMonth.anno) || new Date().getFullYear();
   const annoStart = annoCorrente + '-01-01';
   const annoEnd   = annoCorrente + '-12-31';
-  const arr = txComune().filter(t => t.data >= annoStart && t.data <= annoEnd);
-  const inSum  = arr.filter(t => t.tipo === 'entrata').reduce((s, t) => s + Number(t.importo), 0);
-  const outSum = arr.filter(t => t.tipo === 'uscita').reduce((s, t) => s + Number(t.importo), 0);
-  const saldo  = inSum - outSum;
+  const speseAnno = commonSpese().filter(t => t.data >= annoStart && t.data <= annoEnd);
+  const totaleCasa = speseAnno.reduce((s, t) => s + Number(t.importo), 0);
 
   if (D.homeContiSaldo) {
-    D.homeContiSaldo.textContent = (saldo >= 0 ? '+' : '−') + fmtEur(Math.abs(saldo));
-    D.homeContiSaldo.className = 'mc-saldo ' + (saldo >= 0 ? 'pos' : 'neg');
+    D.homeContiSaldo.textContent = fmtEur(totaleCasa);
+    D.homeContiSaldo.className = 'mc-saldo'; // totale spese: neutro (né + né −)
   }
   if (D.homeContiSubtle) {
-    D.homeContiSubtle.textContent = 'saldo ' + annoCorrente;
+    D.homeContiSubtle.textContent = 'spese casa ' + annoCorrente;
   }
-  // Periodo accanto al titolo "Conti di Casa" nell'header del widget:
-  // mostra l'anno corrente. Se l'utente ha personalizzato il trendRange
-  // del Riepilogo del modulo, mostra quel range.
   if (D.homeContiPeriod) {
-    let label = String(annoCorrente);
-    const defaultFrom = annoCorrente + '-01-01';
-    const tr = S.trendRange;
-    if (tr && tr.from && tr.to && tr.from !== defaultFrom) {
-      label = fmtDataLong(tr.from) + ' – ' + fmtDataLong(tr.to);
-    }
-    D.homeContiPeriod.textContent = label;
+    D.homeContiPeriod.textContent = String(annoCorrente);
   }
 
-  // Mini donut: uscite per macro categoria (no testo centro, no legenda)
+  // Mini donut: spese comuni per macro categoria dell'anno (no testo, no legenda)
   if (D.homeContiDonut) {
     const uscByMacro = {};
-    arr.filter(t => t.tipo === 'uscita').forEach(t => {
+    speseAnno.forEach(t => {
       const c = catById(t.categoria_id);
       const macroId = (c && c.macro_categoria) || 'altro';
       uscByMacro[macroId] = (uscByMacro[macroId] || 0) + Number(t.importo);
@@ -3660,9 +3650,11 @@ function renderHomeGestione() {
     if (segs.length) {
       Charts.renderDonut(D.homeContiDonut, segs, { noText: true, noLegend: true });
     } else {
-      D.homeContiDonut.innerHTML = '<div style="width:100px;height:100px;display:grid;place-items:center;color:var(--text-faint);font-size:11px;text-align:center">Nessuna<br>uscita</div>';
+      D.homeContiDonut.innerHTML = '<div style="width:100px;height:100px;display:grid;place-items:center;color:var(--text-faint);font-size:11px;text-align:center">Nessuna<br>spesa</div>';
     }
   }
+  // Il totale annuale richiede tutto lo storico: caricalo una volta e ri-renderizza.
+  if (!S.allTxLoaded) ensureAllTxLoaded().then(() => { if (S.allTxLoaded) renderHomeGestione(); });
 
   // Widget Lista della Spesa: primi 6 elementi "da prendere" in grid
   // (CSS auto-fit: 3 colonne quando ci stanno, altrimenti 2 o 1). Il
