@@ -168,7 +168,7 @@ function cacheDOM() {
    'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizDataLbl','wizStep3Title','wizCompSection','wizCompQuick','wizCompDa','wizCompA','wizRecap','wizNote',
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloFoot','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
-   'cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgNote','cdRecent',
+   'cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
    'txEditSpesaFields','txEditFonte','txEditCat','txEditPersonale',
    'txEditSplitWrap','txEditSplit','txEditSplitCustom','txEditSplitRange','txEditSplitReadout','txEditStraord','txEditStraordRow',
@@ -3148,9 +3148,10 @@ function renderConti() {
   let sumWin = 0;
   for (let i = 0; i < win; i++) { let y = cm.anno, m = cm.mese - i; while (m < 1) { m += 12; y--; } sumWin += alloc[y + '-' + m] || 0; }
   if (D.cdAvgMonth) D.cdAvgMonth.textContent = fmtEur(monthSum);
-  if (D.cdAvgMonthK) D.cdAvgMonthK.textContent = (MESI_FULL[cm.mese - 1] || '').toLowerCase();
+  if (D.cdAvgMonthK) D.cdAvgMonthK.textContent = (MESI_FULL[cm.mese - 1] || '') + ' ' + cm.anno;
   if (D.cdAvgMean) D.cdAvgMean.textContent = fmtEur(sumWin / win);
-  if (D.cdAvgNote) D.cdAvgNote.textContent = 'Spese spalmate sul periodo di competenza · media su ' + win + (win === 1 ? ' mese' : ' mesi') + ' · straordinarie escluse.';
+  if (D.cdAvgMeanSub) D.cdAvgMeanSub.textContent = 'ultimi ' + win + (win === 1 ? ' mese' : ' mesi');
+  if (D.cdAvgNote) D.cdAvgNote.textContent = 'Spese spalmate sul periodo di competenza · straordinarie escluse.';
 
   // ── ULTIME OPERAZIONI ──
   if (D.cdRecent) {
