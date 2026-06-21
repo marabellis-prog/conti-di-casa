@@ -3122,7 +3122,9 @@ function renderConti() {
   if (D.cdSettleBtn) D.cdSettleBtn.hidden = !showBtn;
 
   // ── MEDIE SPESE COMUNI (spalmate sul periodo di competenza) ──
-  const cm = S.currentMonth || { anno: new Date().getFullYear(), mese: new Date().getMonth() + 1 };
+  // Sempre il mese/anno reale di oggi (il Riepilogo non ha più selettore mese).
+  const _now = new Date();
+  const cm = { anno: _now.getFullYear(), mese: _now.getMonth() + 1 };
   // Mappa mese→importo: ogni spesa comune (non straordinaria) viene divisa
   // sui mesi del suo periodo di competenza (es. TARI semestrale = 1/6 al mese).
   const alloc = {};
@@ -3611,7 +3613,7 @@ function renderHomeGestione() {
   // Widget Conti di Casa: TOTALE delle spese comuni sostenute per la casa
   // nell'ANNO IN CORSO (solo spese in comune del nuovo modello; niente
   // versamenti/prelievi, niente personali).
-  const annoCorrente = (S.currentMonth && S.currentMonth.anno) || new Date().getFullYear();
+  const annoCorrente = new Date().getFullYear();
   const annoStart = annoCorrente + '-01-01';
   const annoEnd   = annoCorrente + '-12-31';
   const speseAnno = commonSpese().filter(t => t.data >= annoStart && t.data <= annoEnd);
@@ -5368,7 +5370,7 @@ const MODULI = {
   conti: {
     label: '💰 Conti di Casa',
     home: 'conti',
-    hasMonthNav: true,
+    hasMonthNav: false,  // Riepilogo cumulativo: nessun selettore mese
     viewLabels: {
       conti:     'Riepilogo',
       list:      'Transazioni',
