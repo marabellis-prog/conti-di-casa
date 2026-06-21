@@ -152,7 +152,7 @@ function cacheDOM() {
    'listPeriodCustom','listPeriodFrom','listPeriodTo','listPeriodSummary',
    // Transazioni v2
    'tx2Search','tx2SearchClear','tx2FiltBtn','tx2FiltBadge','tx2ActiveBar','tx2Panel',
-   'tx2Quick','tx2From','tx2To','tx2DatesClear','tx2CatFilter','tx2AutoreFilter','tx2Summary','tx2List',
+   'tx2Quick','tx2From','tx2To','tx2DatesClear','tx2CatFilter','tx2AutoreFilter','tx2ScatoloChip','tx2Summary','tx2List',
    'tx2PerPage','tx2Prev','tx2Next','tx2PageInfo',
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
@@ -4600,7 +4600,7 @@ function _detectQuickPeriodKey(from, to) {
 // Stato in S.tx2. Mostra SOLO transazioni "in comune" (txComune).
 // ══════════════════════════════════════════════════════════════
 function _tx2State() {
-  if (!S.tx2) S.tx2 = { search: '', from: null, to: null, quick: null, cats: [], autori: [], perPage: 20, page: 1 };
+  if (!S.tx2) S.tx2 = { search: '', from: null, to: null, quick: null, cats: [], autori: [], scatoloOnly: false, perPage: 20, page: 1 };
   if (!S.tx2.autori) S.tx2.autori = [];
   return S.tx2;
 }
@@ -4633,6 +4633,9 @@ function tx2Filtered() {
   if (st.autori && st.autori.length) {
     const aset = new Set(st.autori);
     arr = arr.filter(t => t.autore && aset.has(t.autore));
+  }
+  if (st.scatoloOnly) {
+    arr = arr.filter(t => t.fonte === 'scatolo');   // versamenti, prelievi e spese pagate dallo scatolo
   }
   const q = (st.search || '').toLowerCase().trim();
   if (q) {
@@ -4667,6 +4670,7 @@ function tx2FilterCount() {
   if (st.quick || st.from || st.to) n++;
   n += st.cats.length;
   n += (st.autori ? st.autori.length : 0);
+  if (st.scatoloOnly) n++;
   return n;
 }
 
@@ -4677,6 +4681,7 @@ function tx2SyncToolbar() {
   if (D.tx2From) D.tx2From.value = st.from || '';
   if (D.tx2To)   D.tx2To.value   = st.to   || '';
   if (D.tx2Quick) $$('button', D.tx2Quick).forEach(b => b.classList.toggle('active', b.getAttribute('data-q') === st.quick));
+  if (D.tx2ScatoloChip) D.tx2ScatoloChip.classList.toggle('active', !!st.scatoloOnly);
   // badge sul bottone filtri
   if (D.tx2FiltBadge) {
     const n = tx2FilterCount();
@@ -4702,6 +4707,7 @@ function renderTx2Active() {
     chips.push({ type: 'cat', id, label: l });
   });
   (st.autori || []).forEach(name => chips.push({ type: 'autore', name, label: '👤 ' + shortName(name) }));
+  if (st.scatoloOnly) chips.push({ type: 'scatolo', label: '📦 Movimenti scatolo' });
   if (!chips.length) { D.tx2ActiveBar.hidden = true; D.tx2ActiveBar.innerHTML = ''; return; }
   D.tx2ActiveBar.hidden = false;
   D.tx2ActiveBar.innerHTML = chips.map(ch =>
@@ -4718,6 +4724,7 @@ function renderTx2Active() {
       const type = b.getAttribute('data-type');
       if (type === 'period') { st.quick = null; st.from = null; st.to = null; }
       else if (type === 'autore') { const n = b.getAttribute('data-name'); const i = st.autori.indexOf(n); if (i >= 0) st.autori.splice(i, 1); }
+      else if (type === 'scatolo') { st.scatoloOnly = false; }
       else { const id = Number(b.getAttribute('data-id')); const i = st.cats.indexOf(id); if (i >= 0) st.cats.splice(i, 1); }
       st.page = 1;
       renderList();
@@ -4725,7 +4732,7 @@ function renderTx2Active() {
   });
   const ca = $('#tx2ClearAll', D.tx2ActiveBar);
   if (ca) ca.addEventListener('click', () => {
-    st.quick = null; st.from = null; st.to = null; st.cats = []; st.autori = []; st.search = ''; st.page = 1;
+    st.quick = null; st.from = null; st.to = null; st.cats = []; st.autori = []; st.scatoloOnly = false; st.search = ''; st.page = 1;
     if (D.tx2Search) D.tx2Search.value = '';
     renderList();
   });
@@ -8237,6 +8244,10 @@ function bindEvents() {
   if (D.tx2To)   D.tx2To.addEventListener('change', tx2OnDateChange);
   if (D.tx2DatesClear) D.tx2DatesClear.addEventListener('click', () => {
     const st = _tx2State(); st.from = null; st.to = null; st.quick = null; st.page = 1;
+    tx2SyncToolbar(); drawTx2();
+  });
+  if (D.tx2ScatoloChip) D.tx2ScatoloChip.addEventListener('click', () => {
+    const st = _tx2State(); st.scatoloOnly = !st.scatoloOnly; st.page = 1;
     tx2SyncToolbar(); drawTx2();
   });
   // Bottone ⚙ → mostra/nasconde il pannello filtri
