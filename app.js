@@ -167,7 +167,7 @@ function cacheDOM() {
    'wizAmt','wizAmtVal','wizNumpad',
    'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizDataLbl','wizStep3Title','wizCompSection','wizCompQuick','wizCompDa','wizCompA','wizRecap','wizNote',
    // Conti — dashboard Riepilogo (modello scatolo/equità)
-   'cdScatolo','cdScatoloFoot','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
+   'cdScatolo','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
    'txEditSpesaFields','txEditFonte','txEditCat','txEditPersonale',
@@ -2997,7 +2997,8 @@ function parseQuota(q, A) {
 // gliene deve metà. Le spese pagate DALLO SCATOLO sono neutre (denaro comune).
 function computeEquity() {
   const A = getAutoriList();
-  const res = { A, box: 0, contrib: {}, over: {}, totComuni: 0 };
+  const yr = new Date().getFullYear();          // equilibrio per ANNO SOLARE (riparte il 1° gen)
+  const res = { A, year: yr, box: 0, contrib: {}, over: {}, totComuni: 0 };
   A.forEach(n => { res.contrib[n] = 0; res.over[n] = 0; });
   const otherOf = n => A.find(x => x !== n);   // coppia: l'altro autore
   // Sposta `amt` di credito verso `who` (e debito sull'altro). Somma zero.
@@ -3012,20 +3013,26 @@ function computeEquity() {
     const mov = t.tipo_movimento || 'spesa';
     const imp = Number(t.importo) || 0;
     if (!imp) return;
+    const inYear = String(t.data || '').slice(0, 4) === String(yr);
     if (mov === 'versamento') {
-      res.box += imp;
-      if (res.contrib[t.autore] != null) res.contrib[t.autore] += imp;
-      credit(t.autore, imp / 2);               // contributo comune: l'altro ne deve metà
+      res.box += imp;                          // scatolo = cassa CUMULATIVA (i contanti restano)
+      if (inYear) {
+        if (res.contrib[t.autore] != null) res.contrib[t.autore] += imp;
+        credit(t.autore, imp / 2);             // contributo comune: l'altro ne deve metà
+      }
     } else if (mov === 'prelievo') {
       res.box -= imp;
-      if (res.contrib[t.autore] != null) res.contrib[t.autore] -= imp;
-      credit(t.autore, -imp / 2);              // ha ripreso denaro comune
+      if (inYear) {
+        if (res.contrib[t.autore] != null) res.contrib[t.autore] -= imp;
+        credit(t.autore, -imp / 2);            // ha ripreso denaro comune
+      }
     } else { // spesa
       if (t.personale) return;                 // le personali sono fuori dall'equità
-      res.totComuni += imp;
       if (t.fonte === 'scatolo') {
-        res.box -= imp;                        // pagata con denaro comune: NEUTRA
-      } else if (t.autore) {
+        res.box -= imp;                        // pagata con denaro comune: NEUTRA per l'equità
+        if (inYear) res.totComuni += imp;
+      } else if (t.autore && inYear) {
+        res.totComuni += imp;
         if (res.contrib[t.autore] != null) res.contrib[t.autore] += imp;
         // pagata di tasca propria: l'altro deve la sua quota (default 50%)
         const q = parseQuota(t.quota, A);
@@ -3104,7 +3111,8 @@ function renderConti() {
   D.cdScatolo.textContent = (eq.box < -0.005 ? '−' : '') + fmtEur(Math.abs(eq.box));
   D.cdScatolo.className = 'cd-scatolo-num' + (eq.box < -0.005 ? ' neg' : '');
 
-  // ── EQUITÀ ──
+  // ── EQUITÀ (anno solare) ──
+  if (D.cdEquityLbl) D.cdEquityLbl.textContent = 'Equilibrio spese comuni · ' + eq.year;
   if (D.cdEquityPersons) {
     D.cdEquityPersons.innerHTML = A.map(n => {
       const o = round2(eq.over[n] || 0);
