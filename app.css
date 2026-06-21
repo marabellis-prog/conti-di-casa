@@ -2103,6 +2103,16 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   white-space: normal;
   word-break: break-word;
 }
+.tx-comp {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 1px 8px;
+  margin-top: 4px;
+}
+.tx-comp img.emoji { width: 12px; height: 12px; vertical-align: -2px; }
 .tx-amt {
   font-weight: 600;
   font-variant-numeric: tabular-nums;

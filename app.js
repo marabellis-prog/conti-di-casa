@@ -4394,6 +4394,15 @@ function fonteShort(fonte, autore) {
   if (fonte === 'buoni')   return '🍽 ' + shortName(autore || '');
   return '';
 }
+// Etichetta compatta del periodo di competenza (es. "1 mar → 30 apr 2026").
+function compRangeLabel(da, a) {
+  if (!da || !a) return '';
+  const [y1, m1, d1] = da.split('-').map(Number);
+  const [y2, m2, d2] = a.split('-').map(Number);
+  const left = d1 + ' ' + (MESI_SHORT[m1 - 1] || '') + (y1 !== y2 ? ' ' + y1 : '');
+  const right = d2 + ' ' + (MESI_SHORT[m2 - 1] || '') + ' ' + y2;
+  return left + ' → ' + right;
+}
 function txRowHtml(t) {
   const mov = t.tipo_movimento || 'spesa';
   const pendingCls = S.pendingTxIds.has(t.id) ? ' pending' : '';
@@ -4420,12 +4429,14 @@ function txRowHtml(t) {
   const macroPrefix = macro ? '<span class="tx-macro">' + macro.icon + ' ' + macroLabel(c.macro_categoria) + '</span> › ' : '';
   const meta = [fmtData(t.data), t.fonte ? fonteShort(t.fonte, t.autore) : (t.autore ? '👤 ' + t.autore : ''),
     t.personale ? '👤 personale' : '', t.straordinaria ? '✨ straord.' : ''].filter(Boolean).join(' • ');
+  const compLine = (t.competenza_da && t.competenza_a)
+    ? '<div class="tx-comp">🗓 ' + esc(compRangeLabel(t.competenza_da, t.competenza_a)) + '</div>' : '';
   const noteLine = t.note ? '<div class="tx-note">' + esc(t.note) + '</div>' : '';
   return '<div class="tx-row' + pendingCls + '" data-tx-id="' + t.id + '">' +
     '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
     '<div class="tx-body">' +
       '<div class="tx-cat">' + macroPrefix + esc(name) + '</div>' +
-      '<div class="tx-meta">' + esc(meta) + '</div>' + noteLine +
+      '<div class="tx-meta">' + esc(meta) + '</div>' + compLine + noteLine +
     '</div>' + amtHtml +
   '</div>';
 }
