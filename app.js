@@ -4427,7 +4427,7 @@ function txRowHtml(t) {
   const name = c ? c.nome : 'Altro';
   const macro = c && c.macro_categoria ? macroById(c.macro_categoria) : null;
   const macroPrefix = macro ? '<span class="tx-macro">' + macro.icon + ' ' + macroLabel(c.macro_categoria) + '</span> › ' : '';
-  const meta = [fmtData(t.data), t.fonte ? fonteShort(t.fonte, t.autore) : (t.autore ? '👤 ' + t.autore : ''),
+  const meta = ['Pagato il ' + fmtData(t.data), t.fonte ? fonteShort(t.fonte, t.autore) : (t.autore ? '👤 ' + t.autore : ''),
     t.personale ? '👤 personale' : '', t.straordinaria ? '✨ straord.' : ''].filter(Boolean).join(' • ');
   const compLine = (t.competenza_da && t.competenza_a)
     ? '<div class="tx-comp">🗓 ' + esc(compRangeLabel(t.competenza_da, t.competenza_a)) + '</div>' : '';
