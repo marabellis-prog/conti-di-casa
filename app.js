@@ -152,7 +152,7 @@ function cacheDOM() {
    'listPeriodCustom','listPeriodFrom','listPeriodTo','listPeriodSummary',
    // Transazioni v2
    'tx2Search','tx2SearchClear','tx2FiltBtn','tx2FiltBadge','tx2ActiveBar','tx2Panel',
-   'tx2Quick','tx2From','tx2To','tx2DatesClear','tx2CatFilter','tx2Summary','tx2List',
+   'tx2Quick','tx2From','tx2To','tx2DatesClear','tx2CatFilter','tx2AutoreFilter','tx2Summary','tx2List',
    'tx2PerPage','tx2Prev','tx2Next','tx2PageInfo',
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
@@ -4576,7 +4576,8 @@ function _detectQuickPeriodKey(from, to) {
 // Stato in S.tx2. Mostra SOLO transazioni "in comune" (txComune).
 // ══════════════════════════════════════════════════════════════
 function _tx2State() {
-  if (!S.tx2) S.tx2 = { search: '', from: null, to: null, quick: null, cats: [], perPage: 20, page: 1 };
+  if (!S.tx2) S.tx2 = { search: '', from: null, to: null, quick: null, cats: [], autori: [], perPage: 20, page: 1 };
+  if (!S.tx2.autori) S.tx2.autori = [];
   return S.tx2;
 }
 
@@ -4604,6 +4605,10 @@ function tx2Filtered() {
     const set = new Set(st.cats);
     const inclAltro = set.has(0);
     arr = arr.filter(t => (t.categoria_id == null) ? inclAltro : set.has(t.categoria_id));
+  }
+  if (st.autori && st.autori.length) {
+    const aset = new Set(st.autori);
+    arr = arr.filter(t => t.autore && aset.has(t.autore));
   }
   const q = (st.search || '').toLowerCase().trim();
   if (q) {
@@ -4637,6 +4642,7 @@ function tx2FilterCount() {
   let n = 0;
   if (st.quick || st.from || st.to) n++;
   n += st.cats.length;
+  n += (st.autori ? st.autori.length : 0);
   return n;
 }
 
@@ -4671,10 +4677,13 @@ function renderTx2Active() {
     else { const c = catById(id); l = c ? ((c.icona ? c.icona + ' ' : '') + c.nome) : '?'; }
     chips.push({ type: 'cat', id, label: l });
   });
+  (st.autori || []).forEach(name => chips.push({ type: 'autore', name, label: '👤 ' + shortName(name) }));
   if (!chips.length) { D.tx2ActiveBar.hidden = true; D.tx2ActiveBar.innerHTML = ''; return; }
   D.tx2ActiveBar.hidden = false;
   D.tx2ActiveBar.innerHTML = chips.map(ch =>
-    '<span class="tx2-abadge" data-type="' + ch.type + '"' + (ch.id != null ? ' data-id="' + ch.id + '"' : '') + '>' +
+    '<span class="tx2-abadge" data-type="' + ch.type + '"' +
+      (ch.id != null ? ' data-id="' + ch.id + '"' : '') +
+      (ch.name != null ? ' data-name="' + esc(ch.name) + '"' : '') + '>' +
       esc(ch.label) + '<b class="tx2-abadge-x">✕</b></span>'
   ).join('') + '<button type="button" class="tx2-aclear" id="tx2ClearAll">Azzera tutto</button>';
   twemojify(D.tx2ActiveBar);
@@ -4684,6 +4693,7 @@ function renderTx2Active() {
     x.addEventListener('click', () => {
       const type = b.getAttribute('data-type');
       if (type === 'period') { st.quick = null; st.from = null; st.to = null; }
+      else if (type === 'autore') { const n = b.getAttribute('data-name'); const i = st.autori.indexOf(n); if (i >= 0) st.autori.splice(i, 1); }
       else { const id = Number(b.getAttribute('data-id')); const i = st.cats.indexOf(id); if (i >= 0) st.cats.splice(i, 1); }
       st.page = 1;
       renderList();
@@ -4691,7 +4701,7 @@ function renderTx2Active() {
   });
   const ca = $('#tx2ClearAll', D.tx2ActiveBar);
   if (ca) ca.addEventListener('click', () => {
-    st.quick = null; st.from = null; st.to = null; st.cats = []; st.search = ''; st.page = 1;
+    st.quick = null; st.from = null; st.to = null; st.cats = []; st.autori = []; st.search = ''; st.page = 1;
     if (D.tx2Search) D.tx2Search.value = '';
     renderList();
   });
@@ -4728,11 +4738,33 @@ function renderTx2CatChips() {
   });
 }
 
+function renderTx2AutoreChips() {
+  if (!D.tx2AutoreFilter) return;
+  const st = _tx2State();
+  const A = getAutoriList();
+  D.tx2AutoreFilter.innerHTML = A.map(n =>
+    '<button type="button" class="tx2-cat-chip' + (st.autori.indexOf(n) !== -1 ? ' active' : '') + '" data-autore="' + esc(n) + '">👤 ' + esc(shortName(n)) + '</button>'
+  ).join('');
+  twemojify(D.tx2AutoreFilter);
+  $$('.tx2-cat-chip', D.tx2AutoreFilter).forEach(el => {
+    el.addEventListener('click', () => {
+      const n = el.getAttribute('data-autore');
+      const i = st.autori.indexOf(n);
+      if (i >= 0) st.autori.splice(i, 1); else st.autori.push(n);
+      st.page = 1;
+      el.classList.toggle('active');
+      tx2SyncToolbar();
+      drawTx2();
+    });
+  });
+}
+
 function renderList() {
   if (!D.tx2List) return;          // pagina non montata
   renderHeader();
   const st = _tx2State();
   renderTx2CatChips();
+  renderTx2AutoreChips();
   tx2SyncToolbar();
   // Garantisce che i dati ci siano: carica il range attivo, oppure di
   // default l'ANNO CORRENTE (così la lista non è mai vuota per cache stale).
