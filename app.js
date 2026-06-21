@@ -6131,6 +6131,9 @@ function showWizStep(n) {
   if (D.wizBack) D.wizBack.disabled = (n === 1);
   if (D.wizNext) D.wizNext.textContent = (n === WIZ_STEPS) ? (WIZ.editId != null ? '✓ Salva modifiche' : '✓ Salva') : 'Continua';
   if (n === 4) renderWizRecap();
+  // Ogni step parte dall'alto (niente scroll ereditato dallo step precedente).
+  const body = D.modalWizard && D.modalWizard.querySelector('.wiz-body');
+  if (body) body.scrollTop = 0;
   updateWizNext();
 }
 
@@ -6444,11 +6447,34 @@ function setWizComp(type) {
   updateWizNext();
 }
 
-// L'utente ha modificato manualmente una data → deseleziona i preset
-function onWizCompDateChange() {
+function compDurationMonths(type) {
+  return type === 'annuale' ? 12 : type === 'semestrale' ? 6 : type === 'bimestrale' ? 2 : 1;
+}
+// Fine del periodo = inizio + N mesi − 1 giorno (periodo che PARTE dalla data scelta).
+function compEndFromStart(startStr, months) {
+  const d = new Date(startStr + 'T00:00:00');
+  d.setMonth(d.getMonth() + months);
+  d.setDate(d.getDate() - 1);
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+
+// Cambio data INIZIO: se c'è un preset attivo, la fine si adatta alla durata
+// (es. bimestrale: 1 mar → 30 apr; annuale: 1 gen → 31 dic).
+function onWizCompDaChange() {
   WIZ.compDa = (D.wizCompDa && D.wizCompDa.value) || '';
-  WIZ.compA  = (D.wizCompA && D.wizCompA.value) || '';
-  // se le date non corrispondono più a nessun preset, togli highlight
+  if (WIZ.compTipo && WIZ.compDa) {
+    WIZ.compA = compEndFromStart(WIZ.compDa, compDurationMonths(WIZ.compTipo));
+    if (D.wizCompA) D.wizCompA.value = WIZ.compA;
+  } else {
+    WIZ.compA = (D.wizCompA && D.wizCompA.value) || '';
+  }
+  updateWizNext();
+}
+
+// Cambio data FINE manuale → periodo personalizzato (deseleziona il preset).
+function onWizCompAChange() {
+  WIZ.compA = (D.wizCompA && D.wizCompA.value) || '';
   WIZ.compTipo = null;
   if (D.wizCompQuick) $$('button', D.wizCompQuick).forEach(b => b.classList.remove('active'));
   updateWizNext();
@@ -8188,7 +8214,11 @@ function bindEvents() {
   // Bottone "Registra riequilibrio" nella dashboard
   if (D.cdSettleBtn) D.cdSettleBtn.addEventListener('click', registerRiequilibrio);
   if (D.wizNumpad) {
-    $$('button', D.wizNumpad).forEach(b => b.addEventListener('click', () => wizNumpadPress(b.getAttribute('data-k'))));
+    $$('button', D.wizNumpad).forEach(b => {
+      // niente focus sul bottone → niente auto-scroll del contenitore al primo tap
+      b.addEventListener('mousedown', e => e.preventDefault());
+      b.addEventListener('click', () => wizNumpadPress(b.getAttribute('data-k')));
+    });
   }
   // Step 3: data pagamento
   if (D.wizDataPag) {
@@ -8212,8 +8242,8 @@ function bindEvents() {
   if (D.wizCompQuick) {
     $$('button', D.wizCompQuick).forEach(b => b.addEventListener('click', () => setWizComp(b.getAttribute('data-comp'))));
   }
-  if (D.wizCompDa) D.wizCompDa.addEventListener('change', onWizCompDateChange);
-  if (D.wizCompA)  D.wizCompA.addEventListener('change', onWizCompDateChange);
+  if (D.wizCompDa) D.wizCompDa.addEventListener('change', onWizCompDaChange);
+  if (D.wizCompA)  D.wizCompA.addEventListener('change', onWizCompAChange);
   // qa
   $$('button', D.qaToggle).forEach(b => b.addEventListener('click', () => setQaTipo(b.getAttribute('data-tipo'))));
   $$('button', D.numpad).forEach(b => b.addEventListener('click', () => numpadPress(b.getAttribute('data-k'))));
