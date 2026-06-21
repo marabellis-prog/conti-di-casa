@@ -8263,13 +8263,9 @@ function bindEvents() {
       b.addEventListener('click', () => wizNumpadPress(b.getAttribute('data-k')));
     });
   }
-  // Step 3: data pagamento
+  // Step 3: data pagamento (NON tocca le date di competenza: sono indipendenti)
   if (D.wizDataPag) {
-    D.wizDataPag.addEventListener('change', () => {
-      renderWizDataPagLabel();
-      // se un preset competenza è attivo, ricalcola il periodo sulla nuova data
-      if (WIZ.compTipo) setWizComp(WIZ.compTipo);
-    });
+    D.wizDataPag.addEventListener('change', renderWizDataPagLabel);
   }
   if (D.wizDataPagBtn && D.wizDataPag) {
     let _opening = false;
