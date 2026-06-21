@@ -1,16 +1,17 @@
 // Service Worker — Conti di Casa
-// Strategia: stale-while-revalidate su risorse statiche + GET REST tabelle,
-// network-only su mutazioni (POST/PATCH/DELETE) e su update_cache (gating).
+// Strategia: CODICE app (HTML/JS/CSS) network-first (sempre fresco online, cache
+// offline) · GET REST tabelle stale-while-revalidate · icone/immagini cache-first
+// · network-only su mutazioni (POST/PATCH/DELETE) e su update_cache (gating).
 
-const CACHE = 'conti-di-casa-v154';
+const CACHE = 'conti-di-casa-v155';
 const SUPA_HOST = 'lrvkchqvjzynfzevpqaj.supabase.co';
 const CDN_HOST = 'cdn.jsdelivr.net'; // supabase-js + twemoji
 const STATIC = [
   './',
   './index.html',
-  './app.css',
-  './app.js',
-  './charts.js',
+  './app.css?v=155',
+  './app.js?v=155',
+  './charts.js?v=155',
   './manifest.json',
   './icon.svg',
   './favicon.png',
@@ -74,8 +75,28 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // 3) Asset statici (same-origin): cache-first, fallback rete
+  // 3) Asset statici (same-origin)
   if (url.origin === self.location.origin) {
+    // 3a) CODICE dell'app (HTML/CSS/JS + navigazione): NETWORK-FIRST.
+    //     Online si prende sempre l'ultima versione (niente codice bloccato in
+    //     cache); offline si ricade sulla cache. Risolve il bug "app.js vecchio".
+    const isCode = req.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('/') ||
+                   /\.(html|js|css)$/.test(url.pathname);
+    if (isCode) {
+      e.respondWith((async () => {
+        const cache = await caches.open(CACHE);
+        try {
+          const res = await fetch(req, { cache: 'reload' }); // bypassa la cache HTTP del browser
+          if (res && res.ok) cache.put(req, res.clone()).catch(() => {});
+          return res;
+        } catch (err) {
+          const cached = await cache.match(req);
+          return cached || (await cache.match('./index.html')) || new Response('Offline', { status: 503 });
+        }
+      })());
+      return;
+    }
+    // 3b) Altri asset (icone, manifest, immagini): cache-first, fallback rete
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
       const cached = await cache.match(req);
