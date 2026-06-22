@@ -4084,6 +4084,11 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .cd-avg-grid-3 .cd-avg-cell { padding: 12px 5px; min-width: 0; }
 .cd-avg-grid-3 .cd-avg-k { min-height: 28px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; }
 .cd-avg-grid-3 .cd-avg-v { font-size: clamp(15px, 4.4vw, 19px); }
+/* Statistiche */
+.stats-card { margin-top: 4px; }
+.stats-chart { margin-top: 12px; }
+.stats-chart svg { width: 100%; height: auto; display: block; }
+.stats-card .cd-avg-note { margin-top: 10px; text-align: center; }
 .cd-avg-k { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 5px; }
 .cd-avg-v { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.1; }
 .cd-avg-sub { font-size: 11px; color: var(--text-dim); margin-top: 3px; text-transform: capitalize; }

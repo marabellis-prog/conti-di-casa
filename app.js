@@ -169,13 +169,13 @@ function cacheDOM() {
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdCashFlow','cdCashFlowK','cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
+   'statsTitle','statsSub','statsChart',
    'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
    'txEditSpesaFields','txEditFonte','txEditCat','txEditPersonale',
    'txEditSplitWrap','txEditSplit','txEditSplitCustom','txEditSplitRange','txEditSplitReadout','txEditStraord','txEditStraordRow',
    'txEditBoxFields','txEditChiLabel','txEditAutore','txEditMotivoWrap','txEditMotivo',
    'txEditCompQuick','txEditCompDa','txEditCompA',
-   'view-personale','personaleCount','personaleWipInfo',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
    'modalSettings','setTheme','setSave','setClearCache','setVersion',
@@ -5333,17 +5333,25 @@ function renderBudgetView() {
 
 // ─── CATEGORIE VIEW ─────────────────────────────────────────
 let activeCatTab = 'uscita';
-// ─── VISTA "GESTIONE PERSONALE" (placeholder in sviluppo) ──
-function renderPersonale() {
-  // Conta SOLO le transazioni personali dell'utente loggato
-  const me = (S.currentUser && S.currentUser.nome) || getDefaultAutore();
-  const mine = (S.tx || []).filter(t => t.personale && t.autore === me);
-  if (D.personaleCount) D.personaleCount.textContent = mine.length;
-  if (D.personaleWipInfo) {
-    D.personaleWipInfo.innerHTML =
-      'Qui vedrai le transazioni segnate come <b>personali</b> da te (' +
-      esc(me) + '). Solo tu potrai accedere a questo riepilogo.';
-  }
+// ─── VISTA "STATISTICHE" ───────────────────────────────────
+// Default: uscite "grezze" mensili dell'anno in corso (12 punti, gen→dic),
+// ossia le spese comuni sommate per DATA di pagamento (NON spalmate per
+// competenza). Personali escluse (sono fuori dai conti di casa).
+function renderStats() {
+  if (!D.statsChart || !window.Charts) return;
+  const yr = new Date().getFullYear();
+  const monthly = new Array(12).fill(0);
+  commonSpese().forEach(t => {
+    const [y, m] = String(t.data || '').split('-').map(Number);
+    if (y === yr && m >= 1 && m <= 12) monthly[m - 1] += Number(t.importo) || 0;
+  });
+  const tot = monthly.reduce((a, b) => a + b, 0);
+  if (D.statsTitle) D.statsTitle.textContent = 'Uscite mensili ' + yr;
+  if (D.statsSub) D.statsSub.textContent = 'Cifre grezze (per data di pagamento) · totale anno ' + fmtEur(tot);
+  Charts.renderLine(D.statsChart,
+    [{ label: 'Uscite ' + yr, color: 'var(--danger)', points: monthly }],
+    MESI_SHORT,
+    { yTicks: 5 });
 }
 
 function renderCatView() {
@@ -5542,13 +5550,13 @@ const MODULI = {
       conti:     'Riepilogo',
       list:      'Transazioni',
       cat:       'Categorie',
-      personale: 'Personale'
+      stats:     'Statistiche'
     },
     getActions: (cv) => [
       { go: 'list', label: '📋', caption: 'Transazioni', aria: 'Lista transazioni', active: cv === 'list' },
       { go: 'cat',  label: '📁', caption: 'Categorie',  aria: 'Categorie',         active: cv === 'cat'  },
       { id: 'actAddTx', cls: 'action-add', label: '+', aria: 'Nuova transazione', onClick: openTxWizard },
-      { go: 'personale', label: '👤', caption: 'Personale', aria: 'Gestione personale', active: cv === 'personale' },
+      { go: 'stats', label: '📊', caption: 'Statistiche', aria: 'Statistiche', active: cv === 'stats' },
       { go: 'conti', label: '🏠', caption: 'Home', aria: 'Home Conti (Riepilogo)', active: cv === 'conti' }
     ]
   },
@@ -5587,7 +5595,7 @@ const MODULI = {
 
 function moduloOf(viewName) {
   if (viewName === 'home') return null;
-  if (viewName === 'conti' || viewName === 'list' || viewName === 'cat' || viewName === 'personale') return 'conti';
+  if (viewName === 'conti' || viewName === 'list' || viewName === 'cat' || viewName === 'stats') return 'conti';
   if (viewName === 'spesa') return 'spesa';
   if (viewName === 'todo') return 'todo';
   if (viewName === 'scadenze-list' || viewName === 'scadenze-cal') return 'scadenze';
@@ -5596,7 +5604,7 @@ function moduloOf(viewName) {
 
 function switchView(name) {
   S.currentView = name;
-  ['home','conti','list','cat','personale','spesa','todo','scadenze-list','scadenze-cal'].forEach(v => {
+  ['home','conti','list','cat','stats','spesa','todo','scadenze-list','scadenze-cal'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.classList.toggle('active', v === name);
   });
@@ -5621,7 +5629,7 @@ function switchView(name) {
       D.moduleActionPills.style.display = 'flex';
       // Nav mese: solo dove serve. NON nella vista Transazioni (ha i suoi
       // filtri data) né in Categorie/Personale.
-      const showMonth = moduloMeta.hasMonthNav && !(name === 'list' || name === 'cat' || name === 'personale');
+      const showMonth = moduloMeta.hasMonthNav && !(name === 'list' || name === 'cat' || name === 'stats');
       if (D.moduleMonth) D.moduleMonth.style.display = showMonth ? 'flex' : 'none';
       renderModuleActionPills(moduloMeta, name);
     } else {
@@ -5644,7 +5652,7 @@ function switchView(name) {
     renderList();
   }
   else if (name === 'cat')  renderCatView();
-  else if (name === 'personale') { renderPersonale(); ensureAllTxLoaded().then(renderPersonale); }
+  else if (name === 'stats') { renderStats(); ensureAllTxLoaded().then(renderStats); }
   else if (name === 'spesa') {
     renderSpesa();
     refreshSpesaNow();

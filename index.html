@@ -18,9 +18,9 @@
   <!-- Font scritto a mano per la lavagna ToDo -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
   <!-- Preload degli asset locali critici -->
-  <link rel="preload" href="./app.css?v=160" as="style">
-  <link rel="preload" href="./app.js?v=160" as="script">
-  <link rel="preload" href="./charts.js?v=160" as="script">
+  <link rel="preload" href="./app.css?v=161" as="style">
+  <link rel="preload" href="./app.js?v=161" as="script">
+  <link rel="preload" href="./charts.js?v=161" as="script">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=4" type="image/png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=4">
@@ -43,7 +43,7 @@
       document.documentElement.setAttribute('data-theme', __t);
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="./app.css?v=160">
+  <link rel="stylesheet" href="./app.css?v=161">
   <title>Gestione Casa</title>
 </head>
 <body>
@@ -309,9 +309,13 @@
       <button id="btnAddCat" class="add-cat-btn">+ Aggiungi categoria</button>
     </section>
 
-    <!-- GESTIONE PERSONALE -->
-    <section id="view-personale" class="view">
-      <div class="view-blank">Personale<br><small>da ricostruire</small></div>
+    <!-- STATISTICHE -->
+    <section id="view-stats" class="view">
+      <div class="cd-card stats-card">
+        <div class="cd-card-lbl" id="statsTitle">Uscite mensili</div>
+        <div id="statsChart" class="stats-chart"></div>
+        <div class="cd-avg-note" id="statsSub"></div>
+      </div>
     </section>
 
     <!-- LISTA DELLA SPESA — un solo block-notes con due sub-sezioni -->
@@ -1087,7 +1091,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script src="./charts.js?v=160"></script>
-  <script src="./app.js?v=160"></script>
+  <script src="./charts.js?v=161"></script>
+  <script src="./app.js?v=161"></script>
 </body>
 </html>
