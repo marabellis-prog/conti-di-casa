@@ -226,6 +226,7 @@
       // drop-lines tratteggiate dal punto fino all'asse delle ascisse
       if (opts.dropLines) {
         s.points.forEach((v, i) => {
+          if (!(v > 0)) return; // niente drop-line dove non ci sono dati
           const x = PAD_L + i * stepX;
           const y = H - PAD_B - ((v / niceMax) * (H - PAD_T - PAD_B));
           const dl = document.createElementNS(NS, 'line');
@@ -259,6 +260,7 @@
       // puntini (cliccabili se onClick / pointTooltip / onPoint)
       const interactive = !!(s.onClick || opts.pointTooltip || opts.onPoint);
       s.points.forEach((v, i) => {
+        if (!(v > 0)) return; // niente punto dove non ci sono dati (valore 0)
         const x = PAD_L + i * stepX;
         const y = H - PAD_B - ((v / niceMax) * (H - PAD_T - PAD_B));
         const handle = (ev) => {
