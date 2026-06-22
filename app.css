@@ -4085,7 +4085,20 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .cd-avg-grid-3 .cd-avg-k { min-height: 28px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; }
 .cd-avg-grid-3 .cd-avg-v { font-size: clamp(15px, 4.4vw, 19px); }
 /* Statistiche */
+.stats-scope { display: flex; gap: 8px; justify-content: center; margin: 2px 0 12px; }
+.stats-scope button {
+  flex: 0 0 auto; min-width: 96px; padding: 9px 18px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text-dim);
+  font-size: 14px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.stats-scope button.active { background: var(--accent); color: #0f1419; border-color: var(--accent); }
 .stats-card { margin-top: 4px; }
+/* Donut contribuzione (donut a sinistra, legenda con cifre+% a destra) */
+.stats-contrib-card { margin-top: 12px; }
+.stats-contrib { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.stats-contrib svg { width: 120px; height: 120px; flex: 0 0 auto; }
+.stats-contrib .donut-legend { flex: 1 1 140px; min-width: 140px; }
 #statsTitle { cursor: pointer; -webkit-tap-highlight-color: transparent; display: inline-block; border-bottom: 1px dashed var(--text-faint); padding-bottom: 1px; }
 #statsTitle:active { opacity: .6; }
 .stats-chart { margin-top: 12px; }

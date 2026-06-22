@@ -169,7 +169,7 @@ function cacheDOM() {
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdCashFlow','cdCashFlowK','cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
-   'statsTitle','statsSub','statsChart','statsListTitle','statsList',
+   'statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsListTitle','statsList',
    'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
    'txEditSpesaFields','txEditFonte','txEditCat','txEditPersonale',
@@ -5340,6 +5340,16 @@ function renderBudgetView() {
 // ─── CATEGORIE VIEW ─────────────────────────────────────────
 let activeCatTab = 'uscita';
 // ─── VISTA "STATISTICHE" ───────────────────────────────────
+// Ambito (badge in alto): 'anno' = grafico annuale + lista; 'mese' = vista
+// mensile (in arrivo). "Anno" è il default.
+function setStatsScope(scope) {
+  S.statsScope = scope;
+  if (D.statsScope) $$('button[data-scope]', D.statsScope).forEach(b => b.classList.toggle('active', b.getAttribute('data-scope') === scope));
+  if (D.statsAnno) D.statsAnno.hidden = (scope !== 'anno');
+  if (D.statsMese) D.statsMese.hidden = (scope !== 'mese');
+  if (scope === 'anno') renderStats();
+}
+
 // Default: uscite "grezze" mensili dell'anno in corso (12 punti, gen→dic),
 // ossia le spese comuni sommate per DATA di pagamento (NON spalmate per
 // competenza). Personali escluse (sono fuori dai conti di casa).
@@ -5396,10 +5406,10 @@ function renderStats() {
     yTicks: 5, allXLabels: true, dropLines: dropLines, pointTooltip: true,
     pointLabels: MESI_FULL, legendTopRight: true, legendValues: true, legendExtra: legendExtra,
     refLine: refLine,
-    onPoint: (i) => renderStatsList(i + 1) // tap su un punto → lista spese di quel mese
+    onPoint: (i) => renderStatsMonth(i + 1) // tap su un punto → donut + lista di quel mese
   });
-  // Lista spese del mese selezionato (default: mese corrente)
-  renderStatsList(S.statsListMonth || (new Date().getMonth() + 1));
+  // Donut contribuzione + lista spese del mese selezionato (default: mese corrente)
+  renderStatsMonth(S.statsListMonth || (new Date().getMonth() + 1));
 }
 
 // Elenco delle spese comuni di un mese dell'anno in corso (le stesse che
@@ -5425,6 +5435,51 @@ function renderStatsList(month) {
   D.statsList.innerHTML = rows.map(txRowHtml).join('');
   bindTxRows(D.statsList);
   twemojify(D.statsList);
+}
+
+// Contribuzione per utente (anticipi scatolo + pagamenti diretti − prelievi)
+// per un dato mese dell'anno in corso (month null = tutto l'anno).
+function contribByAutore(yr, month) {
+  const A = getAutoriList();
+  const out = {}; A.forEach(n => { out[n] = 0; });
+  (S.tx || []).forEach(t => {
+    if (!isNuovoModello(t)) return;
+    const [y, m] = String(t.data || '').split('-').map(Number);
+    if (y !== yr) return;
+    if (month && m !== month) return;
+    const a = t.autore; if (!a || out[a] == null) return;
+    const mov = t.tipo_movimento || 'spesa';
+    const imp = Number(t.importo) || 0;
+    if (mov === 'versamento') out[a] += imp;
+    else if (mov === 'prelievo') out[a] -= imp;
+    else { if (t.personale || t.fonte === 'scatolo') return; out[a] += imp; }
+  });
+  return out;
+}
+
+// Mini donut "Contribuzione" del mese selezionato: cifra + % per utente.
+function renderStatsContribDonut(month) {
+  if (!D.statsContrib || !window.Charts) return;
+  const yr = new Date().getFullYear();
+  const m = month || (new Date().getMonth() + 1);
+  const by = contribByAutore(yr, m);
+  const segs = Object.keys(by)
+    .map(n => ({ nome: n, val: Math.max(0, round2(by[n])) }))
+    .filter(s => s.val > 0.005)
+    .sort((a, b) => b.val - a.val)
+    .map(s => ({ label: shortName(s.nome) + ' ' + fmtEur(s.val), value: s.val, color: colorForAutore(s.nome) }));
+  if (D.statsContribTitle) D.statsContribTitle.textContent = 'Contribuzione · ' + (MESI_FULL[m - 1] || '') + ' ' + yr;
+  if (!segs.length) {
+    D.statsContrib.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 2px">Nessuna contribuzione in questo mese.</div>';
+    return;
+  }
+  Charts.renderDonut(D.statsContrib, segs, { subLabel: 'contribuito' });
+}
+
+// Aggiorna insieme donut contribuzione + lista spese per un mese
+function renderStatsMonth(m) {
+  renderStatsContribDonut(m);
+  renderStatsList(m);
 }
 
 function renderCatView() {
@@ -5725,7 +5780,7 @@ function switchView(name) {
     renderList();
   }
   else if (name === 'cat')  renderCatView();
-  else if (name === 'stats') { S.statsListMonth = null; renderStats(); ensureAllTxLoaded().then(renderStats); }
+  else if (name === 'stats') { S.statsListMonth = null; setStatsScope('anno'); ensureAllTxLoaded().then(renderStats); }
   else if (name === 'spesa') {
     renderSpesa();
     refreshSpesaNow();
@@ -8480,6 +8535,8 @@ function bindEvents() {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goScatolo(); }
     });
   }
+  // Statistiche: badge Anno/Mese in alto
+  if (D.statsScope) $$('button[data-scope]', D.statsScope).forEach(b => b.addEventListener('click', () => setStatsScope(b.getAttribute('data-scope'))));
   // Statistiche: tocca il titolo per alternare vista totale ↔ dettagli per utente
   if (D.statsTitle) D.statsTitle.addEventListener('click', () => { S.statsDetail = !S.statsDetail; renderStats(); });
   // Riallineamento fondi scatolo
