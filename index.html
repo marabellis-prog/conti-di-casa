@@ -18,9 +18,9 @@
   <!-- Font scritto a mano per la lavagna ToDo -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
   <!-- Preload degli asset locali critici -->
-  <link rel="preload" href="./app.css?v=159" as="style">
-  <link rel="preload" href="./app.js?v=159" as="script">
-  <link rel="preload" href="./charts.js?v=159" as="script">
+  <link rel="preload" href="./app.css?v=160" as="style">
+  <link rel="preload" href="./app.js?v=160" as="script">
+  <link rel="preload" href="./charts.js?v=160" as="script">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=4" type="image/png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=4">
@@ -43,7 +43,7 @@
       document.documentElement.setAttribute('data-theme', __t);
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="./app.css?v=159">
+  <link rel="stylesheet" href="./app.css?v=160">
   <title>Gestione Casa</title>
 </head>
 <body>
@@ -197,9 +197,14 @@
         <!-- Medie di spesa comune -->
         <div class="cd-card cd-avg">
           <div class="cd-card-lbl">Spese comuni</div>
-          <div class="cd-avg-grid">
+          <div class="cd-avg-grid cd-avg-grid-3">
             <div class="cd-avg-cell">
-              <div class="cd-avg-k">Speso questo mese</div>
+              <div class="cd-avg-k">Flusso cassa</div>
+              <div class="cd-avg-v" id="cdCashFlow">—</div>
+              <div class="cd-avg-sub" id="cdCashFlowK">—</div>
+            </div>
+            <div class="cd-avg-cell">
+              <div class="cd-avg-k">Spese per questo mese</div>
               <div class="cd-avg-v" id="cdAvgMonth">—</div>
               <div class="cd-avg-sub" id="cdAvgMonthK">—</div>
             </div>
@@ -1082,7 +1087,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script src="./charts.js?v=159"></script>
-  <script src="./app.js?v=159"></script>
+  <script src="./charts.js?v=160"></script>
+  <script src="./app.js?v=160"></script>
 </body>
 </html>

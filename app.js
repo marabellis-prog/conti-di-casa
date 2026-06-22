@@ -168,7 +168,7 @@ function cacheDOM() {
    'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizDataLbl','wizStep3Title','wizCompSection','wizCompQuick','wizCompDa','wizCompA','wizRecap','wizNote',
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
-   'cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
+   'cdCashFlow','cdCashFlowK','cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
    'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
    'txEditSpesaFields','txEditFonte','txEditCat','txEditPersonale',
@@ -3160,6 +3160,11 @@ function renderConti() {
     months.forEach(({ y, m }) => { const k = y + '-' + m; alloc[k] = (alloc[k] || 0) + per; });
   });
   const monthSum = alloc[cm.anno + '-' + cm.mese] || 0;
+  // Flusso cassa: contante uscito per spese comuni nel mese corrente, contato
+  // per DATA di pagamento (senza spalmare la competenza) — la "cifra grezza".
+  const cashFlow = commonSpese()
+    .filter(t => inMonth(t.data, cm.anno, cm.mese))
+    .reduce((s, t) => s + (Number(t.importo) || 0), 0);
   // Media mensile dell'ANNO IN CORSO: somma le spese comuni allocate ai mesi
   // dell'anno corrente (competenza-spread) divisa per i mesi coperti, ossia dal
   // primo all'ultimo mese del 2026 con spese. Quando le spese ricorrenti coprono
@@ -3173,6 +3178,8 @@ function renderConti() {
   let win, media;
   if (firstM === null) { firstM = cm.mese; lastM = cm.mese; win = 1; media = 0; }
   else { win = lastM - firstM + 1; media = sumYear / win; }
+  if (D.cdCashFlow) D.cdCashFlow.textContent = fmtEur(cashFlow);
+  if (D.cdCashFlowK) D.cdCashFlowK.textContent = (MESI_FULL[cm.mese - 1] || '') + ' ' + cm.anno;
   if (D.cdAvgMonth) D.cdAvgMonth.textContent = fmtEur(monthSum);
   if (D.cdAvgMonthK) D.cdAvgMonthK.textContent = (MESI_FULL[cm.mese - 1] || '') + ' ' + cm.anno;
   if (D.cdAvgMean) D.cdAvgMean.textContent = fmtEur(media);
