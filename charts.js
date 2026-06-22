@@ -175,9 +175,17 @@
     const baseY = H - PAD_B; // y dell'asse delle ascisse (valore 0)
 
     // Tooltip su click di un punto: bolla colorata con "Mese · €cifra".
-    function showPointTip(i, v, x, y, color) {
-      let old = svg.querySelector('.pt-tip'); if (old) old.remove();
-      old = svg.querySelector('.pt-hi'); if (old) old.remove();
+    // Ri-cliccando lo stesso punto (o cliccando fuori) la bolla si chiude.
+    let tipKey = null;
+    function clearTip() {
+      let el = svg.querySelector('.pt-tip'); if (el) el.remove();
+      el = svg.querySelector('.pt-hi'); if (el) el.remove();
+      tipKey = null;
+    }
+    function showPointTip(key, i, v, x, y, color) {
+      if (tipKey === key) { clearTip(); return; } // toggle off
+      clearTip();
+      tipKey = key;
       const hi = document.createElementNS(NS, 'circle');
       hi.setAttribute('class', 'pt-hi');
       hi.setAttribute('cx', x); hi.setAttribute('cy', y); hi.setAttribute('r', '5');
@@ -211,7 +219,7 @@
     }
 
     // linee per serie
-    series.forEach(s => {
+    series.forEach((s, si) => {
       // drop-lines tratteggiate dal punto fino all'asse delle ascisse
       if (opts.dropLines) {
         s.points.forEach((v, i) => {
@@ -250,8 +258,9 @@
       s.points.forEach((v, i) => {
         const x = PAD_L + i * stepX;
         const y = H - PAD_B - ((v / niceMax) * (H - PAD_T - PAD_B));
-        const handle = () => {
-          if (opts.pointTooltip) showPointTip(i, v, x, y, s.color);
+        const handle = (ev) => {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          if (opts.pointTooltip) showPointTip(si + ':' + i, i, v, x, y, s.color);
           if (typeof opts.onPoint === 'function') opts.onPoint(i, v, s);
           if (typeof s.onClick === 'function') s.onClick(s);
         };
@@ -289,6 +298,49 @@
       t.textContent = lbl;
       svg.appendChild(t);
     });
+
+    // Legenda colori in alto a destra, dentro il grafico (utile con più serie).
+    // pointer-events:none → non intercetta i tap (i punti sotto restano cliccabili).
+    if (opts.legendTopRight && series.length) {
+      const lfs = 9, dotR = 3, gap = 4, lh = lfs + 5, padX = 5, padY = 3;
+      const widths = series.map(s => dotR * 2 + gap + String(s.label || '').length * lfs * 0.55);
+      const maxW = Math.max.apply(null, widths);
+      const boxW = maxW + padX * 2;
+      const boxH = series.length * lh + padY * 2 - 2;
+      const boxX = W - PAD_R - boxW;
+      const boxY = PAD_T - 1;
+      const lg = document.createElementNS(NS, 'g');
+      lg.setAttribute('pointer-events', 'none');
+      const bg = document.createElementNS(NS, 'rect');
+      bg.setAttribute('x', boxX.toFixed(1)); bg.setAttribute('y', boxY.toFixed(1));
+      bg.setAttribute('width', boxW.toFixed(1)); bg.setAttribute('height', boxH.toFixed(1));
+      bg.setAttribute('rx', '5');
+      bg.setAttribute('fill', 'var(--surface)');
+      bg.setAttribute('opacity', '0.82');
+      lg.appendChild(bg);
+      series.forEach((s, k) => {
+        const cy = boxY + padY + k * lh + lfs / 2 + 1;
+        const x0 = boxX + padX;
+        const dot = document.createElementNS(NS, 'circle');
+        dot.setAttribute('cx', (x0 + dotR).toFixed(1));
+        dot.setAttribute('cy', cy.toFixed(1));
+        dot.setAttribute('r', dotR);
+        dot.setAttribute('fill', s.color || 'var(--accent)');
+        lg.appendChild(dot);
+        const tx = document.createElementNS(NS, 'text');
+        tx.setAttribute('x', (x0 + dotR * 2 + gap).toFixed(1));
+        tx.setAttribute('y', (cy + lfs * 0.36).toFixed(1));
+        tx.setAttribute('fill', 'var(--text-dim)');
+        tx.setAttribute('font-size', lfs);
+        tx.setAttribute('font-weight', '600');
+        tx.textContent = String(s.label || '');
+        lg.appendChild(tx);
+      });
+      svg.appendChild(lg);
+    }
+
+    // Click sullo sfondo del grafico (non su un punto) → chiude il tooltip.
+    if (opts.pointTooltip) svg.addEventListener('click', clearTip);
 
     container.appendChild(svg);
 

@@ -5344,7 +5344,7 @@ function renderStats() {
   Charts.renderLine(D.statsChart,
     [{ label: 'Uscite ' + yr, color: 'var(--danger)', points: monthly }],
     MESI_SHORT,
-    { yTicks: 5, allXLabels: true, dropLines: true, pointTooltip: true, pointLabels: MESI_FULL });
+    { yTicks: 5, allXLabels: true, dropLines: true, pointTooltip: true, pointLabels: MESI_FULL, legendTopRight: true });
 }
 
 function renderCatView() {
