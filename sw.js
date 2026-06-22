@@ -3,15 +3,15 @@
 // offline) · GET REST tabelle stale-while-revalidate · icone/immagini cache-first
 // · network-only su mutazioni (POST/PATCH/DELETE) e su update_cache (gating).
 
-const CACHE = 'conti-di-casa-v173';
+const CACHE = 'conti-di-casa-v174';
 const SUPA_HOST = 'lrvkchqvjzynfzevpqaj.supabase.co';
 const CDN_HOST = 'cdn.jsdelivr.net'; // supabase-js + twemoji
 const STATIC = [
   './',
   './index.html',
-  './app.css?v=173',
-  './app.js?v=173',
-  './charts.js?v=173',
+  './app.css?v=174',
+  './app.js?v=174',
+  './charts.js?v=174',
   './manifest.json',
   './icon.svg',
   './favicon.png',

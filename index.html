@@ -18,9 +18,9 @@
   <!-- Font scritto a mano per la lavagna ToDo -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
   <!-- Preload degli asset locali critici -->
-  <link rel="preload" href="./app.css?v=173" as="style">
-  <link rel="preload" href="./app.js?v=173" as="script">
-  <link rel="preload" href="./charts.js?v=173" as="script">
+  <link rel="preload" href="./app.css?v=174" as="style">
+  <link rel="preload" href="./app.js?v=174" as="script">
+  <link rel="preload" href="./charts.js?v=174" as="script">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=4" type="image/png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=4">
@@ -43,7 +43,7 @@
       document.documentElement.setAttribute('data-theme', __t);
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="./app.css?v=173">
+  <link rel="stylesheet" href="./app.css?v=174">
   <title>Gestione Casa</title>
 </head>
 <body>
@@ -331,9 +331,23 @@
         </div>
       </div>
       <div id="statsMese" hidden>
-        <div class="cd-card">
-          <div class="cd-card-lbl">Vista mensile</div>
-          <div class="txt-faint" style="font-size:13px;padding:10px 2px;line-height:1.5">In arrivo. Dimmi cosa vuoi vedere qui (es. spese giorno per giorno del mese, oppure il mese corrente in dettaglio).</div>
+        <div class="stats-msel">
+          <button type="button" id="statsMPrev" class="stats-msel-arr" aria-label="Mese precedente">‹</button>
+          <span id="statsMLabel">—</span>
+          <button type="button" id="statsMNext" class="stats-msel-arr" aria-label="Mese successivo">›</button>
+        </div>
+        <div class="cd-card stats-card">
+          <div class="cd-card-lbl" id="statsMTitle">Uscite</div>
+          <div id="statsMChart" class="stats-chart"></div>
+          <div class="cd-avg-note" id="statsMSub"></div>
+        </div>
+        <div class="cd-card stats-contrib-card">
+          <div class="cd-card-lbl" id="statsMContribTitle">Contribuzione</div>
+          <div id="statsMContrib" class="stats-contrib"></div>
+        </div>
+        <div class="cd-card stats-list-card">
+          <div class="cd-card-lbl" id="statsMListTitle">Spese</div>
+          <div id="statsMList"></div>
         </div>
       </div>
     </section>
@@ -1111,7 +1125,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script src="./charts.js?v=173"></script>
-  <script src="./app.js?v=173"></script>
+  <script src="./charts.js?v=174"></script>
+  <script src="./app.js?v=174"></script>
 </body>
 </html>

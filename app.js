@@ -170,6 +170,7 @@ function cacheDOM() {
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdCashFlow','cdCashFlowK','cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
    'statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsListTitle','statsList',
+   'statsMPrev','statsMLabel','statsMNext','statsMTitle','statsMChart','statsMSub','statsMContribTitle','statsMContrib','statsMListTitle','statsMList',
    'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
    'txEditSpesaFields','txEditFonte','txEditCat','txEditPersonale',
@@ -5347,7 +5348,18 @@ function setStatsScope(scope) {
   if (D.statsScope) $$('button[data-scope]', D.statsScope).forEach(b => b.classList.toggle('active', b.getAttribute('data-scope') === scope));
   if (D.statsAnno) D.statsAnno.hidden = (scope !== 'anno');
   if (D.statsMese) D.statsMese.hidden = (scope !== 'mese');
-  if (scope === 'anno') renderStats();
+  if (scope === 'anno') { renderStats(); }
+  else if (scope === 'mese') {
+    if (!S.statsMese) { const n = new Date(); S.statsMese = { y: n.getFullYear(), m: n.getMonth() + 1 }; }
+    S.statsMeseDay = null;
+    renderStatsMese();
+  }
+}
+
+// Ri-render della vista Statistiche attiva (usato dopo il caricamento dati)
+function renderStatsActive() {
+  if (S.statsScope === 'mese') renderStatsMese();
+  else renderStats();
 }
 
 // Default: uscite "grezze" mensili dell'anno in corso (12 punti, gen→dic),
@@ -5414,40 +5426,28 @@ function renderStats() {
   renderStatsMonth(S.statsSelMonth);
 }
 
-// Elenco delle spese comuni (le stesse che compongono il grafico). Se `month`
-// è null mostra tutte le spese dell'anno (totale); altrimenti solo quel mese.
-// Righe cliccabili per aprire la modifica.
+// Elenco spese comuni dell'anno (Anno): month null = tutto l'anno, altrimenti il mese.
 function renderStatsList(month) {
-  if (!D.statsList) return;
   const yr = new Date().getFullYear();
   const rows = commonSpese()
     .filter(t => month ? inMonth(t.data, yr, month) : String(t.data).slice(0, 4) === String(yr))
     .slice()
     .sort((a, b) => (a.data < b.data ? 1 : (a.data > b.data ? -1 : 0)));
-  const tot = rows.reduce((s, t) => s + (Number(t.importo) || 0), 0);
-  if (D.statsListTitle) {
-    const periodo = month ? ('Spese di ' + (MESI_FULL[month - 1] || '') + ' ' + yr) : ('Spese ' + yr);
-    D.statsListTitle.textContent = periodo + (rows.length ? ' · ' + fmtEur(tot) : '');
-  }
-  if (!rows.length) {
-    D.statsList.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 2px">Nessuna spesa nel periodo.</div>';
-    return;
-  }
-  D.statsList.innerHTML = rows.map(txRowHtml).join('');
-  bindTxRows(D.statsList);
-  twemojify(D.statsList);
+  const title = month ? ('Spese di ' + (MESI_FULL[month - 1] || '') + ' ' + yr) : ('Spese ' + yr);
+  statsListInto(D.statsList, D.statsListTitle, title, rows);
 }
 
-// Contribuzione per utente (anticipi scatolo + pagamenti diretti − prelievi)
-// per un dato mese dell'anno in corso (month null = tutto l'anno).
-function contribByAutore(yr, month) {
+// Contribuzione per utente (anticipi scatolo + pagamenti diretti − prelievi).
+// month null = tutto l'anno; day null = tutto il mese.
+function contribByAutore(yr, month, day) {
   const A = getAutoriList();
   const out = {}; A.forEach(n => { out[n] = 0; });
   (S.tx || []).forEach(t => {
     if (!isNuovoModello(t)) return;
-    const [y, m] = String(t.data || '').split('-').map(Number);
+    const [y, m, d] = String(t.data || '').split('-').map(Number);
     if (y !== yr) return;
     if (month && m !== month) return;
+    if (day && d !== day) return;
     const a = t.autore; if (!a || out[a] == null) return;
     const mov = t.tipo_movimento || 'spesa';
     const imp = Number(t.importo) || 0;
@@ -5458,42 +5458,150 @@ function contribByAutore(yr, month) {
   return out;
 }
 
-// Mini donut "Contribuzione": cifra + % per utente. Se `month` è null mostra il
-// totale dell'anno; altrimenti il mese selezionato.
-function renderStatsContribDonut(month) {
-  if (!D.statsContrib || !window.Charts) return;
-  const yr = new Date().getFullYear();
-  const by = contribByAutore(yr, month || null);
-  const segs = Object.keys(by)
+// ── Helper condivisi Statistiche (Anno + Mese) ──
+// Segmenti contribuzione per il donut.
+function statsContribSegs(yr, month, day) {
+  const by = contribByAutore(yr, month, day);
+  return Object.keys(by)
     .map(n => ({ label: shortName(n), value: Math.max(0, round2(by[n])), color: colorForAutore(n) }))
     .filter(s => s.value > 0.005)
     .sort((a, b) => b.value - a.value);
-  if (D.statsContribTitle) D.statsContribTitle.textContent = 'Contribuzione · ' + (month ? (MESI_FULL[month - 1] || '') + ' ' + yr : yr);
+}
+// Disegna il donut contribuzione + legenda custom "Nome €cifra (xx%)".
+function statsDonutInto(wrap, titleEl, title, segs) {
+  if (titleEl) titleEl.textContent = title;
+  if (!wrap || !window.Charts) return;
   if (!segs.length) {
-    D.statsContrib.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 2px">Nessuna contribuzione nel periodo.</div>';
+    wrap.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 2px">Nessuna contribuzione nel periodo.</div>';
     return;
   }
-  // Donut senza legenda interna; costruiamo una legenda custom a sinistra con
-  // "Nome €cifra (xx%)" — percentuale tra parentesi, più piccola, dopo la cifra.
-  Charts.renderDonut(D.statsContrib, segs, { noLegend: true, subLabel: 'contribuito' });
+  Charts.renderDonut(wrap, segs, { noLegend: true, subLabel: 'contribuito' });
   const total = segs.reduce((s, x) => s + x.value, 0);
   const leg = document.createElement('div');
   leg.className = 'donut-legend scl-legend';
   leg.innerHTML = segs.map(s => {
     const pct = total > 0 ? Math.round(s.value / total * 100) : 0;
-    return '<div class="legend-row">' +
-      '<span class="legend-dot" style="background:' + s.color + '"></span>' +
+    return '<div class="legend-row"><span class="legend-dot" style="background:' + s.color + '"></span>' +
       '<span class="scl-txt">' + esc(s.label) + ' ' + fmtEur(s.value) +
-      ' <span class="scl-pct">(' + pct + '%)</span></span>' +
-      '</div>';
+      ' <span class="scl-pct">(' + pct + '%)</span></span></div>';
   }).join('');
-  D.statsContrib.appendChild(leg);
+  wrap.appendChild(leg);
+}
+// Disegna la lista spese (righe cliccabili) + totale nel titolo.
+function statsListInto(listEl, titleEl, title, rows) {
+  if (titleEl) titleEl.textContent = title + (rows.length ? ' · ' + fmtEur(rows.reduce((s, t) => s + (Number(t.importo) || 0), 0)) : '');
+  if (!listEl) return;
+  if (!rows.length) {
+    listEl.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 2px">Nessuna spesa nel periodo.</div>';
+    return;
+  }
+  listEl.innerHTML = rows.map(txRowHtml).join('');
+  bindTxRows(listEl);
+  twemojify(listEl);
 }
 
-// Aggiorna insieme donut contribuzione + lista spese per un mese
+// Donut contribuzione (Anno): month null = anno, altrimenti il mese.
+function renderStatsContribDonut(month) {
+  const yr = new Date().getFullYear();
+  const title = 'Contribuzione · ' + (month ? (MESI_FULL[month - 1] || '') + ' ' + yr : yr);
+  statsDonutInto(D.statsContrib, D.statsContribTitle, title, statsContribSegs(yr, month || null));
+}
+
+// Aggiorna insieme donut contribuzione + lista spese per un mese (Anno)
 function renderStatsMonth(m) {
   renderStatsContribDonut(m);
   renderStatsList(m);
+}
+
+// ─── STATISTICHE · vista MESE (giorno per giorno) ──────────────
+// Naviga il mese selezionato (S.statsMese {y,m}); il grafico mostra le uscite
+// comuni giorno per giorno. Selezione di un giorno → donut+lista di quel giorno;
+// nulla selezionato → totale del mese. Tap sul titolo = dettagli per utente.
+function statsMeseShiftMonth(delta) {
+  const now = new Date();
+  if (!S.statsMese) S.statsMese = { y: now.getFullYear(), m: now.getMonth() + 1 };
+  let { y, m } = S.statsMese;
+  m += delta;
+  while (m > 12) { m -= 12; y++; }
+  while (m < 1) { m += 12; y--; }
+  // non oltre il mese corrente
+  if (y > now.getFullYear() || (y === now.getFullYear() && m > now.getMonth() + 1)) return;
+  S.statsMese = { y, m };
+  S.statsMeseDay = null;
+  renderStatsMese();
+}
+
+function renderStatsMese() {
+  if (!D.statsMChart || !window.Charts) return;
+  const now = new Date();
+  if (!S.statsMese) S.statsMese = { y: now.getFullYear(), m: now.getMonth() + 1 };
+  const { y, m } = S.statsMese;
+  if (D.statsMLabel) D.statsMLabel.textContent = (MESI_FULL[m - 1] || '') + ' ' + y;
+  const atCurrent = (y === now.getFullYear() && m === now.getMonth() + 1);
+  if (D.statsMNext) D.statsMNext.disabled = atCurrent || (y > now.getFullYear());
+  const days = new Date(y, m, 0).getDate();
+  const dayLabels = []; for (let d = 1; d <= days; d++) dayLabels.push(String(d));
+  const ptLabels = dayLabels.map(d => d + ' ' + (MESI_SHORT[m - 1] || '').toLowerCase());
+  const detail = !!S.statsMeseDetail;
+  // uscite comuni grezze giorno per giorno
+  const daily = new Array(days).fill(0);
+  commonSpese().forEach(t => {
+    const [ty, tm, td] = String(t.data || '').split('-').map(Number);
+    if (ty === y && tm === m && td >= 1 && td <= days) daily[td - 1] += Number(t.importo) || 0;
+  });
+  const tot = daily.reduce((a, b) => a + b, 0);
+  // media giornaliera "in divenire": fino a oggi se mese corrente, altrimenti tutto il mese
+  const lastDay = atCurrent ? Math.min(now.getDate(), days) : days;
+  let sumTo = 0; for (let d = 1; d <= lastDay; d++) sumTo += daily[d - 1];
+  const mediaDay = lastDay > 0 ? sumTo / lastDay : 0;
+  const refLine = mediaDay > 0 ? { value: mediaDay, color: 'var(--accent)' } : null;
+  const legendExtra = [];
+  if (mediaDay > 0) legendExtra.push({ label: 'Media/g', value: mediaDay, color: 'var(--accent)', dash: true });
+
+  if (D.statsMTitle) D.statsMTitle.textContent = 'Uscite ' + (MESI_FULL[m - 1] || '') + (detail ? ' - dettagli' : '');
+  let series;
+  if (!detail) {
+    series = [{ label: 'Uscite', color: 'var(--danger)', points: daily }];
+    if (D.statsMSub) D.statsMSub.textContent = 'Spese giorno per giorno · totale mese ' + fmtEur(tot) + ' · tocca il titolo per i dettagli';
+  } else {
+    const A = getAutoriList();
+    const perUser = {}; A.forEach(n => { perUser[n] = new Array(days).fill(0); });
+    (S.tx || []).forEach(t => {
+      if (!isNuovoModello(t)) return;
+      const [ty, tm, td] = String(t.data || '').split('-').map(Number);
+      if (ty !== y || tm !== m || !(td >= 1 && td <= days)) return;
+      const a = t.autore; if (!a || !perUser[a]) return;
+      const mov = t.tipo_movimento || 'spesa'; const imp = Number(t.importo) || 0;
+      if (mov === 'versamento') perUser[a][td - 1] += imp;
+      else if (mov === 'prelievo') perUser[a][td - 1] -= imp;
+      else { if (t.personale || t.fonte === 'scatolo') return; perUser[a][td - 1] += imp; }
+    });
+    series = A.map(n => ({ label: shortName(n), color: colorForAutore(n), points: perUser[n].map(v => Math.max(0, round2(v))) }))
+      .filter(s => s.points.some(v => v > 0.005));
+    legendExtra.push({ label: 'Totale spese', value: tot, color: 'var(--text-faint)' });
+    if (D.statsMSub) D.statsMSub.textContent = 'Contributo giorno per giorno per utente · tocca il titolo per tornare';
+  }
+
+  Charts.renderLine(D.statsMChart, series, dayLabels, {
+    yTicks: 4, dropLines: false, pointTooltip: true, pointLabels: ptLabels,
+    legendTopRight: true, legendValues: true, legendExtra: legendExtra, refLine: refLine,
+    onSelect: (i) => { S.statsMeseDay = (i == null ? null : i + 1); renderStatsMeseDetail(); }
+  });
+  renderStatsMeseDetail();
+}
+
+// Donut contribuzione + lista del mese selezionato (giorno se selezionato)
+function renderStatsMeseDetail() {
+  if (!S.statsMese) return;
+  const { y, m } = S.statsMese;
+  const day = S.statsMeseDay || null;
+  const periodo = (day ? day + ' ' : '') + (MESI_FULL[m - 1] || '') + ' ' + y;
+  statsDonutInto(D.statsMContrib, D.statsMContribTitle, 'Contribuzione · ' + periodo, statsContribSegs(y, m, day));
+  const rows = commonSpese()
+    .filter(t => { const [ty, tm, td] = String(t.data || '').split('-').map(Number); return ty === y && tm === m && (!day || td === day); })
+    .slice()
+    .sort((a, b) => (a.data < b.data ? 1 : (a.data > b.data ? -1 : 0)));
+  statsListInto(D.statsMList, D.statsMListTitle, 'Spese ' + periodo, rows);
 }
 
 function renderCatView() {
@@ -5794,7 +5902,7 @@ function switchView(name) {
     renderList();
   }
   else if (name === 'cat')  renderCatView();
-  else if (name === 'stats') { S.statsSelMonth = null; setStatsScope('anno'); ensureAllTxLoaded().then(renderStats); }
+  else if (name === 'stats') { S.statsSelMonth = null; S.statsMeseDay = null; setStatsScope('anno'); ensureAllTxLoaded().then(renderStatsActive); }
   else if (name === 'spesa') {
     renderSpesa();
     refreshSpesaNow();
@@ -8553,6 +8661,10 @@ function bindEvents() {
   if (D.statsScope) $$('button[data-scope]', D.statsScope).forEach(b => b.addEventListener('click', () => setStatsScope(b.getAttribute('data-scope'))));
   // Statistiche: tocca il titolo per alternare vista totale ↔ dettagli per utente
   if (D.statsTitle) D.statsTitle.addEventListener('click', () => { S.statsDetail = !S.statsDetail; renderStats(); });
+  // Statistiche Mese: frecce selettore mese + toggle dettagli per utente
+  if (D.statsMPrev) D.statsMPrev.addEventListener('click', () => statsMeseShiftMonth(-1));
+  if (D.statsMNext) D.statsMNext.addEventListener('click', () => statsMeseShiftMonth(1));
+  if (D.statsMTitle) D.statsMTitle.addEventListener('click', () => { S.statsMeseDetail = !S.statsMeseDetail; renderStatsMese(); });
   // Riallineamento fondi scatolo
   if (D.tx2RiallineaBtn) D.tx2RiallineaBtn.addEventListener('click', openRiallineo);
   if (D.rialDir) $$('button[data-val]', D.rialDir).forEach(b => b.addEventListener('click', () => setRialDir(b.getAttribute('data-val'))));
