@@ -239,16 +239,27 @@
           svg.appendChild(dl);
         });
       }
-      // La linea collega SOLO i punti con dati (>0): niente discesa a zero e
-      // risalita per i mesi/giorni vuoti.
-      let path = '', started = false;
-      s.points.forEach((v, i) => {
-        if (!(v > 0)) return;
-        const x = PAD_L + i * stepX;
-        const y = H - PAD_B - ((v / niceMax) * (H - PAD_T - PAD_B));
-        path += (started ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
-        started = true;
-      });
+      let path = '';
+      if (opts.spanLine) {
+        // Linea CONTINUA su tutto il periodo: collega i punti con dati e prolunga
+        // in orizzontale fino ai bordi (niente discese a zero, niente interruzioni;
+        // con un solo dato → linea orizzontale che attraversa tutto).
+        const idxs = [];
+        s.points.forEach((v, i) => { if (v > 0) idxs.push(i); });
+        if (idxs.length) {
+          const yAt = j => H - PAD_B - ((s.points[j] / niceMax) * (H - PAD_T - PAD_B));
+          const first = idxs[0], last = idxs[idxs.length - 1];
+          path += 'M' + PAD_L.toFixed(1) + ' ' + yAt(first).toFixed(1) + ' ';
+          idxs.forEach(j => { path += 'L' + (PAD_L + j * stepX).toFixed(1) + ' ' + yAt(j).toFixed(1) + ' '; });
+          path += 'L' + (PAD_L + (N - 1) * stepX).toFixed(1) + ' ' + yAt(last).toFixed(1) + ' ';
+        }
+      } else {
+        s.points.forEach((v, i) => {
+          const x = PAD_L + i * stepX;
+          const y = H - PAD_B - ((v / niceMax) * (H - PAD_T - PAD_B));
+          path += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+        });
+      }
       const p = document.createElementNS(NS, 'path');
       p.setAttribute('d', path);
       p.setAttribute('fill', 'none');

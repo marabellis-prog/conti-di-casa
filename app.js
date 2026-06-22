@@ -5391,29 +5391,32 @@ function renderStats() {
     series = [{ label: 'Uscite ' + yr, color: 'var(--danger)', points: monthly }];
     if (D.statsSub) D.statsSub.textContent = 'Cifre grezze (per data) · totale anno ' + fmtEur(tot) + ' · tocca il titolo per i dettagli';
   } else {
-    // Dettaglio = chi ha PAGATO le spese: conto/buoni di ogni utente + linea
-    // "Scatolo" (spese dal fondo comune). La somma delle linee = totale uscite,
-    // così quadra con la vista totale. (I contributi/anticipi sono nel donut.)
+    // Dettaglio: una linea per utente = contributo del periodo (versamenti nello
+    // scatolo + spese dal proprio conto/buoni − prelievi) + linea "Scatolo" =
+    // spese pagate dal fondo comune. Sempre TUTTI gli utenti + scatolo.
     const A = getAutoriList();
     const perUser = {}; A.forEach(n => { perUser[n] = new Array(12).fill(0); });
-    commonSpese().forEach(t => {
+    const scatolo = new Array(12).fill(0);
+    (S.tx || []).forEach(t => {
+      if (!isNuovoModello(t)) return;
       const [y, m] = String(t.data || '').split('-').map(Number);
       if (y !== yr || !(m >= 1 && m <= 12)) return;
-      if (t.fonte === 'scatolo' || !t.autore || !perUser[t.autore]) return;
-      perUser[t.autore][m - 1] += Number(t.importo) || 0;
+      const mov = t.tipo_movimento || 'spesa';
+      const imp = Number(t.importo) || 0;
+      if (mov === 'spesa' && !t.personale && t.fonte === 'scatolo') { scatolo[m - 1] += imp; return; }
+      const a = t.autore; if (!a || !perUser[a]) return;
+      if (mov === 'versamento') perUser[a][m - 1] += imp;
+      else if (mov === 'prelievo') perUser[a][m - 1] -= imp;
+      else if (mov === 'spesa' && !t.personale) perUser[a][m - 1] += imp;
     });
-    const scatolo = monthly.map((totM, idx) => round2(totM - A.reduce((s, n) => s + perUser[n][idx], 0)));
-    series = A
-      .map(n => ({ label: shortName(n), color: colorForAutore(n), points: perUser[n].map(v => round2(v)) }))
-      .filter(s => s.points.some(v => v > 0.005));
-    if (scatolo.some(v => v > 0.005)) series.push({ label: 'Scatolo', color: '#94a3b8', points: scatolo });
-    legendExtra.push({ label: 'Totale', value: tot, color: 'var(--text-faint)' });
-    dropLines = false; // con più linee le drop-line affollerebbero
-    if (D.statsSub) D.statsSub.textContent = 'Uscite per chi le ha pagate (conto/buoni + scatolo) · tocca il titolo per tornare';
+    series = A.map(n => ({ label: shortName(n), color: colorForAutore(n), points: perUser[n].map(v => Math.max(0, round2(v))) }));
+    series.push({ label: 'Scatolo', color: '#94a3b8', points: scatolo.map(v => round2(v)) });
+    dropLines = false;
+    if (D.statsSub) D.statsSub.textContent = 'Contributo per utente (versamenti + pagamenti) + spese dallo scatolo · tocca il titolo per tornare';
   }
 
   Charts.renderLine(D.statsChart, series, MESI_SHORT, {
-    yTicks: 5, allXLabels: true, dropLines: dropLines, pointTooltip: true,
+    yTicks: 5, allXLabels: true, dropLines: dropLines, pointTooltip: true, spanLine: true,
     pointLabels: MESI_FULL, legendTopRight: true, legendValues: true, legendExtra: legendExtra,
     refLine: refLine,
     // tap su un punto → donut+lista di quel mese; deseleziona → totale anno
@@ -5562,26 +5565,31 @@ function renderStatsMese() {
     series = [{ label: 'Uscite', color: 'var(--danger)', points: daily }];
     if (D.statsMSub) D.statsMSub.textContent = 'Spese giorno per giorno · totale mese ' + fmtEur(tot) + ' · tocca il titolo per i dettagli';
   } else {
-    // Dettaglio = chi ha PAGATO: conto/buoni di ogni utente + linea "Scatolo".
-    // Somma linee = totale uscite del mese (quadra con la vista totale).
+    // Dettaglio: una linea per utente = contributo giornaliero (versamenti scatolo
+    // + spese dal proprio conto/buoni − prelievi) + linea "Scatolo" = spese dal
+    // fondo. Sempre TUTTI gli utenti + scatolo.
     const A = getAutoriList();
     const perUser = {}; A.forEach(n => { perUser[n] = new Array(days).fill(0); });
-    commonSpese().forEach(t => {
+    const scatolo = new Array(days).fill(0);
+    (S.tx || []).forEach(t => {
+      if (!isNuovoModello(t)) return;
       const [ty, tm, td] = String(t.data || '').split('-').map(Number);
       if (ty !== y || tm !== m || !(td >= 1 && td <= days)) return;
-      if (t.fonte === 'scatolo' || !t.autore || !perUser[t.autore]) return;
-      perUser[t.autore][td - 1] += Number(t.importo) || 0;
+      const mov = t.tipo_movimento || 'spesa';
+      const imp = Number(t.importo) || 0;
+      if (mov === 'spesa' && !t.personale && t.fonte === 'scatolo') { scatolo[td - 1] += imp; return; }
+      const a = t.autore; if (!a || !perUser[a]) return;
+      if (mov === 'versamento') perUser[a][td - 1] += imp;
+      else if (mov === 'prelievo') perUser[a][td - 1] -= imp;
+      else if (mov === 'spesa' && !t.personale) perUser[a][td - 1] += imp;
     });
-    const scatolo = daily.map((totD, idx) => round2(totD - A.reduce((s, n) => s + perUser[n][idx], 0)));
-    series = A.map(n => ({ label: shortName(n), color: colorForAutore(n), points: perUser[n].map(v => round2(v)) }))
-      .filter(s => s.points.some(v => v > 0.005));
-    if (scatolo.some(v => v > 0.005)) series.push({ label: 'Scatolo', color: '#94a3b8', points: scatolo });
-    legendExtra.push({ label: 'Totale', value: tot, color: 'var(--text-faint)' });
-    if (D.statsMSub) D.statsMSub.textContent = 'Uscite per chi le ha pagate (conto/buoni + scatolo) · tocca il titolo per tornare';
+    series = A.map(n => ({ label: shortName(n), color: colorForAutore(n), points: perUser[n].map(v => Math.max(0, round2(v))) }));
+    series.push({ label: 'Scatolo', color: '#94a3b8', points: scatolo.map(v => round2(v)) });
+    if (D.statsMSub) D.statsMSub.textContent = 'Contributo per utente (versamenti + pagamenti) + spese dallo scatolo · tocca il titolo per tornare';
   }
 
   Charts.renderLine(D.statsMChart, series, dayLabels, {
-    yTicks: 4, dropLines: false, pointTooltip: true, pointLabels: ptLabels,
+    yTicks: 4, dropLines: false, pointTooltip: true, spanLine: true, pointLabels: ptLabels,
     legendTopRight: true, legendValues: true, legendExtra: legendExtra, refLine: refLine,
     onSelect: (i) => { S.statsMeseDay = (i == null ? null : i + 1); renderStatsMeseDetail(); }
   });
