@@ -324,42 +324,57 @@
 
     // Legenda colori in alto a destra, dentro il grafico (utile con più serie).
     // pointer-events:none → non intercetta i tap (i punti sotto restano cliccabili).
-    if (opts.legendTopRight && series.length) {
-      const lfs = 9, dotR = 3, gap = 4, lh = lfs + 5, padX = 5, padY = 3;
-      const widths = series.map(s => dotR * 2 + gap + String(s.label || '').length * lfs * 0.55);
-      const maxW = Math.max.apply(null, widths);
-      const boxW = maxW + padX * 2;
-      const boxH = series.length * lh + padY * 2 - 2;
-      const boxX = W - PAD_R - boxW;
-      const boxY = PAD_T - 1;
-      const lg = document.createElementNS(NS, 'g');
-      lg.setAttribute('pointer-events', 'none');
-      const bg = document.createElementNS(NS, 'rect');
-      bg.setAttribute('x', boxX.toFixed(1)); bg.setAttribute('y', boxY.toFixed(1));
-      bg.setAttribute('width', boxW.toFixed(1)); bg.setAttribute('height', boxH.toFixed(1));
-      bg.setAttribute('rx', '5');
-      bg.setAttribute('fill', 'var(--surface)');
-      bg.setAttribute('opacity', '0.82');
-      lg.appendChild(bg);
-      series.forEach((s, k) => {
-        const cy = boxY + padY + k * lh + lfs / 2 + 1;
-        const x0 = boxX + padX;
-        const dot = document.createElementNS(NS, 'circle');
-        dot.setAttribute('cx', (x0 + dotR).toFixed(1));
-        dot.setAttribute('cy', cy.toFixed(1));
-        dot.setAttribute('r', dotR);
-        dot.setAttribute('fill', s.color || 'var(--accent)');
-        lg.appendChild(dot);
-        const tx = document.createElementNS(NS, 'text');
-        tx.setAttribute('x', (x0 + dotR * 2 + gap).toFixed(1));
-        tx.setAttribute('y', (cy + lfs * 0.36).toFixed(1));
-        tx.setAttribute('fill', 'var(--text-dim)');
-        tx.setAttribute('font-size', lfs);
-        tx.setAttribute('font-weight', '600');
-        tx.textContent = String(s.label || '');
-        lg.appendChild(tx);
-      });
-      svg.appendChild(lg);
+    // opts.legendValues = mostra la cifra accanto all'etichetta; opts.legendExtra
+    // = voci aggiuntive senza linea (es. "Totale spese").
+    if (opts.legendTopRight) {
+      const fmtV = v => '€' + Math.round(v).toLocaleString('it-IT');
+      const items = series.map(s => ({
+        label: String(s.label || ''),
+        color: s.color || 'var(--accent)',
+        value: opts.legendValues ? s.points.reduce((a, b) => a + b, 0) : null
+      }));
+      (opts.legendExtra || []).forEach(e => items.push({
+        label: String(e.label || ''), color: e.color || 'var(--text-faint)',
+        value: (e.value != null ? e.value : null)
+      }));
+      if (items.length) {
+        const lfs = 9, dotR = 3, gap = 4, lh = lfs + 5, padX = 5, padY = 3;
+        const labelOf = it => it.label + (it.value != null ? ' ' + fmtV(it.value) : '');
+        const widths = items.map(it => dotR * 2 + gap + labelOf(it).length * lfs * 0.52);
+        const maxW = Math.max.apply(null, widths);
+        const boxW = maxW + padX * 2;
+        const boxH = items.length * lh + padY * 2 - 2;
+        const boxX = W - PAD_R - boxW;
+        const boxY = PAD_T - 1;
+        const lg = document.createElementNS(NS, 'g');
+        lg.setAttribute('pointer-events', 'none');
+        const bg = document.createElementNS(NS, 'rect');
+        bg.setAttribute('x', boxX.toFixed(1)); bg.setAttribute('y', boxY.toFixed(1));
+        bg.setAttribute('width', boxW.toFixed(1)); bg.setAttribute('height', boxH.toFixed(1));
+        bg.setAttribute('rx', '5');
+        bg.setAttribute('fill', 'var(--surface)');
+        bg.setAttribute('opacity', '0.82');
+        lg.appendChild(bg);
+        items.forEach((it, k) => {
+          const cy = boxY + padY + k * lh + lfs / 2 + 1;
+          const x0 = boxX + padX;
+          const dot = document.createElementNS(NS, 'circle');
+          dot.setAttribute('cx', (x0 + dotR).toFixed(1));
+          dot.setAttribute('cy', cy.toFixed(1));
+          dot.setAttribute('r', dotR);
+          dot.setAttribute('fill', it.color);
+          lg.appendChild(dot);
+          const tx = document.createElementNS(NS, 'text');
+          tx.setAttribute('x', (x0 + dotR * 2 + gap).toFixed(1));
+          tx.setAttribute('y', (cy + lfs * 0.36).toFixed(1));
+          tx.setAttribute('fill', 'var(--text-dim)');
+          tx.setAttribute('font-size', lfs);
+          tx.setAttribute('font-weight', '600');
+          tx.textContent = labelOf(it);
+          lg.appendChild(tx);
+        });
+        svg.appendChild(lg);
+      }
     }
 
     // Click sullo sfondo del grafico (non su un punto) → chiude il tooltip.

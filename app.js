@@ -461,6 +461,10 @@ async function reloadAll() {
   ]);
   S.cats = cats || [];
   S.tx = tx || [];
+  // reloadAll carica solo gli ultimi ~3 mesi: lo storico completo (per i totali
+  // annuali della home/statistiche) va ricaricato → resetta il flag, altrimenti
+  // il widget Conti mostrerebbe una cifra parziale finché non si fa un refresh.
+  S.allTxLoaded = false;
   S.budgets = budgets || [];
   S.spesa = spesa || [];
   S.todo  = todo  || [];
@@ -5336,6 +5340,8 @@ let activeCatTab = 'uscita';
 function renderStats() {
   if (!D.statsChart || !window.Charts) return;
   const yr = new Date().getFullYear();
+  const detail = !!S.statsDetail;
+  // Totale uscite comuni grezze per mese (per data di pagamento)
   const monthly = new Array(12).fill(0);
   commonSpese().forEach(t => {
     const [y, m] = String(t.data || '').split('-').map(Number);
@@ -5343,16 +5349,43 @@ function renderStats() {
   });
   const tot = monthly.reduce((a, b) => a + b, 0);
   const media = mediaComuniAnnoInfo().media; // stessa media del riquadro in dashboard
-  if (D.statsTitle) D.statsTitle.textContent = 'Uscite mensili ' + yr;
-  if (D.statsSub) D.statsSub.textContent = 'Cifre grezze (per data di pagamento) · totale anno ' + fmtEur(tot);
-  Charts.renderLine(D.statsChart,
-    [{ label: 'Uscite ' + yr, color: 'var(--danger)', points: monthly }],
-    MESI_SHORT,
-    {
-      yTicks: 5, allXLabels: true, dropLines: true, pointTooltip: true,
-      pointLabels: MESI_FULL, legendTopRight: true,
-      refLine: media > 0 ? { value: media, label: 'media ' + fmtEur(media), color: 'var(--accent)' } : null
+  const refLine = media > 0 ? { value: media, label: 'media ' + fmtEur(media), color: 'var(--accent)' } : null;
+
+  if (D.statsTitle) D.statsTitle.textContent = 'Uscite mensili ' + yr + (detail ? ' - dettagli' : '');
+
+  let series, legendExtra = null, dropLines = true;
+  if (!detail) {
+    series = [{ label: 'Uscite ' + yr, color: 'var(--danger)', points: monthly }];
+    if (D.statsSub) D.statsSub.textContent = 'Cifre grezze (per data) · totale anno ' + fmtEur(tot) + ' · tocca il titolo per i dettagli';
+  } else {
+    // Una linea per utente = contributo mensile (anticipi scatolo + pagamenti
+    // dal proprio conto/buoni − prelievi), per data. Coerente col donut home.
+    const A = getAutoriList();
+    const perUser = {}; A.forEach(n => { perUser[n] = new Array(12).fill(0); });
+    (S.tx || []).forEach(t => {
+      if (!isNuovoModello(t)) return;
+      const [y, m] = String(t.data || '').split('-').map(Number);
+      if (y !== yr || !(m >= 1 && m <= 12)) return;
+      const a = t.autore; if (!a || !perUser[a]) return;
+      const mov = t.tipo_movimento || 'spesa';
+      const imp = Number(t.importo) || 0;
+      if (mov === 'versamento') perUser[a][m - 1] += imp;
+      else if (mov === 'prelievo') perUser[a][m - 1] -= imp;
+      else { if (t.personale || t.fonte === 'scatolo') return; perUser[a][m - 1] += imp; }
     });
+    series = A
+      .map(n => ({ label: shortName(n), color: colorForAutore(n), points: perUser[n].map(v => Math.max(0, round2(v))) }))
+      .filter(s => s.points.some(v => v > 0.005));
+    legendExtra = [{ label: 'Totale spese', value: tot, color: 'var(--text-faint)' }];
+    dropLines = false; // con più linee le drop-line affollerebbero
+    if (D.statsSub) D.statsSub.textContent = 'Contributo per utente (anticipi scatolo + pagamenti diretti) · tocca il titolo per tornare';
+  }
+
+  Charts.renderLine(D.statsChart, series, MESI_SHORT, {
+    yTicks: 5, allXLabels: true, dropLines: dropLines, pointTooltip: true,
+    pointLabels: MESI_FULL, legendTopRight: true, legendValues: true, legendExtra: legendExtra,
+    refLine: refLine
+  });
 }
 
 function renderCatView() {
@@ -8408,6 +8441,8 @@ function bindEvents() {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goScatolo(); }
     });
   }
+  // Statistiche: tocca il titolo per alternare vista totale ↔ dettagli per utente
+  if (D.statsTitle) D.statsTitle.addEventListener('click', () => { S.statsDetail = !S.statsDetail; renderStats(); });
   // Riallineamento fondi scatolo
   if (D.tx2RiallineaBtn) D.tx2RiallineaBtn.addEventListener('click', openRiallineo);
   if (D.rialDir) $$('button[data-val]', D.rialDir).forEach(b => b.addEventListener('click', () => setRialDir(b.getAttribute('data-val'))));

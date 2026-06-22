@@ -4086,6 +4086,8 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .cd-avg-grid-3 .cd-avg-v { font-size: clamp(15px, 4.4vw, 19px); }
 /* Statistiche */
 .stats-card { margin-top: 4px; }
+#statsTitle { cursor: pointer; -webkit-tap-highlight-color: transparent; display: inline-block; border-bottom: 1px dashed var(--text-faint); padding-bottom: 1px; }
+#statsTitle:active { opacity: .6; }
 .stats-chart { margin-top: 12px; }
 .stats-chart svg { width: 100%; height: auto; display: block; }
 .stats-card .cd-avg-note { margin-top: 10px; text-align: center; }
