@@ -8370,8 +8370,10 @@ function bindEvents() {
   if (D.wizStraord) D.wizStraord.addEventListener('change', () => { WIZ.straord = D.wizStraord.checked; });
   // Slider divisione personalizzata
   if (D.wizSplitRange) D.wizSplitRange.addEventListener('input', () => { WIZ.splitA = Number(D.wizSplitRange.value); renderWizSplitReadout(); updateWizNext(); });
-  // Bottone "Registra riequilibrio" nella dashboard
-  if (D.cdSettleBtn) D.cdSettleBtn.addEventListener('click', registerRiequilibrio);
+  // Bottone "Registra riequilibrio" nella dashboard — TEMPORANEAMENTE disabilitato:
+  // mostra solo un avviso. Per riattivarlo: ripristina `registerRiequilibrio`
+  // come handler e togli la classe is-soon dal bottone in index.html.
+  if (D.cdSettleBtn) D.cdSettleBtn.addEventListener('click', () => toast('Non al momento disponibile', 'warn'));
   // Card scatolo cliccabile → pagina Transazioni filtrata sui movimenti scatolo
   if (D.cdScatoloCard) {
     const goScatolo = () => {
