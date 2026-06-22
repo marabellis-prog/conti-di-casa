@@ -38,6 +38,24 @@
     sorted.forEach(s => {
       const angle = (s.value / total) * TAU;
       if (angle <= 0) return;
+      // Segmento che copre (quasi) l'intero cerchio: un arco SVG con punto
+      // iniziale == finale è degenere e non viene disegnato → uso un anello.
+      if (angle >= TAU - 1e-6) {
+        const ring = document.createElementNS(NS, 'circle');
+        ring.setAttribute('cx', CX);
+        ring.setAttribute('cy', CY);
+        ring.setAttribute('r', (R + IR) / 2);
+        ring.setAttribute('fill', 'none');
+        ring.setAttribute('stroke', s.color || 'var(--accent)');
+        ring.setAttribute('stroke-width', R - IR);
+        if (s.onClick) {
+          ring.style.cursor = 'pointer';
+          ring.addEventListener('click', () => s.onClick(s));
+        }
+        svg.appendChild(ring);
+        acc += angle;
+        return;
+      }
       const a0 = acc;
       const a1 = acc + angle;
       acc = a1;
