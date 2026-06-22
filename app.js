@@ -3160,32 +3160,28 @@ function renderConti() {
     months.forEach(({ y, m }) => { const k = y + '-' + m; alloc[k] = (alloc[k] || 0) + per; });
   });
   const monthSum = alloc[cm.anno + '-' + cm.mese] || 0;
-  // Denominatore "onesto": dal primo mese con spese fino al mese selezionato
-  // (max 12 mesi), così la media non viene diluita quando i dati sono pochi.
-  let firstY = null, firstM = null;
-  Object.keys(alloc).forEach(k => {
-    const [y, m] = k.split('-').map(Number);
-    if (y < cm.anno || (y === cm.anno && m <= cm.mese)) {
-      if (firstY === null || y < firstY || (y === firstY && m < firstM)) { firstY = y; firstM = m; }
-    }
-  });
-  let elapsed = 1;
-  if (firstY !== null) elapsed = (cm.anno - firstY) * 12 + (cm.mese - firstM) + 1;
-  const win = Math.max(1, Math.min(elapsed, 12));
-  let sumWin = 0;
-  for (let i = 0; i < win; i++) { let y = cm.anno, m = cm.mese - i; while (m < 1) { m += 12; y--; } sumWin += alloc[y + '-' + m] || 0; }
+  // Media mensile dell'ANNO IN CORSO: somma le spese comuni allocate ai mesi
+  // dell'anno corrente (competenza-spread) divisa per i mesi coperti, ossia dal
+  // primo all'ultimo mese del 2026 con spese. Quando le spese ricorrenti coprono
+  // via competenza tutto l'anno, la media coincide col totale annuo / 12.
+  let firstM = null, lastM = null, sumYear = 0;
+  for (let m = 1; m <= 12; m++) {
+    const v = alloc[cm.anno + '-' + m] || 0;
+    if (v > 0.0001) { if (firstM === null) firstM = m; lastM = m; }
+    sumYear += v;
+  }
+  let win, media;
+  if (firstM === null) { firstM = cm.mese; lastM = cm.mese; win = 1; media = 0; }
+  else { win = lastM - firstM + 1; media = sumYear / win; }
   if (D.cdAvgMonth) D.cdAvgMonth.textContent = fmtEur(monthSum);
   if (D.cdAvgMonthK) D.cdAvgMonthK.textContent = (MESI_FULL[cm.mese - 1] || '') + ' ' + cm.anno;
-  if (D.cdAvgMean) D.cdAvgMean.textContent = fmtEur(sumWin / win);
+  if (D.cdAvgMean) D.cdAvgMean.textContent = fmtEur(media);
   if (D.cdAvgMeanSub) {
-    // Estremi della finestra mediata (mobile: `win` mesi che terminano nel mese corrente)
-    let sy = cm.anno, sm = cm.mese - (win - 1);
-    while (sm < 1) { sm += 12; sy--; }
-    const endDay = new Date(cm.anno, cm.mese, 0).getDate();
-    const fmtPt = (y, m, d, withYear) => d + ' ' + (MESI_SHORT[m - 1] || '').toLowerCase() + (withYear ? ' ' + y : '');
-    const rangeLbl = fmtPt(sy, sm, 1, sy !== cm.anno) + ' - ' + fmtPt(cm.anno, cm.mese, endDay, true);
-    D.cdAvgMeanSub.innerHTML = 'ultimi ' + win + (win === 1 ? ' mese' : ' mesi') +
-      '<br><span class="cd-avg-range">(' + rangeLbl + ')</span>';
+    // Intervallo coperto nell'anno in corso (dal primo all'ultimo mese con spese)
+    const endDay = new Date(cm.anno, lastM, 0).getDate();
+    const ms = m => (MESI_SHORT[m - 1] || '').toLowerCase();
+    const rangeLbl = '1 ' + ms(firstM) + ' - ' + endDay + ' ' + ms(lastM) + ' ' + cm.anno;
+    D.cdAvgMeanSub.innerHTML = 'anno in corso<br><span class="cd-avg-range">(' + rangeLbl + ')</span>';
   }
   if (D.cdAvgNote) D.cdAvgNote.textContent = 'Spese spalmate sul periodo di competenza · straordinarie escluse.';
 
