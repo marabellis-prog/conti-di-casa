@@ -5362,7 +5362,7 @@ function renderStats() {
   const legendExtra = [];
   if (media > 0) legendExtra.push({ label: 'Media', value: media, color: 'var(--accent)', dash: true });
 
-  if (D.statsTitle) D.statsTitle.textContent = 'Uscite mensili ' + yr + (detail ? ' - dettagli' : '');
+  if (D.statsTitle) D.statsTitle.textContent = 'Uscite ' + yr + (detail ? ' - dettagli' : '');
 
   let series, dropLines = true;
   if (!detail) {
