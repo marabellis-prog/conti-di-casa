@@ -154,8 +154,61 @@
       svg.appendChild(txt);
     }
 
+    const baseY = H - PAD_B; // y dell'asse delle ascisse (valore 0)
+
+    // Tooltip su click di un punto: bolla colorata con "Mese · €cifra".
+    function showPointTip(i, v, x, y, color) {
+      let old = svg.querySelector('.pt-tip'); if (old) old.remove();
+      old = svg.querySelector('.pt-hi'); if (old) old.remove();
+      const hi = document.createElementNS(NS, 'circle');
+      hi.setAttribute('class', 'pt-hi');
+      hi.setAttribute('cx', x); hi.setAttribute('cy', y); hi.setAttribute('r', '5');
+      hi.setAttribute('fill', color);
+      hi.setAttribute('stroke', 'var(--surface)');
+      hi.setAttribute('stroke-width', '2');
+      svg.appendChild(hi);
+      const monthLbl = (opts.pointLabels && opts.pointLabels[i]) || xLabels[i] || '';
+      const label = (monthLbl ? monthLbl + ' · ' : '') + fmtEur(v);
+      const fs = 10, h = 18;
+      const w = Math.max(34, label.length * fs * 0.55 + 10);
+      let bx = Math.max(PAD_L, Math.min(x - w / 2, W - PAD_R - w));
+      let by = y - h - 7;
+      if (by < PAD_T) by = y + 9; // se non c'è spazio sopra, mostra sotto
+      const g = document.createElementNS(NS, 'g');
+      g.setAttribute('class', 'pt-tip');
+      const rect = document.createElementNS(NS, 'rect');
+      rect.setAttribute('x', bx.toFixed(1)); rect.setAttribute('y', by.toFixed(1));
+      rect.setAttribute('width', w.toFixed(1)); rect.setAttribute('height', h);
+      rect.setAttribute('rx', '5'); rect.setAttribute('fill', color);
+      g.appendChild(rect);
+      const tx = document.createElementNS(NS, 'text');
+      tx.setAttribute('x', (bx + w / 2).toFixed(1));
+      tx.setAttribute('y', (by + h / 2 + 3.3).toFixed(1));
+      tx.setAttribute('text-anchor', 'middle');
+      tx.setAttribute('fill', '#fff');
+      tx.setAttribute('font-size', fs); tx.setAttribute('font-weight', '700');
+      tx.textContent = label;
+      g.appendChild(tx);
+      svg.appendChild(g);
+    }
+
     // linee per serie
     series.forEach(s => {
+      // drop-lines tratteggiate dal punto fino all'asse delle ascisse
+      if (opts.dropLines) {
+        s.points.forEach((v, i) => {
+          const x = PAD_L + i * stepX;
+          const y = H - PAD_B - ((v / niceMax) * (H - PAD_T - PAD_B));
+          const dl = document.createElementNS(NS, 'line');
+          dl.setAttribute('x1', x.toFixed(1)); dl.setAttribute('x2', x.toFixed(1));
+          dl.setAttribute('y1', y.toFixed(1)); dl.setAttribute('y2', baseY);
+          dl.setAttribute('stroke', s.color);
+          dl.setAttribute('stroke-width', '1');
+          dl.setAttribute('stroke-dasharray', '3 3');
+          dl.setAttribute('opacity', '.45');
+          svg.appendChild(dl);
+        });
+      }
       let path = '';
       s.points.forEach((v, i) => {
         const x = PAD_L + i * stepX;
@@ -174,33 +227,47 @@
         p.addEventListener('click', () => s.onClick(s));
       }
       svg.appendChild(p);
-      // puntini cliccabili (se onClick definito)
+      // puntini (cliccabili se onClick / pointTooltip / onPoint)
+      const interactive = !!(s.onClick || opts.pointTooltip || opts.onPoint);
       s.points.forEach((v, i) => {
         const x = PAD_L + i * stepX;
         const y = H - PAD_B - ((v / niceMax) * (H - PAD_T - PAD_B));
+        const handle = () => {
+          if (opts.pointTooltip) showPointTip(i, v, x, y, s.color);
+          if (typeof opts.onPoint === 'function') opts.onPoint(i, v, s);
+          if (typeof s.onClick === 'function') s.onClick(s);
+        };
         const c = document.createElementNS(NS, 'circle');
         c.setAttribute('cx', x);
         c.setAttribute('cy', y);
-        c.setAttribute('r', s.onClick ? 4 : 2.5);
+        c.setAttribute('r', interactive ? 4 : 2.5);
         c.setAttribute('fill', s.color);
-        if (s.onClick) {
-          c.style.cursor = 'pointer';
-          c.addEventListener('click', () => s.onClick(s));
-        }
+        if (interactive) { c.style.cursor = 'pointer'; c.addEventListener('click', handle); }
         svg.appendChild(c);
+        // bersaglio invisibile più ampio per il tap su mobile
+        if (interactive) {
+          const hit = document.createElementNS(NS, 'circle');
+          hit.setAttribute('cx', x); hit.setAttribute('cy', y); hit.setAttribute('r', '10');
+          hit.setAttribute('fill', 'transparent');
+          hit.style.cursor = 'pointer';
+          hit.addEventListener('click', handle);
+          svg.appendChild(hit);
+        }
       });
     });
 
-    // x-labels (ogni 2 per non affollare)
+    // x-labels: di default ogni N/6 per non affollare; opts.allXLabels = tutte
+    const everyN = Math.max(1, Math.ceil(N / 6));
+    const xfs = (opts.allXLabels && N > 8) ? '8' : '10';
     xLabels.forEach((lbl, i) => {
-      if (i % Math.ceil(N / 6) !== 0 && i !== N - 1) return;
+      if (!opts.allXLabels && i % everyN !== 0 && i !== N - 1) return;
       const x = PAD_L + i * stepX;
       const t = document.createElementNS(NS, 'text');
       t.setAttribute('x', x);
       t.setAttribute('y', H - 8);
       t.setAttribute('text-anchor', 'middle');
       t.setAttribute('fill', 'var(--text-faint)');
-      t.setAttribute('font-size', '10');
+      t.setAttribute('font-size', xfs);
       t.textContent = lbl;
       svg.appendChild(t);
     });
