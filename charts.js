@@ -178,13 +178,14 @@
     // Tooltip su click di un punto: bolla colorata con "Mese · €cifra".
     // Ri-cliccando lo stesso punto (o cliccando fuori) la bolla si chiude.
     let tipKey = null;
+    function fireSelect(x) { if (typeof opts.onSelect === 'function') opts.onSelect(x); }
     function clearTip() {
       let el = svg.querySelector('.pt-tip'); if (el) el.remove();
       el = svg.querySelector('.pt-hi'); if (el) el.remove();
       tipKey = null;
     }
     function showPointTip(key, i, v, x, y, color) {
-      if (tipKey === key) { clearTip(); return; } // toggle off
+      if (tipKey === key) { clearTip(); fireSelect(null); return; } // re-tap = deseleziona
       clearTip();
       tipKey = key;
       const hi = document.createElementNS(NS, 'circle');
@@ -217,6 +218,7 @@
       tx.textContent = label;
       g.appendChild(tx);
       svg.appendChild(g);
+      fireSelect(i); // notifica selezione del mese
     }
 
     // linee per serie
@@ -387,8 +389,13 @@
       }
     }
 
-    // Click sullo sfondo del grafico (non su un punto) → chiude il tooltip.
-    if (opts.pointTooltip) svg.addEventListener('click', clearTip);
+    // Click sullo sfondo del grafico (non su un punto) → chiude il tooltip e
+    // deseleziona (torna al totale).
+    if (opts.pointTooltip) svg.addEventListener('click', () => {
+      const had = tipKey !== null;
+      clearTip();
+      if (had) fireSelect(null);
+    });
 
     container.appendChild(svg);
 

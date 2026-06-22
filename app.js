@@ -5406,30 +5406,31 @@ function renderStats() {
     yTicks: 5, allXLabels: true, dropLines: dropLines, pointTooltip: true,
     pointLabels: MESI_FULL, legendTopRight: true, legendValues: true, legendExtra: legendExtra,
     refLine: refLine,
-    onPoint: (i) => renderStatsMonth(i + 1) // tap su un punto → donut + lista di quel mese
+    // tap su un punto → donut+lista di quel mese; deseleziona → totale anno
+    onSelect: (i) => { S.statsSelMonth = (i == null ? null : i + 1); renderStatsMonth(S.statsSelMonth); }
   });
-  // Donut contribuzione + lista spese del mese selezionato (default: mese corrente)
-  renderStatsMonth(S.statsListMonth || (new Date().getMonth() + 1));
+  // Donut contribuzione + lista spese: mese selezionato, oppure TOTALE anno se
+  // nulla è selezionato.
+  renderStatsMonth(S.statsSelMonth);
 }
 
-// Elenco delle spese comuni di un mese dell'anno in corso (le stesse che
-// compongono il punto del grafico). Cliccabili per aprire la modifica.
+// Elenco delle spese comuni (le stesse che compongono il grafico). Se `month`
+// è null mostra tutte le spese dell'anno (totale); altrimenti solo quel mese.
+// Righe cliccabili per aprire la modifica.
 function renderStatsList(month) {
   if (!D.statsList) return;
   const yr = new Date().getFullYear();
-  const m = month || (new Date().getMonth() + 1);
-  S.statsListMonth = m;
   const rows = commonSpese()
-    .filter(t => inMonth(t.data, yr, m))
+    .filter(t => month ? inMonth(t.data, yr, month) : String(t.data).slice(0, 4) === String(yr))
     .slice()
     .sort((a, b) => (a.data < b.data ? 1 : (a.data > b.data ? -1 : 0)));
   const tot = rows.reduce((s, t) => s + (Number(t.importo) || 0), 0);
   if (D.statsListTitle) {
-    D.statsListTitle.textContent = 'Spese di ' + (MESI_FULL[m - 1] || '') + ' ' + yr +
-      (rows.length ? ' · ' + fmtEur(tot) : '');
+    const periodo = month ? ('Spese di ' + (MESI_FULL[month - 1] || '') + ' ' + yr) : ('Spese ' + yr);
+    D.statsListTitle.textContent = periodo + (rows.length ? ' · ' + fmtEur(tot) : '');
   }
   if (!rows.length) {
-    D.statsList.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 2px">Nessuna spesa in questo mese.</div>';
+    D.statsList.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 2px">Nessuna spesa nel periodo.</div>';
     return;
   }
   D.statsList.innerHTML = rows.map(txRowHtml).join('');
@@ -5457,19 +5458,19 @@ function contribByAutore(yr, month) {
   return out;
 }
 
-// Mini donut "Contribuzione" del mese selezionato: cifra + % per utente.
+// Mini donut "Contribuzione": cifra + % per utente. Se `month` è null mostra il
+// totale dell'anno; altrimenti il mese selezionato.
 function renderStatsContribDonut(month) {
   if (!D.statsContrib || !window.Charts) return;
   const yr = new Date().getFullYear();
-  const m = month || (new Date().getMonth() + 1);
-  const by = contribByAutore(yr, m);
+  const by = contribByAutore(yr, month || null);
   const segs = Object.keys(by)
     .map(n => ({ label: shortName(n), value: Math.max(0, round2(by[n])), color: colorForAutore(n) }))
     .filter(s => s.value > 0.005)
     .sort((a, b) => b.value - a.value);
-  if (D.statsContribTitle) D.statsContribTitle.textContent = 'Contribuzione · ' + (MESI_FULL[m - 1] || '') + ' ' + yr;
+  if (D.statsContribTitle) D.statsContribTitle.textContent = 'Contribuzione · ' + (month ? (MESI_FULL[month - 1] || '') + ' ' + yr : yr);
   if (!segs.length) {
-    D.statsContrib.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 2px">Nessuna contribuzione in questo mese.</div>';
+    D.statsContrib.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 2px">Nessuna contribuzione nel periodo.</div>';
     return;
   }
   // Donut senza legenda interna; costruiamo una legenda custom a sinistra con
@@ -5793,7 +5794,7 @@ function switchView(name) {
     renderList();
   }
   else if (name === 'cat')  renderCatView();
-  else if (name === 'stats') { S.statsListMonth = null; setStatsScope('anno'); ensureAllTxLoaded().then(renderStats); }
+  else if (name === 'stats') { S.statsSelMonth = null; setStatsScope('anno'); ensureAllTxLoaded().then(renderStats); }
   else if (name === 'spesa') {
     renderSpesa();
     refreshSpesaNow();
