@@ -3745,25 +3745,18 @@ function renderHomeGestione() {
     D.homeContiPeriod.textContent = String(annoCorrente);
   }
 
-  // Mini donut: spese comuni per macro categoria dell'anno (no testo, no legenda)
+  // Mini donut: quota di spese comuni "uscita dal conto" di ciascun utente
+  // (pagate dal proprio conto/buoni). Le spese pagate DALLO SCATOLO sono denaro
+  // comune e non escono dal conto di nessuno → escluse. No testo, no legenda.
   if (D.homeContiDonut) {
-    const uscByMacro = {};
+    const byAutore = {};
     speseAnno.forEach(t => {
-      const c = catById(t.categoria_id);
-      const macroId = (c && c.macro_categoria) || 'altro';
-      uscByMacro[macroId] = (uscByMacro[macroId] || 0) + Number(t.importo);
+      if (t.fonte === 'scatolo' || !t.autore) return;
+      byAutore[t.autore] = (byAutore[t.autore] || 0) + Number(t.importo);
     });
-    const MACRO_COLORS = {
-      casa:'#3498db', cibo:'#e74c3c', bollette:'#f39c12', trasporti:'#9b59b6',
-      salute:'#1abc9c', svago:'#34d399', sport:'#16a34a', abbigliamento:'#a777e3',
-      famiglia:'#f472b6', animali:'#fb923c', tecnologia:'#0ea5e9', regali:'#ff5722',
-      viaggi:'#06b6d4', lavoro:'#64748b', soldi:'#2ecc71', natura:'#22c55e', altro:'#94a3b8'
-    };
-    const segs = Object.keys(uscByMacro).map(macroId => ({
-      label: macroLabel(macroId),
-      value: uscByMacro[macroId],
-      color: MACRO_COLORS[macroId] || '#666'
-    }));
+    const segs = Object.keys(byAutore)
+      .sort((a, b) => byAutore[b] - byAutore[a])
+      .map(nome => ({ label: shortName(nome), value: byAutore[nome], color: colorForAutore(nome) }));
     if (segs.length) {
       Charts.renderDonut(D.homeContiDonut, segs, { noText: true, noLegend: true });
     } else {
