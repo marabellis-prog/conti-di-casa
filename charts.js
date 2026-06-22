@@ -239,11 +239,15 @@
           svg.appendChild(dl);
         });
       }
-      let path = '';
+      // La linea collega SOLO i punti con dati (>0): niente discesa a zero e
+      // risalita per i mesi/giorni vuoti.
+      let path = '', started = false;
       s.points.forEach((v, i) => {
+        if (!(v > 0)) return;
         const x = PAD_L + i * stepX;
         const y = H - PAD_B - ((v / niceMax) * (H - PAD_T - PAD_B));
-        path += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+        path += (started ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+        started = true;
       });
       const p = document.createElementNS(NS, 'path');
       p.setAttribute('d', path);
