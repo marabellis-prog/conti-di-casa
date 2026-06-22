@@ -18,9 +18,9 @@
   <!-- Font scritto a mano per la lavagna ToDo -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
   <!-- Preload degli asset locali critici -->
-  <link rel="preload" href="./app.css?v=155" as="style">
-  <link rel="preload" href="./app.js?v=155" as="script">
-  <link rel="preload" href="./charts.js?v=155" as="script">
+  <link rel="preload" href="./app.css?v=156" as="style">
+  <link rel="preload" href="./app.js?v=156" as="script">
+  <link rel="preload" href="./charts.js?v=156" as="script">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=4" type="image/png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=4">
@@ -43,7 +43,7 @@
       document.documentElement.setAttribute('data-theme', __t);
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="./app.css?v=155">
+  <link rel="stylesheet" href="./app.css?v=156">
   <title>Gestione Casa</title>
 </head>
 <body>
@@ -173,15 +173,16 @@
     <section id="view-conti" class="view">
       <div class="cd-wrap">
         <!-- Scatolo: contante comune disponibile -->
-        <div class="cd-card cd-scatolo">
+        <div class="cd-card cd-scatolo" id="cdScatoloCard" role="button" tabindex="0">
           <div class="cd-scatolo-top">
             <span class="cd-scatolo-ic">📦</span>
             <div class="cd-scatolo-info">
               <div class="cd-card-lbl">Nello scatolo</div>
               <div class="cd-scatolo-num" id="cdScatolo">— €</div>
             </div>
+            <span class="cd-scatolo-arrow">›</span>
           </div>
-          <div class="cd-scatolo-foot" id="cdScatoloFoot">Fondo comune in contanti</div>
+          <div class="cd-scatolo-foot" id="cdScatoloFoot">Tocca per operazioni e riallineo</div>
         </div>
 
         <!-- Equilibrio spese comuni -->
@@ -275,6 +276,7 @@
       </div>
 
       <div class="tx2-summary" id="tx2Summary"></div>
+      <button class="tx2-riallinea" id="tx2RiallineaBtn" type="button" hidden>⚖️ Riallinea fondi scatolo</button>
       <div id="tx2List"></div>
 
       <div class="tx2-pager" id="tx2Pager">
@@ -1044,9 +1046,43 @@
     <span id="toastMsg" class="toast-msg"></span>
   </div>
 
+  <!-- Riallineamento fondi scatolo -->
+  <div class="modal modal-center" id="modalRiallineo">
+    <div class="sheet">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3>⚖️ Riallinea fondi scatolo</h3>
+        <button class="sheet-close" data-close="modalRiallineo">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="rial-balance">Nello scatolo ora: <b id="rialBalance">—</b></div>
+        <div class="wiz-seg" id="rialDir" data-val="togli">
+          <div class="wiz-seg-bg"></div>
+          <button type="button" data-val="togli" class="active">➖ Togli</button>
+          <button type="button" data-val="aggiungi">➕ Aggiungi</button>
+        </div>
+        <div class="form-field">
+          <label>Importo</label>
+          <input type="number" id="rialAmt" step="0.01" min="0" inputmode="decimal" placeholder="0,00">
+        </div>
+        <label class="pers-toggle" id="rialContaRow" for="rialConta">
+          <input type="checkbox" id="rialConta" checked>
+          <span class="pers-toggle-track"></span>
+          <span class="pers-toggle-label"><span class="pers-toggle-ic">🏠</span> Conta come <b>spesa di casa</b></span>
+        </label>
+        <div class="rial-hint" id="rialHint">Se l'avevi già speso ma non segnato, lascialo attivo. Se è solo una correzione del conteggio, disattivalo.</div>
+        <div class="form-field">
+          <label>Note (opzionale)</label>
+          <input type="text" id="rialNote" placeholder="es. ricontato i contanti nello scatolo">
+        </div>
+        <button id="rialSave" class="btn-primary">Salva riallineamento</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script src="./charts.js?v=155"></script>
-  <script src="./app.js?v=155"></script>
+  <script src="./charts.js?v=156"></script>
+  <script src="./app.js?v=156"></script>
 </body>
 </html>

@@ -167,8 +167,9 @@ function cacheDOM() {
    'wizAmt','wizAmtVal','wizNumpad',
    'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizDataLbl','wizStep3Title','wizCompSection','wizCompQuick','wizCompDa','wizCompA','wizRecap','wizNote',
    // Conti — dashboard Riepilogo (modello scatolo/equità)
-   'cdScatolo','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
+   'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
+   'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
    'txEditSpesaFields','txEditFonte','txEditCat','txEditPersonale',
    'txEditSplitWrap','txEditSplit','txEditSplitCustom','txEditSplitRange','txEditSplitReadout','txEditStraord','txEditStraordRow',
@@ -3238,6 +3239,84 @@ function boxPayload(mov, autore, importo, data, desc, note) {
   };
 }
 
+// ---- Riallineamento fondi scatolo ----------------------------------------
+// Corregge il saldo dello scatolo (es. ho speso contanti ma non l'ho segnato,
+// oppure ho ricontato i contanti). NON tocca MAI l'equità tra le persone
+// (autore=null → credit() no-op). Cambia solo il saldo box.
+//  • Togli + "Conta come spesa di casa" = SÌ → spesa fonte=scatolo (box−, entra
+//    nelle medie spese comuni, equità neutra).
+//  • Togli + conta = NO → prelievo autore=null (box−, fuori dalle medie, equità
+//    neutra) — pura correzione di conteggio.
+//  • Aggiungi → versamento autore=null (box+, fuori dalle medie, equità neutra).
+const RIAL_DESC = 'Riallineamento fondi scatolo';
+
+async function openRiallineo() {
+  setRialDir('togli');
+  if (D.rialAmt) D.rialAmt.value = '';
+  if (D.rialConta) D.rialConta.checked = true;
+  if (D.rialNote) D.rialNote.value = '';
+  if (D.rialBalance) D.rialBalance.textContent = '…';
+  openModal('modalRiallineo');
+  setTimeout(() => { try { D.rialAmt.focus(); } catch (e) {} }, 120);
+  // Il saldo scatolo è cumulativo su tutti gli anni → servono tutte le tx
+  try { await ensureAllTxLoaded(); } catch (e) {}
+  const eq = computeEquity();
+  if (D.rialBalance) D.rialBalance.textContent = fmtEur(eq.box || 0);
+}
+
+function setRialDir(dir) {
+  const seg = D.rialDir;
+  if (!seg) return;
+  seg.dataset.val = dir;
+  seg.querySelectorAll('button[data-val]').forEach(b => b.classList.toggle('active', b.dataset.val === dir));
+  // La domanda "conta come spesa" ha senso solo quando si TOLGONO soldi
+  const isTogli = dir === 'togli';
+  if (D.rialContaRow) D.rialContaRow.style.display = isTogli ? '' : 'none';
+  if (D.rialHint) D.rialHint.style.display = isTogli ? '' : 'none';
+}
+
+async function saveRiallineo() {
+  const dir = (D.rialDir && D.rialDir.dataset.val) || 'togli';
+  const imp = round2(parseAmount(D.rialAmt.value) || 0);
+  if (!imp || imp <= 0) { toast('Inserisci un importo valido', 'warn'); return; }
+  const note = (D.rialNote.value || '').trim() || null;
+  const eq = computeEquity();
+  const box = eq.box || 0;
+  if (dir === 'togli' && imp > box + 0.001) {
+    if (!confirm('Nello scatolo ci sono ' + fmtEur(box) + '. Vuoi comunque togliere ' + fmtEur(imp) + '? Il saldo diventerà negativo.')) return;
+  }
+
+  let payload;
+  if (dir === 'aggiungi') {
+    // versamento neutro (nessun autore → niente equità, fuori dalle medie)
+    payload = boxPayload('versamento', null, imp, today(), RIAL_DESC, note);
+  } else if (D.rialConta && D.rialConta.checked) {
+    // spesa pagata dallo scatolo (entra nelle medie, equità neutra)
+    payload = {
+      tipo_movimento: 'spesa', tipo: 'uscita', importo: imp,
+      categoria_id: null, descrizione: RIAL_DESC, note,
+      data: today(), autore: null, fonte: 'scatolo',
+      personale: false, straordinaria: false, quota: null,
+      competenza_da: null, competenza_a: null, competenza_tipo: null
+    };
+  } else {
+    // prelievo neutro (solo correzione di conteggio)
+    payload = boxPayload('prelievo', null, imp, today(), RIAL_DESC, note);
+  }
+
+  setBtnLoading(D.rialSave, true);
+  try {
+    await saveTransaction(payload);
+    closeModal('modalRiallineo');
+    toast('Scatolo riallineato', 'success');
+  } catch (e) {
+    console.error('riallineo', e);
+    toast('Errore nel salvataggio', 'error');
+  } finally {
+    setBtnLoading(D.rialSave, false);
+  }
+}
+
 // Donut "Uscite per autore" — usa lo stesso range del trend mesi
 // (default: mese corrente + 2 mesi precedenti). Mostra il totale numerico
 // al centro e le percentuali nella legend, un colore per autore.
@@ -4446,9 +4525,9 @@ function txRowHtml(t) {
   }
   // spesa
   const c = catById(t.categoria_id);
-  const icon = c ? c.icona : '📦';
+  const icon = c ? c.icona : (t.fonte === 'scatolo' && t.descrizione ? '⚖️' : '📦');
   const color = c ? c.colore : '#94a3b8';
-  const name = c ? c.nome : 'Altro';
+  const name = c ? c.nome : (t.descrizione || 'Altro');
   const macro = c && c.macro_categoria ? macroById(c.macro_categoria) : null;
   const macroPrefix = macro ? '<span class="tx-macro">' + macro.icon + ' ' + macroLabel(c.macro_categoria) + '</span> › ' : '';
   const meta = ['Pagato il ' + fmtData(t.data), t.fonte ? fonteShort(t.fonte, t.autore) : (t.autore ? '👤 ' + t.autore : ''),
@@ -4682,6 +4761,8 @@ function tx2SyncToolbar() {
   if (D.tx2To)   D.tx2To.value   = st.to   || '';
   if (D.tx2Quick) $$('button', D.tx2Quick).forEach(b => b.classList.toggle('active', b.getAttribute('data-q') === st.quick));
   if (D.tx2ScatoloChip) D.tx2ScatoloChip.classList.toggle('active', !!st.scatoloOnly);
+  // Bottone "Riallinea fondi scatolo": visibile solo nel filtro movimenti scatolo
+  if (D.tx2RiallineaBtn) D.tx2RiallineaBtn.hidden = !st.scatoloOnly;
   // badge sul bottone filtri
   if (D.tx2FiltBadge) {
     const n = tx2FilterCount();
@@ -8291,6 +8372,23 @@ function bindEvents() {
   if (D.wizSplitRange) D.wizSplitRange.addEventListener('input', () => { WIZ.splitA = Number(D.wizSplitRange.value); renderWizSplitReadout(); updateWizNext(); });
   // Bottone "Registra riequilibrio" nella dashboard
   if (D.cdSettleBtn) D.cdSettleBtn.addEventListener('click', registerRiequilibrio);
+  // Card scatolo cliccabile → pagina Transazioni filtrata sui movimenti scatolo
+  if (D.cdScatoloCard) {
+    const goScatolo = () => {
+      const st = _tx2State();
+      st.scatoloOnly = true; st.page = 1;
+      switchView('list');
+      tx2SyncToolbar(); drawTx2();
+    };
+    D.cdScatoloCard.addEventListener('click', goScatolo);
+    D.cdScatoloCard.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goScatolo(); }
+    });
+  }
+  // Riallineamento fondi scatolo
+  if (D.tx2RiallineaBtn) D.tx2RiallineaBtn.addEventListener('click', openRiallineo);
+  if (D.rialDir) $$('button[data-val]', D.rialDir).forEach(b => b.addEventListener('click', () => setRialDir(b.getAttribute('data-val'))));
+  if (D.rialSave) D.rialSave.addEventListener('click', saveRiallineo);
   if (D.wizNumpad) {
     $$('button', D.wizNumpad).forEach(b => {
       // niente focus sul bottone → niente auto-scroll del contenitore al primo tap
