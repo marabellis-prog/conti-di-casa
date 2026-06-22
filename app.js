@@ -3177,7 +3177,16 @@ function renderConti() {
   if (D.cdAvgMonth) D.cdAvgMonth.textContent = fmtEur(monthSum);
   if (D.cdAvgMonthK) D.cdAvgMonthK.textContent = (MESI_FULL[cm.mese - 1] || '') + ' ' + cm.anno;
   if (D.cdAvgMean) D.cdAvgMean.textContent = fmtEur(sumWin / win);
-  if (D.cdAvgMeanSub) D.cdAvgMeanSub.textContent = 'ultimi ' + win + (win === 1 ? ' mese' : ' mesi');
+  if (D.cdAvgMeanSub) {
+    // Estremi della finestra mediata (mobile: `win` mesi che terminano nel mese corrente)
+    let sy = cm.anno, sm = cm.mese - (win - 1);
+    while (sm < 1) { sm += 12; sy--; }
+    const endDay = new Date(cm.anno, cm.mese, 0).getDate();
+    const fmtPt = (y, m, d, withYear) => d + ' ' + (MESI_SHORT[m - 1] || '').toLowerCase() + (withYear ? ' ' + y : '');
+    const rangeLbl = fmtPt(sy, sm, 1, sy !== cm.anno) + ' - ' + fmtPt(cm.anno, cm.mese, endDay, true);
+    D.cdAvgMeanSub.innerHTML = 'ultimi ' + win + (win === 1 ? ' mese' : ' mesi') +
+      '<br><span class="cd-avg-range">(' + rangeLbl + ')</span>';
+  }
   if (D.cdAvgNote) D.cdAvgNote.textContent = 'Spese spalmate sul periodo di competenza · straordinarie escluse.';
 
   // ── ULTIME OPERAZIONI ──

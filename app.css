@@ -4082,6 +4082,7 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .cd-avg-k { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 5px; }
 .cd-avg-v { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.1; }
 .cd-avg-sub { font-size: 11px; color: var(--text-dim); margin-top: 3px; text-transform: capitalize; }
+.cd-avg-range { display: inline-block; margin-top: 1px; font-size: 10px; opacity: .85; text-transform: none; }
 .cd-avg-note { font-size: 11px; color: var(--text-dim); margin-top: 12px; line-height: 1.4; }
 /* Ultime operazioni */
 .cd-recent .tx-row:last-child { border-bottom: none; }
