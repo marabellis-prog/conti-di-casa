@@ -18,9 +18,9 @@
   <!-- Font scritto a mano per la lavagna ToDo -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
   <!-- Preload degli asset locali critici -->
-  <link rel="preload" href="./app.css?v=179" as="style">
-  <link rel="preload" href="./app.js?v=179" as="script">
-  <link rel="preload" href="./charts.js?v=179" as="script">
+  <link rel="preload" href="./app.css?v=180" as="style">
+  <link rel="preload" href="./app.js?v=180" as="script">
+  <link rel="preload" href="./charts.js?v=180" as="script">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=4" type="image/png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=4">
@@ -43,7 +43,7 @@
       document.documentElement.setAttribute('data-theme', __t);
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="./app.css?v=179">
+  <link rel="stylesheet" href="./app.css?v=180">
   <title>Gestione Casa</title>
 </head>
 <body>
@@ -280,6 +280,7 @@
         </div>
       </div>
 
+      <div id="tx2Chart" class="tx2-chart" hidden></div>
       <div class="tx2-summary" id="tx2Summary"></div>
       <button class="tx2-riallinea" id="tx2RiallineaBtn" type="button" hidden>⚖️ Riallinea fondi scatolo</button>
       <div id="tx2List"></div>
@@ -311,6 +312,9 @@
 
     <!-- STATISTICHE -->
     <section id="view-stats" class="view">
+      <div class="stats-scope">
+        <button type="button" id="statsDettBtn">🔎 Dettagli e filtri</button>
+      </div>
       <div id="statsAnno">
         <div class="cd-card stats-card">
           <div class="cd-card-lbl" id="statsTitle">Uscite</div>
@@ -1121,7 +1125,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script src="./charts.js?v=179"></script>
-  <script src="./app.js?v=179"></script>
+  <script src="./charts.js?v=180"></script>
+  <script src="./app.js?v=180"></script>
 </body>
 </html>

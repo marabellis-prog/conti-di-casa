@@ -3477,6 +3477,10 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 }
 .tx2-summary .pos { color: var(--ok); }
 .tx2-summary .neg { color: var(--danger); }
+/* Grafico uscite filtrate (sopra la lista in Transazioni / Dettagli) */
+.tx2-chart { margin: 6px 0 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 10px 8px 4px; }
+.tx2-chart[hidden] { display: none; }
+.tx2-chart svg { width: 100%; height: auto; display: block; }
 /* Bottone "Riallinea fondi scatolo" (visibile solo nel filtro movimenti scatolo) */
 .tx2-riallinea {
   display: block; width: 100%;

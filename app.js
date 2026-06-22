@@ -152,7 +152,7 @@ function cacheDOM() {
    'listPeriodCustom','listPeriodFrom','listPeriodTo','listPeriodSummary',
    // Transazioni v2
    'tx2Search','tx2SearchClear','tx2FiltBtn','tx2FiltBadge','tx2ActiveBar','tx2Panel',
-   'tx2Quick','tx2From','tx2To','tx2DatesClear','tx2CatFilter','tx2AutoreFilter','tx2ScatoloChip','tx2Summary','tx2List',
+   'tx2Quick','tx2From','tx2To','tx2DatesClear','tx2CatFilter','tx2AutoreFilter','tx2ScatoloChip','tx2Chart','tx2Summary','tx2List',
    'tx2PerPage','tx2Prev','tx2Next','tx2PageInfo',
    'budgetList','catTabs','catList','btnAddCat',
    'fab','toast',
@@ -169,7 +169,7 @@ function cacheDOM() {
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdCashFlow','cdCashFlowK','cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
-   'statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsListTitle','statsList',
+   'statsDettBtn','statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsListTitle','statsList',
    'statsMPrev','statsMLabel','statsMNext','statsMTitle','statsMChart','statsMSub','statsMContribTitle','statsMContrib','statsMListTitle','statsMList',
    'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
@@ -4906,10 +4906,47 @@ function renderList() {
   drawTx2();
 }
 
+// Grafico delle USCITE del set filtrato (Transazioni / Dettagli): bucket per
+// giorno se il periodo è breve (≤ ~75 gg), altrimenti per mese.
+function renderTx2Chart(all) {
+  if (!D.tx2Chart || !window.Charts) return;
+  const usc = (all || []).filter(t => t.tipo === 'uscita');
+  if (usc.length < 2) { D.tx2Chart.hidden = true; D.tx2Chart.innerHTML = ''; return; }
+  const dates = usc.map(t => String(t.data)).sort();
+  const start = new Date(dates[0] + 'T00:00:00');
+  const end = new Date(dates[dates.length - 1] + 'T00:00:00');
+  const spanDays = Math.round((end - start) / 86400000);
+  let labels, points, ptLabels;
+  if (spanDays <= 75) {
+    // giornaliero dal primo all'ultimo giorno
+    const buckets = []; const cur = new Date(start);
+    while (cur <= end) { buckets.push(cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0')); cur.setDate(cur.getDate() + 1); }
+    const sum = {}; usc.forEach(t => { sum[t.data] = (sum[t.data] || 0) + Number(t.importo); });
+    points = buckets.map(d => sum[d] || 0);
+    labels = buckets.map(d => String(Number(d.slice(8, 10))));
+    ptLabels = buckets.map(d => Number(d.slice(8, 10)) + ' ' + (MESI_SHORT[Number(d.slice(5, 7)) - 1] || '').toLowerCase());
+  } else {
+    // mensile
+    const buckets = []; const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+    while (cur <= end) { buckets.push({ y: cur.getFullYear(), m: cur.getMonth() + 1 }); cur.setMonth(cur.getMonth() + 1); }
+    const sum = {}; usc.forEach(t => { const k = t.data.slice(0, 7); sum[k] = (sum[k] || 0) + Number(t.importo); });
+    points = buckets.map(b => sum[b.y + '-' + String(b.m).padStart(2, '0')] || 0);
+    labels = buckets.map(b => (MESI_SHORT[b.m - 1] || '') + (b.m === 1 ? " '" + String(b.y).slice(2) : ''));
+    ptLabels = buckets.map(b => (MESI_FULL[b.m - 1] || '') + ' ' + b.y);
+  }
+  D.tx2Chart.hidden = false;
+  Charts.renderLine(D.tx2Chart, [{ label: 'Uscite', color: 'var(--danger)', points }], labels, {
+    yTicks: 4, spanLine: true, pointTooltip: true, pointLabels: ptLabels
+  });
+}
+
 function drawTx2() {
   if (!D.tx2List) return;
   const st = _tx2State();
   const all = tx2Filtered();
+
+  // Grafico delle uscite filtrate (sopra la lista)
+  renderTx2Chart(all);
 
   // Riepilogo
   if (D.tx2Summary) {
@@ -8663,6 +8700,8 @@ function bindEvents() {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goScatolo(); }
     });
   }
+  // Statistiche: badge "Dettagli e filtri" → pagina Transazioni (filtri + grafico + lista)
+  if (D.statsDettBtn) D.statsDettBtn.addEventListener('click', () => switchView('list'));
   // Statistiche: badge Anno/Mese in alto
   if (D.statsScope) $$('button[data-scope]', D.statsScope).forEach(b => b.addEventListener('click', () => setStatsScope(b.getAttribute('data-scope'))));
   // Statistiche: tocca il titolo per alternare vista totale ↔ dettagli per utente
