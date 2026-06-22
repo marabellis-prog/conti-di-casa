@@ -291,7 +291,7 @@
       rl.setAttribute('x1', PAD_L); rl.setAttribute('x2', W - PAD_R);
       rl.setAttribute('y1', ry.toFixed(1)); rl.setAttribute('y2', ry.toFixed(1));
       rl.setAttribute('stroke', opts.refLine.color || 'var(--accent)');
-      rl.setAttribute('stroke-width', '1.5');
+      rl.setAttribute('stroke-width', '1.2'); // ~20% più sottile
       rl.setAttribute('stroke-dasharray', '5 3');
       svg.appendChild(rl);
       if (opts.refLine.label) {
@@ -335,7 +335,7 @@
       }));
       (opts.legendExtra || []).forEach(e => items.push({
         label: String(e.label || ''), color: e.color || 'var(--text-faint)',
-        value: (e.value != null ? e.value : null)
+        value: (e.value != null ? e.value : null), dash: !!e.dash
       }));
       if (items.length) {
         const lfs = 9, dotR = 3, gap = 4, lh = lfs + 5, padX = 5, padY = 3;
@@ -358,12 +358,22 @@
         items.forEach((it, k) => {
           const cy = boxY + padY + k * lh + lfs / 2 + 1;
           const x0 = boxX + padX;
-          const dot = document.createElementNS(NS, 'circle');
-          dot.setAttribute('cx', (x0 + dotR).toFixed(1));
-          dot.setAttribute('cy', cy.toFixed(1));
-          dot.setAttribute('r', dotR);
-          dot.setAttribute('fill', it.color);
-          lg.appendChild(dot);
+          if (it.dash) {
+            // segno tratteggiato (coerente con la linea di riferimento)
+            const ln = document.createElementNS(NS, 'line');
+            ln.setAttribute('x1', x0.toFixed(1)); ln.setAttribute('x2', (x0 + dotR * 2).toFixed(1));
+            ln.setAttribute('y1', cy.toFixed(1)); ln.setAttribute('y2', cy.toFixed(1));
+            ln.setAttribute('stroke', it.color); ln.setAttribute('stroke-width', '1.5');
+            ln.setAttribute('stroke-dasharray', '2 1.5');
+            lg.appendChild(ln);
+          } else {
+            const dot = document.createElementNS(NS, 'circle');
+            dot.setAttribute('cx', (x0 + dotR).toFixed(1));
+            dot.setAttribute('cy', cy.toFixed(1));
+            dot.setAttribute('r', dotR);
+            dot.setAttribute('fill', it.color);
+            lg.appendChild(dot);
+          }
           const tx = document.createElementNS(NS, 'text');
           tx.setAttribute('x', (x0 + dotR * 2 + gap).toFixed(1));
           tx.setAttribute('y', (cy + lfs * 0.36).toFixed(1));

@@ -3107,26 +3107,32 @@ function spesaCompMonths(t) {
 }
 
 // Media mensile delle spese comuni dell'ANNO IN CORSO (competenza-spread,
-// straordinarie escluse): somma allocata ai mesi dell'anno / mesi coperti
-// (dal primo all'ultimo mese con spese). Sorgente unica condivisa tra la
-// dashboard (riquadro "Media mensile") e la vista Statistiche (linea media).
+// straordinarie escluse). È una media "in divenire": si ferma al MESE CORRENTE
+// (i mesi futuri NON contano, né al numeratore né al denominatore — altrimenti
+// le quote di competenza di spese annuali diluirebbero la media su mesi non
+// ancora avvenuti). Denominatore = mesi trascorsi dal primo mese con spese fino
+// a oggi. Sorgente unica condivisa tra dashboard (riquadro "Media mensile") e
+// vista Statistiche (linea media).
 function mediaComuniAnnoInfo() {
-  const yr = new Date().getFullYear();
+  const now = new Date();
+  const yr = now.getFullYear();
+  const curMonth = now.getMonth() + 1; // 1..12
   const allocM = new Array(13).fill(0); // indici 1..12
   commonSpese().filter(t => !t.straordinaria).forEach(t => {
     const months = spesaCompMonths(t);
     if (!months.length) return;
     const per = (Number(t.importo) || 0) / months.length;
-    months.forEach(({ y, m }) => { if (y === yr) allocM[m] += per; });
+    months.forEach(({ y, m }) => { if (y === yr && m <= curMonth) allocM[m] += per; });
   });
-  let firstM = null, lastM = null, sumYear = 0;
-  for (let m = 1; m <= 12; m++) {
-    if (allocM[m] > 0.0001) { if (firstM === null) firstM = m; lastM = m; }
+  let firstM = null, sumYear = 0;
+  for (let m = 1; m <= curMonth; m++) {
+    if (allocM[m] > 0.0001 && firstM === null) firstM = m;
     sumYear += allocM[m];
   }
-  const win = firstM === null ? 1 : (lastM - firstM + 1);
+  const lastM = curMonth; // la media termina con i mesi fino a oggi
+  const win = firstM === null ? 1 : (curMonth - firstM + 1);
   const media = firstM === null ? 0 : sumYear / win;
-  return { year: yr, allocM, firstM, lastM, win, media };
+  return { year: yr, curMonth, allocM, firstM, lastM, win, media };
 }
 
 function renderConti() {
@@ -5349,11 +5355,16 @@ function renderStats() {
   });
   const tot = monthly.reduce((a, b) => a + b, 0);
   const media = mediaComuniAnnoInfo().media; // stessa media del riquadro in dashboard
-  const refLine = media > 0 ? { value: media, label: 'media ' + fmtEur(media), color: 'var(--accent)' } : null;
+  // Linea media: solo tratteggio nel grafico (niente etichetta che copre i dati);
+  // la cifra va in legenda.
+  const refLine = media > 0 ? { value: media, color: 'var(--accent)' } : null;
+  // La media compare in legenda come voce tratteggiata (in entrambe le viste).
+  const legendExtra = [];
+  if (media > 0) legendExtra.push({ label: 'Media', value: media, color: 'var(--accent)', dash: true });
 
   if (D.statsTitle) D.statsTitle.textContent = 'Uscite mensili ' + yr + (detail ? ' - dettagli' : '');
 
-  let series, legendExtra = null, dropLines = true;
+  let series, dropLines = true;
   if (!detail) {
     series = [{ label: 'Uscite ' + yr, color: 'var(--danger)', points: monthly }];
     if (D.statsSub) D.statsSub.textContent = 'Cifre grezze (per data) · totale anno ' + fmtEur(tot) + ' · tocca il titolo per i dettagli';
@@ -5376,7 +5387,7 @@ function renderStats() {
     series = A
       .map(n => ({ label: shortName(n), color: colorForAutore(n), points: perUser[n].map(v => Math.max(0, round2(v))) }))
       .filter(s => s.points.some(v => v > 0.005));
-    legendExtra = [{ label: 'Totale spese', value: tot, color: 'var(--text-faint)' }];
+    legendExtra.push({ label: 'Totale spese', value: tot, color: 'var(--text-faint)' });
     dropLines = false; // con più linee le drop-line affollerebbero
     if (D.statsSub) D.statsSub.textContent = 'Contributo per utente (anticipi scatolo + pagamenti diretti) · tocca il titolo per tornare';
   }
