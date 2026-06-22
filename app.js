@@ -3102,6 +3102,29 @@ function spesaCompMonths(t) {
   return [{ y: yy, m: mm }];
 }
 
+// Media mensile delle spese comuni dell'ANNO IN CORSO (competenza-spread,
+// straordinarie escluse): somma allocata ai mesi dell'anno / mesi coperti
+// (dal primo all'ultimo mese con spese). Sorgente unica condivisa tra la
+// dashboard (riquadro "Media mensile") e la vista Statistiche (linea media).
+function mediaComuniAnnoInfo() {
+  const yr = new Date().getFullYear();
+  const allocM = new Array(13).fill(0); // indici 1..12
+  commonSpese().filter(t => !t.straordinaria).forEach(t => {
+    const months = spesaCompMonths(t);
+    if (!months.length) return;
+    const per = (Number(t.importo) || 0) / months.length;
+    months.forEach(({ y, m }) => { if (y === yr) allocM[m] += per; });
+  });
+  let firstM = null, lastM = null, sumYear = 0;
+  for (let m = 1; m <= 12; m++) {
+    if (allocM[m] > 0.0001) { if (firstM === null) firstM = m; lastM = m; }
+    sumYear += allocM[m];
+  }
+  const win = firstM === null ? 1 : (lastM - firstM + 1);
+  const media = firstM === null ? 0 : sumYear / win;
+  return { year: yr, allocM, firstM, lastM, win, media };
+}
+
 function renderConti() {
   if (!D.cdScatolo) return; // DOM non pronto
   const A = getAutoriList();
@@ -3152,42 +3175,24 @@ function renderConti() {
   const cm = { anno: _now.getFullYear(), mese: _now.getMonth() + 1 };
   // Mappa mese→importo: ogni spesa comune (non straordinaria) viene divisa
   // sui mesi del suo periodo di competenza (es. TARI semestrale = 1/6 al mese).
-  const alloc = {};
-  commonSpese().filter(t => !t.straordinaria).forEach(t => {
-    const months = spesaCompMonths(t);
-    if (!months.length) return;
-    const per = (Number(t.importo) || 0) / months.length;
-    months.forEach(({ y, m }) => { const k = y + '-' + m; alloc[k] = (alloc[k] || 0) + per; });
-  });
-  const monthSum = alloc[cm.anno + '-' + cm.mese] || 0;
+  const mi = mediaComuniAnnoInfo();
+  const monthSum = mi.allocM[cm.mese] || 0;          // competenza del mese corrente
   // Flusso cassa: contante uscito per spese comuni nel mese corrente, contato
   // per DATA di pagamento (senza spalmare la competenza) — la "cifra grezza".
   const cashFlow = commonSpese()
     .filter(t => inMonth(t.data, cm.anno, cm.mese))
     .reduce((s, t) => s + (Number(t.importo) || 0), 0);
-  // Media mensile dell'ANNO IN CORSO: somma le spese comuni allocate ai mesi
-  // dell'anno corrente (competenza-spread) divisa per i mesi coperti, ossia dal
-  // primo all'ultimo mese del 2026 con spese. Quando le spese ricorrenti coprono
-  // via competenza tutto l'anno, la media coincide col totale annuo / 12.
-  let firstM = null, lastM = null, sumYear = 0;
-  for (let m = 1; m <= 12; m++) {
-    const v = alloc[cm.anno + '-' + m] || 0;
-    if (v > 0.0001) { if (firstM === null) firstM = m; lastM = m; }
-    sumYear += v;
-  }
-  let win, media;
-  if (firstM === null) { firstM = cm.mese; lastM = cm.mese; win = 1; media = 0; }
-  else { win = lastM - firstM + 1; media = sumYear / win; }
   if (D.cdCashFlow) D.cdCashFlow.textContent = fmtEur(cashFlow);
   if (D.cdCashFlowK) D.cdCashFlowK.textContent = (MESI_FULL[cm.mese - 1] || '') + ' ' + cm.anno;
   if (D.cdAvgMonth) D.cdAvgMonth.textContent = fmtEur(monthSum);
   if (D.cdAvgMonthK) D.cdAvgMonthK.textContent = (MESI_FULL[cm.mese - 1] || '') + ' ' + cm.anno;
-  if (D.cdAvgMean) D.cdAvgMean.textContent = fmtEur(media);
+  if (D.cdAvgMean) D.cdAvgMean.textContent = fmtEur(mi.media);
   if (D.cdAvgMeanSub) {
     // Intervallo coperto nell'anno in corso (dal primo all'ultimo mese con spese)
-    const endDay = new Date(cm.anno, lastM, 0).getDate();
+    const fM = mi.firstM || cm.mese, lM = mi.lastM || cm.mese;
+    const endDay = new Date(cm.anno, lM, 0).getDate();
     const ms = m => (MESI_SHORT[m - 1] || '').toLowerCase();
-    const rangeLbl = '1 ' + ms(firstM) + ' - ' + endDay + ' ' + ms(lastM) + ' ' + cm.anno;
+    const rangeLbl = '1 ' + ms(fM) + ' - ' + endDay + ' ' + ms(lM) + ' ' + cm.anno;
     D.cdAvgMeanSub.innerHTML = 'anno in corso<br><span class="cd-avg-range">(' + rangeLbl + ')</span>';
   }
   if (D.cdAvgNote) D.cdAvgNote.textContent = 'Spese spalmate sul periodo di competenza · straordinarie escluse.';
@@ -3745,18 +3750,16 @@ function renderHomeGestione() {
     D.homeContiPeriod.textContent = String(annoCorrente);
   }
 
-  // Mini donut: quota di spese comuni "uscita dal conto" di ciascun utente
-  // (pagate dal proprio conto/buoni). Le spese pagate DALLO SCATOLO sono denaro
-  // comune e non escono dal conto di nessuno → escluse. No testo, no legenda.
+  // Mini donut: quanto ha messo ciascun utente verso la casa nell'anno in corso
+  // = contributi (anticipi nello scatolo + pagamenti dal proprio conto/buoni,
+  // al netto dei prelievi). Lo scatolo è un anticipo, quindi chi lo alimenta
+  // compare anche se non ha pagato direttamente. No testo, no legenda.
   if (D.homeContiDonut) {
-    const byAutore = {};
-    speseAnno.forEach(t => {
-      if (t.fonte === 'scatolo' || !t.autore) return;
-      byAutore[t.autore] = (byAutore[t.autore] || 0) + Number(t.importo);
-    });
-    const segs = Object.keys(byAutore)
-      .sort((a, b) => byAutore[b] - byAutore[a])
-      .map(nome => ({ label: shortName(nome), value: byAutore[nome], color: colorForAutore(nome) }));
+    const eq = computeEquity();
+    const segs = (eq.A || [])
+      .map(nome => ({ label: shortName(nome), value: Math.max(0, round2(eq.contrib[nome] || 0)), color: colorForAutore(nome) }))
+      .filter(s => s.value > 0.005)
+      .sort((a, b) => b.value - a.value);
     if (segs.length) {
       Charts.renderDonut(D.homeContiDonut, segs, { noText: true, noLegend: true });
     } else {
@@ -5339,12 +5342,17 @@ function renderStats() {
     if (y === yr && m >= 1 && m <= 12) monthly[m - 1] += Number(t.importo) || 0;
   });
   const tot = monthly.reduce((a, b) => a + b, 0);
+  const media = mediaComuniAnnoInfo().media; // stessa media del riquadro in dashboard
   if (D.statsTitle) D.statsTitle.textContent = 'Uscite mensili ' + yr;
   if (D.statsSub) D.statsSub.textContent = 'Cifre grezze (per data di pagamento) · totale anno ' + fmtEur(tot);
   Charts.renderLine(D.statsChart,
     [{ label: 'Uscite ' + yr, color: 'var(--danger)', points: monthly }],
     MESI_SHORT,
-    { yTicks: 5, allXLabels: true, dropLines: true, pointTooltip: true, pointLabels: MESI_FULL, legendTopRight: true });
+    {
+      yTicks: 5, allXLabels: true, dropLines: true, pointTooltip: true,
+      pointLabels: MESI_FULL, legendTopRight: true,
+      refLine: media > 0 ? { value: media, label: 'media ' + fmtEur(media), color: 'var(--accent)' } : null
+    });
 }
 
 function renderCatView() {

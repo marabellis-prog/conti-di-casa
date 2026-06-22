@@ -138,6 +138,7 @@
     const N = series[0].points.length;
     const allVals = series.flatMap(s => s.points);
     let maxV = Math.max.apply(null, allVals);
+    if (opts.refLine && opts.refLine.value > maxV) maxV = opts.refLine.value; // la media deve starci dentro
     if (maxV <= 0) maxV = 1;
     // arrotonda max al "nice number"
     const niceMax = niceCeil(maxV);
@@ -282,6 +283,28 @@
         }
       });
     });
+
+    // Linea di riferimento orizzontale tratteggiata (es. media mensile)
+    if (opts.refLine && opts.refLine.value > 0) {
+      const ry = baseY - (opts.refLine.value / niceMax) * (H - PAD_T - PAD_B);
+      const rl = document.createElementNS(NS, 'line');
+      rl.setAttribute('x1', PAD_L); rl.setAttribute('x2', W - PAD_R);
+      rl.setAttribute('y1', ry.toFixed(1)); rl.setAttribute('y2', ry.toFixed(1));
+      rl.setAttribute('stroke', opts.refLine.color || 'var(--accent)');
+      rl.setAttribute('stroke-width', '1.5');
+      rl.setAttribute('stroke-dasharray', '5 3');
+      svg.appendChild(rl);
+      if (opts.refLine.label) {
+        const rt = document.createElementNS(NS, 'text');
+        rt.setAttribute('x', PAD_L + 3);
+        rt.setAttribute('y', ((ry - 3 < PAD_T + 6) ? ry + 9 : ry - 3).toFixed(1));
+        rt.setAttribute('fill', opts.refLine.color || 'var(--accent)');
+        rt.setAttribute('font-size', '8.5');
+        rt.setAttribute('font-weight', '700');
+        rt.textContent = opts.refLine.label;
+        svg.appendChild(rt);
+      }
+    }
 
     // x-labels: di default ogni N/6 per non affollare; opts.allXLabels = tutte
     const everyN = Math.max(1, Math.ceil(N / 6));
