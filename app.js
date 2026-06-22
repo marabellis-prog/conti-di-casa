@@ -169,7 +169,7 @@ function cacheDOM() {
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdCashFlow','cdCashFlowK','cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
-   'statsTitle','statsSub','statsChart',
+   'statsTitle','statsSub','statsChart','statsListTitle','statsList',
    'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
    'txEditSpesaFields','txEditFonte','txEditCat','txEditPersonale',
@@ -5395,8 +5395,36 @@ function renderStats() {
   Charts.renderLine(D.statsChart, series, MESI_SHORT, {
     yTicks: 5, allXLabels: true, dropLines: dropLines, pointTooltip: true,
     pointLabels: MESI_FULL, legendTopRight: true, legendValues: true, legendExtra: legendExtra,
-    refLine: refLine
+    refLine: refLine,
+    onPoint: (i) => renderStatsList(i + 1) // tap su un punto → lista spese di quel mese
   });
+  // Lista spese del mese selezionato (default: mese corrente)
+  renderStatsList(S.statsListMonth || (new Date().getMonth() + 1));
+}
+
+// Elenco delle spese comuni di un mese dell'anno in corso (le stesse che
+// compongono il punto del grafico). Cliccabili per aprire la modifica.
+function renderStatsList(month) {
+  if (!D.statsList) return;
+  const yr = new Date().getFullYear();
+  const m = month || (new Date().getMonth() + 1);
+  S.statsListMonth = m;
+  const rows = commonSpese()
+    .filter(t => inMonth(t.data, yr, m))
+    .slice()
+    .sort((a, b) => (a.data < b.data ? 1 : (a.data > b.data ? -1 : 0)));
+  const tot = rows.reduce((s, t) => s + (Number(t.importo) || 0), 0);
+  if (D.statsListTitle) {
+    D.statsListTitle.textContent = 'Spese di ' + (MESI_FULL[m - 1] || '') + ' ' + yr +
+      (rows.length ? ' · ' + fmtEur(tot) : '');
+  }
+  if (!rows.length) {
+    D.statsList.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 2px">Nessuna spesa in questo mese.</div>';
+    return;
+  }
+  D.statsList.innerHTML = rows.map(txRowHtml).join('');
+  bindTxRows(D.statsList);
+  twemojify(D.statsList);
 }
 
 function renderCatView() {
@@ -5697,7 +5725,7 @@ function switchView(name) {
     renderList();
   }
   else if (name === 'cat')  renderCatView();
-  else if (name === 'stats') { renderStats(); ensureAllTxLoaded().then(renderStats); }
+  else if (name === 'stats') { S.statsListMonth = null; renderStats(); ensureAllTxLoaded().then(renderStats); }
   else if (name === 'spesa') {
     renderSpesa();
     refreshSpesaNow();
