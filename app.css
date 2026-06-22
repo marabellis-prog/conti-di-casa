@@ -4098,7 +4098,11 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .stats-contrib-card { margin-top: 12px; }
 .stats-contrib { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center; }
 .stats-contrib svg { width: 120px; height: 120px; flex: 0 0 auto; }
-.stats-contrib .donut-legend { flex: 1 1 140px; min-width: 140px; }
+.stats-contrib .donut-legend { flex: 1 1 150px; min-width: 150px; }
+/* Legenda contribuzione: "Nome €cifra (xx%)" a sinistra, % piccola e dimmer */
+.stats-contrib .scl-legend .legend-row { cursor: default; }
+.scl-legend .legend-row .scl-txt { flex: 1; min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; font-weight: 600; }
+.scl-legend .scl-pct { color: var(--text-faint); font-size: .85em; font-weight: 600; white-space: nowrap; }
 #statsTitle { cursor: pointer; -webkit-tap-highlight-color: transparent; display: inline-block; border-bottom: 1px dashed var(--text-faint); padding-bottom: 1px; }
 #statsTitle:active { opacity: .6; }
 .stats-chart { margin-top: 12px; }

@@ -5464,16 +5464,29 @@ function renderStatsContribDonut(month) {
   const m = month || (new Date().getMonth() + 1);
   const by = contribByAutore(yr, m);
   const segs = Object.keys(by)
-    .map(n => ({ nome: n, val: Math.max(0, round2(by[n])) }))
-    .filter(s => s.val > 0.005)
-    .sort((a, b) => b.val - a.val)
-    .map(s => ({ label: shortName(s.nome) + ' ' + fmtEur(s.val), value: s.val, color: colorForAutore(s.nome) }));
+    .map(n => ({ label: shortName(n), value: Math.max(0, round2(by[n])), color: colorForAutore(n) }))
+    .filter(s => s.value > 0.005)
+    .sort((a, b) => b.value - a.value);
   if (D.statsContribTitle) D.statsContribTitle.textContent = 'Contribuzione · ' + (MESI_FULL[m - 1] || '') + ' ' + yr;
   if (!segs.length) {
     D.statsContrib.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 2px">Nessuna contribuzione in questo mese.</div>';
     return;
   }
-  Charts.renderDonut(D.statsContrib, segs, { subLabel: 'contribuito' });
+  // Donut senza legenda interna; costruiamo una legenda custom a sinistra con
+  // "Nome €cifra (xx%)" — percentuale tra parentesi, più piccola, dopo la cifra.
+  Charts.renderDonut(D.statsContrib, segs, { noLegend: true, subLabel: 'contribuito' });
+  const total = segs.reduce((s, x) => s + x.value, 0);
+  const leg = document.createElement('div');
+  leg.className = 'donut-legend scl-legend';
+  leg.innerHTML = segs.map(s => {
+    const pct = total > 0 ? Math.round(s.value / total * 100) : 0;
+    return '<div class="legend-row">' +
+      '<span class="legend-dot" style="background:' + s.color + '"></span>' +
+      '<span class="scl-txt">' + esc(s.label) + ' ' + fmtEur(s.value) +
+      ' <span class="scl-pct">(' + pct + '%)</span></span>' +
+      '</div>';
+  }).join('');
+  D.statsContrib.appendChild(leg);
 }
 
 // Aggiorna insieme donut contribuzione + lista spese per un mese
