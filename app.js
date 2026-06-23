@@ -177,7 +177,7 @@ function cacheDOM() {
    'txEditSplitWrap','txEditSplit','txEditSplitCustom','txEditSplitRange','txEditSplitReadout','txEditStraord','txEditStraordRow',
    'txEditBoxFields','txEditChiLabel','txEditAutore','txEditMotivoWrap','txEditMotivo',
    'txEditCompQuick','txEditCompDa','txEditCompA',
-   'modalCat','catEditTitle','catEditName','catEditTipo','catEditEmojis','catEditColors','catEditSave','catEditDelete',
+   'modalCat','catEditTitle','catEditName','catEditTipo','catEditMacro','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
    'modalSettings','setTheme','setSave','setClearCache','setVersion',
    'setUsersList','setAddUser','setLogout',
@@ -7748,10 +7748,26 @@ function openCatEdit(id) {
   D.catEditTipo.value = c.tipo || 'uscita';
   // aggiorna breadcrumb quando l'utente digita
   D.catEditName.oninput = renderCatBreadcrumb;
+  renderCatMacroSelect();
   renderEmojiPicker();
   renderColorPicker();
   renderCatBreadcrumb();
   openModal('modalCat');
+}
+
+// Selettore "Macro-categoria" (indipendente dall'icona): permette di spostare
+// una sotto-categoria in qualsiasi macro tenendo la sua icona.
+function renderCatMacroSelect() {
+  const sel = D.catEditMacro;
+  if (!sel) return;
+  sel.innerHTML = EMOJI_CATS.map(m =>
+    '<option value="' + m.id + '">' + m.icon + ' ' + esc(macroLabel(m.id)) + '</option>'
+  ).join('');
+  sel.value = catEditState.macro_categoria || EMOJI_CATS[0].id;
+  sel.onchange = () => {
+    catEditState.macro_categoria = sel.value;
+    renderCatBreadcrumb();
+  };
 }
 
 function macroById(id) {
@@ -7798,26 +7814,18 @@ function renderEmojiPicker() {
   html += '</div>';
   wrap.innerHTML = html;
 
-  // tab clicks (cambio macro-categoria)
+  // tab clicks: cambiano solo il GRUPPO di icone mostrato (non la macro)
   $$('.ec-tab', wrap).forEach(b => {
     b.addEventListener('click', () => {
       catEditState.emojiCatIdx = Number(b.getAttribute('data-ci'));
-      catEditState.macro_categoria = EMOJI_CATS[catEditState.emojiCatIdx].id;
-      // se l'emoji selezionata non sta più nella nuova macro, prendi la prima della macro
-      const newMacro = EMOJI_CATS[catEditState.emojiCatIdx];
-      if (!newMacro.emojis.includes(catEditState.icona)) {
-        catEditState.icona = newMacro.emojis[0];
-      }
       renderEmojiPicker();
-      renderCatBreadcrumb();
       scrollActiveTabIntoView();
     });
   });
-  // emoji clicks (sotto-categoria)
+  // emoji clicks: scelgono l'icona (la macro resta quella del selettore)
   $$('.ec-grid button', wrap).forEach(b => {
     b.addEventListener('click', () => {
       catEditState.icona = b.getAttribute('data-e');
-      catEditState.macro_categoria = EMOJI_CATS[catEditState.emojiCatIdx].id;
       renderEmojiPicker();
       renderCatBreadcrumb();
       scrollActiveTabIntoView();
@@ -7836,13 +7844,10 @@ function renderEmojiPicker() {
 function shiftEmojiCat(delta) {
   const n = EMOJI_CATS.length;
   catEditState.emojiCatIdx = ((catEditState.emojiCatIdx + delta) % n + n) % n;
-  catEditState.macro_categoria = EMOJI_CATS[catEditState.emojiCatIdx].id;
-  const newMacro = EMOJI_CATS[catEditState.emojiCatIdx];
-  if (!newMacro.emojis.includes(catEditState.icona)) {
-    catEditState.icona = newMacro.emojis[0];
-  }
+  // Navigazione SOLO dei gruppi di icone: la macro-categoria è indipendente
+  // (si imposta col selettore "Macro-categoria"), così posso scegliere un'icona
+  // di un gruppo qualsiasi tenendo la macro che voglio.
   renderEmojiPicker();
-  renderCatBreadcrumb();
 }
 
 function scrollActiveTabIntoView() {
