@@ -4088,6 +4088,10 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .cd-avg-grid-3 .cd-avg-cell { padding: 12px 5px; min-width: 0; }
 .cd-avg-grid-3 .cd-avg-k { min-height: 28px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; }
 .cd-avg-grid-3 .cd-avg-v { font-size: clamp(15px, 4.4vw, 19px); }
+.cd-avg-cell-link { cursor: pointer; position: relative; -webkit-tap-highlight-color: transparent; transition: transform .12s; }
+.cd-avg-cell-link:active { transform: scale(.97); }
+.cd-avg-cell-link::after { content: '›'; position: absolute; top: 6px; right: 8px; font-size: 14px; font-weight: 700; color: var(--text-faint); line-height: 1; }
+.cd-avg-cell-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Statistiche */
 .stats-scope { display: flex; gap: 8px; justify-content: center; margin: 2px 0 12px; }
 .stats-scope button {

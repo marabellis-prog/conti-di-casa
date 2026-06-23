@@ -168,7 +168,7 @@ function cacheDOM() {
    'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizDataLbl','wizStep3Title','wizCompSection','wizCompQuick','wizCompDa','wizCompA','wizRecap','wizNote',
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
-   'cdCashFlow','cdCashFlowK','cdAvgMonth','cdAvgMonthK','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
+   'cdCashFlow','cdCashFlowK','cdAvgMonthCell','cdAvgMonth','cdAvgMonthK','cdAvgMeanCell','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
    'statsSpeseMeseBtn','statsMediaBtn','modalSpread','spreadTitle','spreadSub','spreadList','statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsListTitle','statsList',
    'statsMPrev','statsMLabel','statsMNext','statsMTitle','statsMChart','statsMSub','statsMContribTitle','statsMContrib','statsMListTitle','statsMList',
    'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
@@ -8768,6 +8768,14 @@ function bindEvents() {
   // Statistiche: bottoni dettaglio competenza (spese del mese / media mensile)
   if (D.statsSpeseMeseBtn) D.statsSpeseMeseBtn.addEventListener('click', () => openSpreadDetail('mese'));
   if (D.statsMediaBtn) D.statsMediaBtn.addEventListener('click', () => openSpreadDetail('media'));
+  // Dashboard: stessi dettagli cliccando i riquadri "Spese per questo mese" / "Media mensile"
+  const bindSpread = (el, mode) => {
+    if (!el) return;
+    el.addEventListener('click', () => openSpreadDetail(mode));
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSpreadDetail(mode); } });
+  };
+  bindSpread(D.cdAvgMonthCell, 'mese');
+  bindSpread(D.cdAvgMeanCell, 'media');
   // Statistiche: badge Anno/Mese in alto
   if (D.statsScope) $$('button[data-scope]', D.statsScope).forEach(b => b.addEventListener('click', () => setStatsScope(b.getAttribute('data-scope'))));
   // Statistiche: tocca il titolo per alternare vista totale ↔ dettagli per utente
