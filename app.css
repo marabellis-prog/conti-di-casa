@@ -4105,6 +4105,8 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .stats-scope-2 { flex-wrap: wrap; }
 .stats-scope-2 button { flex: 1 1 auto; min-width: 0; font-size: 13px; padding: 9px 12px; }
 /* Modal dettaglio spalmato */
+.spread-nav { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 2px 0 10px; }
+#spreadMonthLabel { font-size: 16px; font-weight: 800; color: var(--text); min-width: 150px; text-align: center; text-transform: capitalize; }
 .spread-sub { font-size: 13px; color: var(--text-dim); margin: 2px 2px 12px; line-height: 1.4; }
 .spread-sub b { color: var(--text); }
 .spread-list { display: flex; flex-direction: column; }

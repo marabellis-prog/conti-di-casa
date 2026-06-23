@@ -169,7 +169,7 @@ function cacheDOM() {
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdCashFlow','cdCashFlowK','cdAvgMonthCell','cdAvgMonth','cdAvgMonthK','cdAvgMeanCell','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
-   'statsSpeseMeseBtn','statsMediaBtn','modalSpread','spreadTitle','spreadSub','spreadList','statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsListTitle','statsList',
+   'statsSpeseMeseBtn','statsMediaBtn','modalSpread','spreadTitle','spreadNav','spreadPrev','spreadMonthLabel','spreadNext','spreadSub','spreadList','statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsListTitle','statsList',
    'statsMPrev','statsMLabel','statsMNext','statsMTitle','statsMChart','statsMSub','statsMContribTitle','statsMContrib','statsMListTitle','statsMList',
    'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
@@ -5647,36 +5647,63 @@ function renderStatsMeseDetail() {
   statsListInto(D.statsMList, D.statsMListTitle, 'Spese ' + periodo, rows);
 }
 
-// Dettaglio "spalmato" (competenza) aperto dai bottoni in Statistiche.
-//  mode 'mese'  = quota di competenza che cade nel MESE corrente (= riquadro
-//                 "Spese per questo mese").
+// Dettaglio "spalmato" (competenza), aperto dai bottoni in Statistiche e dai
+// riquadri della dashboard.
+//  mode 'mese'  = quota di competenza nel mese scelto (S.spreadYM); il modal ha
+//                 un selettore mese+anno per scorrere. monthArg = mese iniziale
+//                 (es. mese selezionato nel grafico) dell'anno corrente.
 //  mode 'media' = quota di competenza nell'anno fino a oggi (= numeratore della
-//                 "Media mensile"); mostra media + totale tra parentesi.
-// Ogni riga mostra la QUOTA spalmata; per le spese su più mesi indica importo
-// pieno e n° mesi.
-function openSpreadDetail(mode) {
+//                 "Media mensile"); media + totale tra parentesi, senza selettore.
+function openSpreadDetail(mode, monthArg) {
+  S.spreadMode = mode;
+  if (mode === 'mese') {
+    const now = new Date();
+    S.spreadYM = { y: now.getFullYear(), m: monthArg || (now.getMonth() + 1) };
+  }
+  renderSpread();
+  openModal('modalSpread');
+}
+
+function spreadShiftMonth(delta) {
+  if (S.spreadMode !== 'mese' || !S.spreadYM) return;
+  let { y, m } = S.spreadYM;
+  m += delta;
+  while (m > 12) { m -= 12; y++; }
+  while (m < 1) { m += 12; y--; }
   const now = new Date();
-  const yr = now.getFullYear();
-  const cur = now.getMonth() + 1;
+  if (y > now.getFullYear() || (y === now.getFullYear() && m > now.getMonth() + 1)) return; // non oltre il mese corrente
+  S.spreadYM = { y, m };
+  renderSpread();
+}
+
+function renderSpread() {
+  const isMese = (S.spreadMode === 'mese');
+  if (D.spreadNav) D.spreadNav.style.display = isMese ? '' : 'none';
   const items = [];
-  commonSpese().filter(t => !t.straordinaria).forEach(t => {
-    const months = spesaCompMonths(t);
-    if (!months.length) return;
-    const per = (Number(t.importo) || 0) / months.length;
-    let quota = 0;
-    if (mode === 'mese') {
-      if (months.some(mm => mm.y === yr && mm.m === cur)) quota = per;
-    } else {
+  if (isMese) {
+    const { y, m } = S.spreadYM;
+    commonSpese().filter(t => !t.straordinaria).forEach(t => {
+      const months = spesaCompMonths(t);
+      if (!months.length || !months.some(mm => mm.y === y && mm.m === m)) return;
+      items.push({ t, quota: (Number(t.importo) || 0) / months.length, n: months.length });
+    });
+  } else {
+    const now = new Date(), yr = now.getFullYear(), cur = now.getMonth() + 1;
+    commonSpese().filter(t => !t.straordinaria).forEach(t => {
+      const months = spesaCompMonths(t);
+      if (!months.length) return;
       const cnt = months.filter(mm => mm.y === yr && mm.m >= 1 && mm.m <= cur).length;
-      quota = per * cnt;
-    }
-    if (quota > 0.0001) items.push({ t, quota, n: months.length });
-  });
+      if (cnt) items.push({ t, quota: (Number(t.importo) || 0) / months.length * cnt, n: months.length });
+    });
+  }
   items.sort((a, b) => b.quota - a.quota);
   const total = items.reduce((s, x) => s + x.quota, 0);
 
-  if (mode === 'mese') {
-    if (D.spreadTitle) D.spreadTitle.textContent = 'Spese per ' + (MESI_FULL[cur - 1] || '') + ' ' + yr;
+  if (isMese) {
+    const { y, m } = S.spreadYM, now = new Date();
+    if (D.spreadTitle) D.spreadTitle.textContent = 'Spese del mese';
+    if (D.spreadMonthLabel) D.spreadMonthLabel.textContent = (MESI_FULL[m - 1] || '') + ' ' + y;
+    if (D.spreadNext) D.spreadNext.disabled = (y > now.getFullYear() || (y === now.getFullYear() && m >= now.getMonth() + 1));
     if (D.spreadSub) D.spreadSub.innerHTML = 'Competenza spalmata sul mese · totale <b>' + fmtEur(total) + '</b>';
   } else {
     const mi = mediaComuniAnnoInfo();
@@ -5709,7 +5736,6 @@ function openSpreadDetail(mode) {
       twemojify(D.spreadList);
     }
   }
-  openModal('modalSpread');
 }
 
 function renderCatView() {
@@ -8766,8 +8792,12 @@ function bindEvents() {
     });
   }
   // Statistiche: bottoni dettaglio competenza (spese del mese / media mensile)
-  if (D.statsSpeseMeseBtn) D.statsSpeseMeseBtn.addEventListener('click', () => openSpreadDetail('mese'));
+  // "Spese per questo mese" parte dal mese selezionato nel grafico, se c'è.
+  if (D.statsSpeseMeseBtn) D.statsSpeseMeseBtn.addEventListener('click', () => openSpreadDetail('mese', S.statsSelMonth || null));
   if (D.statsMediaBtn) D.statsMediaBtn.addEventListener('click', () => openSpreadDetail('media'));
+  // Selettore mese dentro il modal dettaglio
+  if (D.spreadPrev) D.spreadPrev.addEventListener('click', () => spreadShiftMonth(-1));
+  if (D.spreadNext) D.spreadNext.addEventListener('click', () => spreadShiftMonth(1));
   // Dashboard: stessi dettagli cliccando i riquadri "Spese per questo mese" / "Media mensile"
   const bindSpread = (el, mode) => {
     if (!el) return;
