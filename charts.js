@@ -272,8 +272,8 @@
         p.addEventListener('click', () => s.onClick(s));
       }
       svg.appendChild(p);
-      // puntini (cliccabili se onClick / pointTooltip / onPoint)
-      const interactive = !!(s.onClick || opts.pointTooltip || opts.onPoint);
+      // puntini (cliccabili se onClick / pointTooltip / onPoint / onPick)
+      const interactive = !!(s.onClick || opts.pointTooltip || opts.onPoint || opts.onPick);
       s.points.forEach((v, i) => {
         if (!(v > 0)) return; // niente punto dove non ci sono dati (valore 0)
         const x = PAD_L + i * stepX;
@@ -281,6 +281,7 @@
         const handle = (ev) => {
           if (ev && ev.stopPropagation) ev.stopPropagation();
           if (opts.pointTooltip) showPointTip(si + ':' + i, i, v, x, y, s.color);
+          if (typeof opts.onPick === 'function') opts.onPick(i, v, s);
           if (typeof opts.onPoint === 'function') opts.onPoint(i, v, s);
           if (typeof s.onClick === 'function') s.onClick(s);
         };
@@ -302,6 +303,30 @@
         }
       });
     });
+
+    // Evidenzia il punto "selezionato" (opts.markIndex) della prima serie:
+    // anello marcato (usato come selettore mese sincronizzato col selettore sotto).
+    if (opts.markIndex != null && opts.markIndex >= 0 && opts.markIndex < N && series[0]) {
+      const mi = opts.markIndex;
+      const mv = series[0].points[mi] || 0;
+      const mx = PAD_L + mi * stepX;
+      const my = H - PAD_B - ((mv / niceMax) * (H - PAD_T - PAD_B));
+      const ring = document.createElementNS(NS, 'circle');
+      ring.setAttribute('cx', mx.toFixed(1));
+      ring.setAttribute('cy', my.toFixed(1));
+      ring.setAttribute('r', '6');
+      ring.setAttribute('fill', 'none');
+      ring.setAttribute('stroke', series[0].color || 'var(--accent)');
+      ring.setAttribute('stroke-width', '2.5');
+      svg.appendChild(ring);
+      // riferimento verticale sottile dal punto all'asse
+      const vline = document.createElementNS(NS, 'line');
+      vline.setAttribute('x1', mx.toFixed(1)); vline.setAttribute('x2', mx.toFixed(1));
+      vline.setAttribute('y1', my.toFixed(1)); vline.setAttribute('y2', baseY);
+      vline.setAttribute('stroke', series[0].color || 'var(--accent)');
+      vline.setAttribute('stroke-width', '1'); vline.setAttribute('opacity', '.5');
+      svg.appendChild(vline);
+    }
 
     // Linea di riferimento orizzontale tratteggiata (es. media mensile)
     if (opts.refLine && opts.refLine.value > 0) {

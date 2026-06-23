@@ -18,9 +18,9 @@
   <!-- Font scritto a mano per la lavagna ToDo -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
   <!-- Preload degli asset locali critici -->
-  <link rel="preload" href="./app.css?v=183" as="style">
-  <link rel="preload" href="./app.js?v=183" as="script">
-  <link rel="preload" href="./charts.js?v=183" as="script">
+  <link rel="preload" href="./app.css?v=184" as="style">
+  <link rel="preload" href="./app.js?v=184" as="script">
+  <link rel="preload" href="./charts.js?v=184" as="script">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=4" type="image/png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=4">
@@ -43,7 +43,7 @@
       document.documentElement.setAttribute('data-theme', __t);
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="./app.css?v=183">
+  <link rel="stylesheet" href="./app.css?v=184">
   <title>Gestione Casa</title>
 </head>
 <body>
@@ -313,7 +313,7 @@
     <!-- STATISTICHE -->
     <section id="view-stats" class="view">
       <div class="stats-scope stats-scope-2">
-        <button type="button" id="statsSpeseMeseBtn">Spese per questo mese</button>
+        <button type="button" id="statsSpeseMeseBtn">Spese per il mese</button>
         <button type="button" id="statsMediaBtn">Media mensile</button>
       </div>
       <div id="statsAnno">
@@ -327,6 +327,11 @@
           <div id="statsContrib" class="stats-contrib"></div>
         </div>
         <div class="cd-card stats-list-card">
+          <div class="stats-det-nav" id="statsDetNav" style="display:none">
+            <button type="button" id="statsDetPrev" class="stats-msel-arr" aria-label="Mese precedente">‹</button>
+            <span id="statsDetMonthLabel">—</span>
+            <button type="button" id="statsDetNext" class="stats-msel-arr" aria-label="Mese successivo">›</button>
+          </div>
           <div class="cd-card-lbl" id="statsListTitle">Spese del mese</div>
           <div id="statsList"></div>
         </div>
@@ -1124,29 +1129,9 @@
     </div>
   </div>
 
-  <!-- Dettaglio spese spalmate (Spese per questo mese / Media mensile) -->
-  <div class="modal modal-center" id="modalSpread">
-    <div class="sheet">
-      <div class="sheet-handle" data-drag></div>
-      <div class="sheet-header">
-        <h3 id="spreadTitle">Dettaglio</h3>
-        <button class="sheet-close" data-close="modalSpread">✕</button>
-      </div>
-      <div class="sheet-body">
-        <div class="spread-nav" id="spreadNav">
-          <button type="button" id="spreadPrev" class="stats-msel-arr" aria-label="Mese precedente">‹</button>
-          <span id="spreadMonthLabel">—</span>
-          <button type="button" id="spreadNext" class="stats-msel-arr" aria-label="Mese successivo">›</button>
-        </div>
-        <div class="spread-sub" id="spreadSub"></div>
-        <div id="spreadList" class="spread-list"></div>
-      </div>
-    </div>
-  </div>
-
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script src="./charts.js?v=183"></script>
-  <script src="./app.js?v=183"></script>
+  <script src="./charts.js?v=184"></script>
+  <script src="./app.js?v=184"></script>
 </body>
 </html>

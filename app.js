@@ -169,7 +169,7 @@ function cacheDOM() {
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdCashFlow','cdCashFlowK','cdAvgMonthCell','cdAvgMonth','cdAvgMonthK','cdAvgMeanCell','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
-   'statsSpeseMeseBtn','statsMediaBtn','modalSpread','spreadTitle','spreadNav','spreadPrev','spreadMonthLabel','spreadNext','spreadSub','spreadList','statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsListTitle','statsList',
+   'statsSpeseMeseBtn','statsMediaBtn','statsDetNav','statsDetPrev','statsDetMonthLabel','statsDetNext','statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsListTitle','statsList',
    'statsMPrev','statsMLabel','statsMNext','statsMTitle','statsMChart','statsMSub','statsMContribTitle','statsMContrib','statsMListTitle','statsMList',
    'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
@@ -5399,69 +5399,117 @@ function renderStatsActive() {
   else renderStats();
 }
 
-// Default: uscite "grezze" mensili dell'anno in corso (12 punti, gen→dic),
-// ossia le spese comuni sommate per DATA di pagamento (NON spalmate per
-// competenza). Personali escluse (sono fuori dai conti di casa).
+// Vista Statistiche. S.statsView: 'main' (grafico + donut + lista per DATA),
+// 'mese' (dettaglio competenza del mese con selettore mese sincronizzato al
+// grafico), 'media' (dettaglio competenza dell'anno fino a oggi). I due bottoni
+// fanno da toggle: ripremendoli si torna a 'main'.
 function renderStats() {
   if (!D.statsChart || !window.Charts) return;
   const yr = new Date().getFullYear();
-  const detail = !!S.statsDetail;
-  // Totale uscite comuni grezze per mese (per data di pagamento)
+  const curMonth = new Date().getMonth() + 1;
+  const view = S.statsView || 'main';
+  if (D.statsSpeseMeseBtn) D.statsSpeseMeseBtn.classList.toggle('active', view === 'mese');
+  if (D.statsMediaBtn) D.statsMediaBtn.classList.toggle('active', view === 'media');
+
   const monthly = new Array(12).fill(0);
   commonSpese().forEach(t => {
     const [y, m] = String(t.data || '').split('-').map(Number);
     if (y === yr && m >= 1 && m <= 12) monthly[m - 1] += Number(t.importo) || 0;
   });
   const tot = monthly.reduce((a, b) => a + b, 0);
-  const media = mediaComuniAnnoInfo().media; // stessa media del riquadro in dashboard
-  // Linea media: solo tratteggio nel grafico (niente etichetta che copre i dati);
-  // la cifra va in legenda.
+  const media = mediaComuniAnnoInfo().media;
   const refLine = media > 0 ? { value: media, color: 'var(--accent)' } : null;
-  // La media compare in legenda come voce tratteggiata (in entrambe le viste).
-  const legendExtra = [];
-  if (media > 0) legendExtra.push({ label: 'Media', value: media, color: 'var(--accent)', dash: true });
+  const legendExtra = media > 0 ? [{ label: 'Media', value: media, color: 'var(--accent)', dash: true }] : [];
 
-  if (D.statsTitle) D.statsTitle.textContent = 'Uscite ' + yr + (detail ? ' - dettagli' : '');
+  if (D.statsTitle) D.statsTitle.textContent = 'Uscite ' + yr;
+  if (D.statsSub) D.statsSub.textContent = 'Totale anno ' + fmtEur(tot);
+  if (D.statsDetNav) D.statsDetNav.style.display = (view === 'mese') ? '' : 'none';
 
-  let series, dropLines = true;
-  if (!detail) {
-    series = [{ label: 'Uscite ' + yr, color: 'var(--danger)', points: monthly }];
-    if (D.statsSub) D.statsSub.textContent = 'Cifre grezze (per data) · totale anno ' + fmtEur(tot) + ' · tocca il titolo per i dettagli';
+  const baseOpts = {
+    yTicks: 5, allXLabels: true, spanLine: true, pointLabels: MESI_FULL,
+    legendTopRight: true, legendValues: true, legendExtra: legendExtra, refLine: refLine
+  };
+  const line = [{ label: 'Uscite ' + yr, color: 'var(--danger)', points: monthly }];
+
+  if (view === 'mese') {
+    if (!S.statsSelMonth) S.statsSelMonth = curMonth;
+    const selM = S.statsSelMonth;
+    Charts.renderLine(D.statsChart, line, MESI_SHORT, Object.assign({}, baseOpts, {
+      markIndex: selM - 1,
+      onPick: (i) => { S.statsSelMonth = i + 1; renderStats(); }
+    }));
+    if (D.statsDetMonthLabel) D.statsDetMonthLabel.textContent = (MESI_FULL[selM - 1] || '') + ' ' + yr;
+    if (D.statsDetPrev) D.statsDetPrev.disabled = (selM <= 1);
+    if (D.statsDetNext) D.statsDetNext.disabled = (selM >= curMonth);
+    statsDonutInto(D.statsContrib, D.statsContribTitle, 'Contribuzione · ' + (MESI_FULL[selM - 1] || '') + ' ' + yr, statsContribSegs(yr, selM));
+    renderSpreadListInto(D.statsList, D.statsListTitle, 'mese', yr, selM);
+  } else if (view === 'media') {
+    Charts.renderLine(D.statsChart, line, MESI_SHORT, baseOpts);
+    statsDonutInto(D.statsContrib, D.statsContribTitle, 'Contribuzione · ' + yr, statsContribSegs(yr, null));
+    renderSpreadListInto(D.statsList, D.statsListTitle, 'media', yr, curMonth);
   } else {
-    // Dettaglio: una linea per utente = contributo del periodo (versamenti nello
-    // scatolo + spese dal proprio conto/buoni − prelievi) + linea "Scatolo" =
-    // spese pagate dal fondo comune. Sempre TUTTI gli utenti + scatolo.
-    const A = getAutoriList();
-    const perUser = {}; A.forEach(n => { perUser[n] = new Array(12).fill(0); });
-    const scatolo = new Array(12).fill(0);
-    (S.tx || []).forEach(t => {
-      if (!isNuovoModello(t)) return;
-      const [y, m] = String(t.data || '').split('-').map(Number);
-      if (y !== yr || !(m >= 1 && m <= 12)) return;
-      const mov = t.tipo_movimento || 'spesa';
-      const imp = Number(t.importo) || 0;
-      if (mov === 'spesa' && !t.personale && t.fonte === 'scatolo') { scatolo[m - 1] += imp; return; }
-      const a = t.autore; if (!a || !perUser[a]) return;
-      if (mov === 'versamento') perUser[a][m - 1] += imp;
-      else if (mov === 'prelievo') perUser[a][m - 1] -= imp;
-      else if (mov === 'spesa' && !t.personale) perUser[a][m - 1] += imp;
-    });
-    series = A.map(n => ({ label: shortName(n), color: colorForAutore(n), points: perUser[n].map(v => Math.max(0, round2(v))) }));
-    series.push({ label: 'Scatolo', color: '#94a3b8', points: scatolo.map(v => round2(v)) });
-    dropLines = false;
-    if (D.statsSub) D.statsSub.textContent = 'Contributo per utente (versamenti + pagamenti) + spese dallo scatolo · tocca il titolo per tornare';
+    Charts.renderLine(D.statsChart, line, MESI_SHORT, Object.assign({}, baseOpts, {
+      dropLines: true, pointTooltip: true,
+      onSelect: (i) => { S.statsSelMonth = (i == null ? null : i + 1); renderStatsMonth(S.statsSelMonth); }
+    }));
+    renderStatsMonth(S.statsSelMonth);
   }
+}
 
-  Charts.renderLine(D.statsChart, series, MESI_SHORT, {
-    yTicks: 5, allXLabels: true, dropLines: dropLines, pointTooltip: true, spanLine: true,
-    pointLabels: MESI_FULL, legendTopRight: true, legendValues: true, legendExtra: legendExtra,
-    refLine: refLine,
-    // tap su un punto → donut+lista di quel mese; deseleziona → totale anno
-    onSelect: (i) => { S.statsSelMonth = (i == null ? null : i + 1); renderStatsMonth(S.statsSelMonth); }
+// Lista "spalmata" (competenza) in pagina. mode 'mese' = quota nel mese (yr,m);
+// mode 'media' = quota nell'anno fino a oggi. Righe cliccabili → modifica.
+function renderSpreadListInto(listEl, titleEl, mode, yr, m) {
+  const cur = new Date().getMonth() + 1;
+  const items = [];
+  commonSpese().filter(t => !t.straordinaria).forEach(t => {
+    const months = spesaCompMonths(t);
+    if (!months.length) return;
+    let quota = 0;
+    if (mode === 'mese') { if (months.some(mm => mm.y === yr && mm.m === m)) quota = (Number(t.importo) || 0) / months.length; }
+    else { const cnt = months.filter(mm => mm.y === yr && mm.m >= 1 && mm.m <= cur).length; quota = (Number(t.importo) || 0) / months.length * cnt; }
+    if (quota > 0.0001) items.push({ t, quota, n: months.length });
   });
-  // Donut contribuzione + lista spese: mese selezionato, oppure TOTALE anno se
-  // nulla è selezionato.
-  renderStatsMonth(S.statsSelMonth);
+  items.sort((a, b) => b.quota - a.quota);
+  const total = items.reduce((s, x) => s + x.quota, 0);
+  if (titleEl) {
+    if (mode === 'mese') titleEl.textContent = 'Spese di ' + (MESI_FULL[m - 1] || '') + ' ' + yr + (items.length ? ' · ' + fmtEur(total) : '');
+    else { const mi = mediaComuniAnnoInfo(); titleEl.innerHTML = 'Media <b>' + fmtEur(mi.media) + '</b> · ' + mi.win + (mi.win === 1 ? ' mese' : ' mesi') + ' (totale ' + fmtEur(total) + ')'; }
+  }
+  if (!listEl) return;
+  if (!items.length) { listEl.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:10px 2px">Nessuna spesa nel periodo.</div>'; return; }
+  listEl.innerHTML = items.map(({ t, quota, n }) => {
+    const c = catById(t.categoria_id);
+    const icon = c ? c.icona : (t.fonte === 'scatolo' && t.descrizione ? '⚖️' : '📦');
+    const color = c ? c.colore : '#94a3b8';
+    const name = c ? c.nome : (t.descrizione || 'Altro');
+    const full = Number(t.importo) || 0;
+    const comp = (t.competenza_da && t.competenza_a) ? compRangeLabel(t.competenza_da, t.competenza_a) : ('pagato il ' + fmtData(t.data));
+    const meta = (n > 1 ? 'quota di ' + fmtEur(full) + ' · ' + n + ' mesi · ' : '') + '🗓 ' + comp;
+    return '<div class="spread-row" data-tx-id="' + t.id + '">' +
+      '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
+      '<div class="spread-body"><div class="spread-name">' + esc(name) + '</div>' +
+      '<div class="spread-meta">' + esc(meta) + '</div></div>' +
+      '<div class="spread-amt">' + fmtEur(quota) + '</div></div>';
+  }).join('');
+  $$('.spread-row', listEl).forEach(el => el.addEventListener('click', () => openTxEdit(el.getAttribute('data-tx-id'))));
+  twemojify(listEl);
+}
+
+// Toggle bottoni: ripremendo torna alla vista principale (come "Statistiche").
+function toggleStatsView(mode) {
+  if (S.statsView === mode) { S.statsView = 'main'; S.statsSelMonth = null; }
+  else { S.statsView = mode; if (mode === 'mese' && !S.statsSelMonth) S.statsSelMonth = new Date().getMonth() + 1; }
+  renderStats();
+}
+
+// Selettore mese della vista 'mese' (anno in corso, gen→mese corrente)
+function statsDetShiftMonth(delta) {
+  if (S.statsView !== 'mese') return;
+  const cur = new Date().getMonth() + 1;
+  let m = (S.statsSelMonth || cur) + delta;
+  if (m < 1) m = 1; if (m > cur) m = cur;
+  S.statsSelMonth = m;
+  renderStats();
 }
 
 // Elenco spese comuni dell'anno (Anno): month null = tutto l'anno, altrimenti il mese.
@@ -5645,97 +5693,6 @@ function renderStatsMeseDetail() {
     .slice()
     .sort((a, b) => (a.data < b.data ? 1 : (a.data > b.data ? -1 : 0)));
   statsListInto(D.statsMList, D.statsMListTitle, 'Spese ' + periodo, rows);
-}
-
-// Dettaglio "spalmato" (competenza), aperto dai bottoni in Statistiche e dai
-// riquadri della dashboard.
-//  mode 'mese'  = quota di competenza nel mese scelto (S.spreadYM); il modal ha
-//                 un selettore mese+anno per scorrere. monthArg = mese iniziale
-//                 (es. mese selezionato nel grafico) dell'anno corrente.
-//  mode 'media' = quota di competenza nell'anno fino a oggi (= numeratore della
-//                 "Media mensile"); media + totale tra parentesi, senza selettore.
-function openSpreadDetail(mode, monthArg) {
-  S.spreadMode = mode;
-  if (mode === 'mese') {
-    const now = new Date();
-    S.spreadYM = { y: now.getFullYear(), m: monthArg || (now.getMonth() + 1) };
-  }
-  renderSpread();
-  openModal('modalSpread');
-}
-
-function spreadShiftMonth(delta) {
-  if (S.spreadMode !== 'mese' || !S.spreadYM) return;
-  let { y, m } = S.spreadYM;
-  m += delta;
-  while (m > 12) { m -= 12; y++; }
-  while (m < 1) { m += 12; y--; }
-  const now = new Date();
-  if (y > now.getFullYear() || (y === now.getFullYear() && m > now.getMonth() + 1)) return; // non oltre il mese corrente
-  S.spreadYM = { y, m };
-  renderSpread();
-}
-
-function renderSpread() {
-  const isMese = (S.spreadMode === 'mese');
-  if (D.spreadNav) D.spreadNav.style.display = isMese ? '' : 'none';
-  const items = [];
-  if (isMese) {
-    const { y, m } = S.spreadYM;
-    commonSpese().filter(t => !t.straordinaria).forEach(t => {
-      const months = spesaCompMonths(t);
-      if (!months.length || !months.some(mm => mm.y === y && mm.m === m)) return;
-      items.push({ t, quota: (Number(t.importo) || 0) / months.length, n: months.length });
-    });
-  } else {
-    const now = new Date(), yr = now.getFullYear(), cur = now.getMonth() + 1;
-    commonSpese().filter(t => !t.straordinaria).forEach(t => {
-      const months = spesaCompMonths(t);
-      if (!months.length) return;
-      const cnt = months.filter(mm => mm.y === yr && mm.m >= 1 && mm.m <= cur).length;
-      if (cnt) items.push({ t, quota: (Number(t.importo) || 0) / months.length * cnt, n: months.length });
-    });
-  }
-  items.sort((a, b) => b.quota - a.quota);
-  const total = items.reduce((s, x) => s + x.quota, 0);
-
-  if (isMese) {
-    const { y, m } = S.spreadYM, now = new Date();
-    if (D.spreadTitle) D.spreadTitle.textContent = 'Spese del mese';
-    if (D.spreadMonthLabel) D.spreadMonthLabel.textContent = (MESI_FULL[m - 1] || '') + ' ' + y;
-    if (D.spreadNext) D.spreadNext.disabled = (y > now.getFullYear() || (y === now.getFullYear() && m >= now.getMonth() + 1));
-    if (D.spreadSub) D.spreadSub.innerHTML = 'Competenza spalmata sul mese · totale <b>' + fmtEur(total) + '</b>';
-  } else {
-    const mi = mediaComuniAnnoInfo();
-    if (D.spreadTitle) D.spreadTitle.textContent = 'Media mensile';
-    if (D.spreadSub) D.spreadSub.innerHTML = 'Media <b>' + fmtEur(mi.media) + '</b> · ' + mi.win + (mi.win === 1 ? ' mese' : ' mesi') + ' (totale ' + fmtEur(total) + ')';
-  }
-
-  if (D.spreadList) {
-    if (!items.length) {
-      D.spreadList.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:10px 2px">Nessuna spesa nel periodo.</div>';
-    } else {
-      D.spreadList.innerHTML = items.map(({ t, quota, n }) => {
-        const c = catById(t.categoria_id);
-        const icon = c ? c.icona : (t.fonte === 'scatolo' && t.descrizione ? '⚖️' : '📦');
-        const color = c ? c.colore : '#94a3b8';
-        const name = c ? c.nome : (t.descrizione || 'Altro');
-        const full = Number(t.importo) || 0;
-        const comp = (t.competenza_da && t.competenza_a) ? compRangeLabel(t.competenza_da, t.competenza_a) : ('pagato il ' + fmtData(t.data));
-        const meta = (n > 1 ? 'quota di ' + fmtEur(full) + ' · ' + n + ' mesi · ' : '') + '🗓 ' + comp;
-        return '<div class="spread-row" data-tx-id="' + t.id + '">' +
-          '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
-          '<div class="spread-body"><div class="spread-name">' + esc(name) + '</div>' +
-          '<div class="spread-meta">' + esc(meta) + '</div></div>' +
-          '<div class="spread-amt">' + fmtEur(quota) + '</div></div>';
-      }).join('');
-      $$('.spread-row', D.spreadList).forEach(el => el.addEventListener('click', () => {
-        closeModal('modalSpread');
-        openTxEdit(el.getAttribute('data-tx-id'));
-      }));
-      twemojify(D.spreadList);
-    }
-  }
 }
 
 function renderCatView() {
@@ -6036,7 +5993,7 @@ function switchView(name) {
     renderList();
   }
   else if (name === 'cat')  renderCatView();
-  else if (name === 'stats') { S.statsSelMonth = null; S.statsMeseDay = null; setStatsScope('anno'); ensureAllTxLoaded().then(renderStatsActive); }
+  else if (name === 'stats') { S.statsView = 'main'; S.statsSelMonth = null; S.statsMeseDay = null; setStatsScope('anno'); ensureAllTxLoaded().then(renderStatsActive); }
   else if (name === 'spesa') {
     renderSpesa();
     refreshSpesaNow();
@@ -8791,25 +8748,27 @@ function bindEvents() {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goScatolo(); }
     });
   }
-  // Statistiche: bottoni dettaglio competenza (spese del mese / media mensile)
-  // "Spese per questo mese" parte dal mese selezionato nel grafico, se c'è.
-  if (D.statsSpeseMeseBtn) D.statsSpeseMeseBtn.addEventListener('click', () => openSpreadDetail('mese', S.statsSelMonth || null));
-  if (D.statsMediaBtn) D.statsMediaBtn.addEventListener('click', () => openSpreadDetail('media'));
-  // Selettore mese dentro il modal dettaglio
-  if (D.spreadPrev) D.spreadPrev.addEventListener('click', () => spreadShiftMonth(-1));
-  if (D.spreadNext) D.spreadNext.addEventListener('click', () => spreadShiftMonth(1));
-  // Dashboard: stessi dettagli cliccando i riquadri "Spese per questo mese" / "Media mensile"
-  const bindSpread = (el, mode) => {
-    if (!el) return;
-    el.addEventListener('click', () => openSpreadDetail(mode));
-    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSpreadDetail(mode); } });
+  // Statistiche: i due bottoni fanno da toggle (ripremendo → vista principale)
+  if (D.statsSpeseMeseBtn) D.statsSpeseMeseBtn.addEventListener('click', () => toggleStatsView('mese'));
+  if (D.statsMediaBtn) D.statsMediaBtn.addEventListener('click', () => toggleStatsView('media'));
+  // Selettore mese della vista 'mese' (sincronizzato col grafico)
+  if (D.statsDetPrev) D.statsDetPrev.addEventListener('click', () => statsDetShiftMonth(-1));
+  if (D.statsDetNext) D.statsDetNext.addEventListener('click', () => statsDetShiftMonth(1));
+  // Dashboard: i riquadri "Spese per questo mese" / "Media mensile" aprono la
+  // vista Statistiche nel dettaglio corrispondente.
+  const goStatsDetail = (mode) => {
+    switchView('stats');
+    S.statsView = mode;
+    if (mode === 'mese') S.statsSelMonth = new Date().getMonth() + 1;
+    renderStats();
   };
-  bindSpread(D.cdAvgMonthCell, 'mese');
-  bindSpread(D.cdAvgMeanCell, 'media');
-  // Statistiche: badge Anno/Mese in alto
-  if (D.statsScope) $$('button[data-scope]', D.statsScope).forEach(b => b.addEventListener('click', () => setStatsScope(b.getAttribute('data-scope'))));
-  // Statistiche: tocca il titolo per alternare vista totale ↔ dettagli per utente
-  if (D.statsTitle) D.statsTitle.addEventListener('click', () => { S.statsDetail = !S.statsDetail; renderStats(); });
+  const bindCell = (el, mode) => {
+    if (!el) return;
+    el.addEventListener('click', () => goStatsDetail(mode));
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goStatsDetail(mode); } });
+  };
+  bindCell(D.cdAvgMonthCell, 'mese');
+  bindCell(D.cdAvgMeanCell, 'media');
   // Statistiche Mese: frecce selettore mese + toggle dettagli per utente
   if (D.statsMPrev) D.statsMPrev.addEventListener('click', () => statsMeseShiftMonth(-1));
   if (D.statsMNext) D.statsMNext.addEventListener('click', () => statsMeseShiftMonth(1));
