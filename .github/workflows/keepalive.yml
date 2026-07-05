@@ -1,16 +1,23 @@
-name: Supabase keepalive
+name: Keepalive (Supabase + repo)
 
 on:
   schedule:
-    # ogni 3 giorni alle 07:00 UTC
+    # ogni 3 giorni alle 07:00 UTC.
+    # Supabase (free) va in pausa dopo ~7 gg di inattività → 3 gg dà margine.
     - cron: '0 7 */3 * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  ping:
+  keepalive:
     runs-on: ubuntu-latest
     steps:
+      # 1) Tiene ATTIVO Supabase: una richiesta REST resetta il timer di pausa.
+      #    continue-on-error: anche se il ping fallisce, il passo 2 deve girare.
       - name: Ping Supabase REST
+        continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -19,4 +26,24 @@ jobs:
             "${SUPABASE_URL}/rest/v1/cdc_update_cache?select=ts&id=eq.1" \
             -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}"
-          echo "Ping OK"
+          echo "Supabase ping OK"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2) Tiene ATTIVO GitHub: i workflow schedulati vengono disabilitati dopo
+      #    60 gg SENZA attività nel repo. Un commit su un branch DEDICATO
+      #    ('keepalive') genera attività senza toccare GitHub Pages (quindi niente
+      #    rebuild della pagina e niente badge "Aggiorna" per gli utenti).
+      #    È un branch orfano con un solo file-timestamp, force-push ogni volta.
+      - name: Touch repo (branch keepalive, non-Pages)
+        run: |
+          git config user.name "keepalive-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan keepalive
+          git rm -rf . >/dev/null 2>&1 || true
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > .keepalive
+          echo "Branch tecnico: tiene attivi i workflow schedulati (NON pubblicato, non e' GitHub Pages)." > README.md
+          git add .keepalive README.md
+          git commit -m "keepalive $(date -u +%F)"
+          git push -f origin keepalive
