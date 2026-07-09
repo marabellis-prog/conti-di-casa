@@ -56,11 +56,10 @@ test('restorePlan TUTTI: 4 moduli → tutte le loro tabelle', () => {
   assert.strictEqual(plan.length, 6); // 3 (conti) + 1 + 1 + 1
 });
 
-test('backupsToPrune: elimina i backup più vecchi di keepDays', () => {
+test('backupsToPruneByCount: tiene gli ultimi N, elimina i più vecchi', () => {
   const giorni = ['2026-01-01', '2026-04-01', '2026-06-30', '2026-07-09'];
-  const prune = B.backupsToPrune(giorni, '2026-07-09', 90); // taglio ~10 apr
-  assert.ok(prune.includes('2026-01-01'));
-  assert.ok(prune.includes('2026-04-01'));
-  assert.ok(!prune.includes('2026-06-30'));
-  assert.ok(!prune.includes('2026-07-09'));
+  const prune = B.backupsToPruneByCount(giorni, 2); // tiene 07-09 e 06-30
+  assert.deepStrictEqual(prune.sort(), ['2026-01-01', '2026-04-01']);
+  assert.deepStrictEqual(B.backupsToPruneByCount(giorni, 10), []);   // meno di N → niente da togliere
+  assert.deepStrictEqual(B.backupsToPruneByCount(giorni, 0).sort(), ['2026-01-01', '2026-04-01', '2026-06-30']); // keep<1 → tiene almeno 1 (il più recente)
 });

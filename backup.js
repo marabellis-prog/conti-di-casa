@@ -68,16 +68,13 @@
     return plan;
   }
 
-  // Giorni da conservare: mantiene gli ultimi `keepDays`; ritorna i `giorno`
-  // (stringhe 'YYYY-MM-DD') da eliminare, dato l'elenco esistente e "oggi".
-  function backupsToPrune(giorni, todayStr, keepDays) {
-    keepDays = keepDays || 90;
-    const cutoff = new Date(todayStr + 'T00:00:00');
-    cutoff.setDate(cutoff.getDate() - keepDays);
-    const pad = n => String(n).padStart(2, '0');
-    const cut = cutoff.getFullYear() + '-' + pad(cutoff.getMonth() + 1) + '-' + pad(cutoff.getDate());
-    return (giorni || []).filter(g => g < cut);
+  // Mantiene gli ultimi `keepCount` backup (le date più recenti); ritorna i
+  // `giorno` da ELIMINARE (i più vecchi oltre la soglia).
+  function backupsToPruneByCount(giorni, keepCount) {
+    keepCount = Math.max(1, Number(keepCount) || 1);
+    const sorted = (giorni || []).slice().sort().reverse(); // date desc
+    return sorted.slice(keepCount);
   }
 
-  return { MODULES, SISTEMA, RESTORABLE_KEYS, buildBackupRow, moduleCounts, modulesInBackup, restorePlan, backupsToPrune };
+  return { MODULES, SISTEMA, RESTORABLE_KEYS, buildBackupRow, moduleCounts, modulesInBackup, restorePlan, backupsToPruneByCount };
 });

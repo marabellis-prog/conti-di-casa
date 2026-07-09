@@ -182,7 +182,7 @@ function cacheDOM() {
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditMacro','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
    'modalSettings','setTheme','setSave','setClearCache','setVersion','setRestore',
-   'modalRestore','restoreBody',
+   'setBackupNow','setBackupKeep','setBackupKeepSave','modalRestore','restoreBody',
    'setUsersList','setAddUser','setLogout',
    'modalUser','userEditTitle','userEditNome','userEditEmail','userEditSave',
    'autoreDonutWrap'
@@ -8003,6 +8003,7 @@ async function deleteBudgetEdit() {
 // ─── IMPOSTAZIONI ───────────────────────────────────────────
 function renderSettings() {
   D.setTheme.value = S.prefs.theme || 'auto';
+  if (D.setBackupKeep) D.setBackupKeep.value = Number(S.prefs.backupKeep) || 30;
   renderUsersList();
   // Logout button visibile solo se loggato
   if (D.setLogout) D.setLogout.style.display = (S.currentUser ? 'block' : 'none');
@@ -8167,11 +8168,12 @@ async function createBackupNow(silent) {
       headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' }
     });
     try {
+      const keep = Number(S.prefs.backupKeep) || 30;   // quanti backup conservare
       const giorni = await supaFetch(T.BACKUPS + '?select=giorno');
-      const prune = CDCBackup.backupsToPrune((giorni || []).map(r => r.giorno), today(), 90);
+      const prune = CDCBackup.backupsToPruneByCount((giorni || []).map(r => r.giorno), keep);
       for (const g of prune) await supaFetch(T.BACKUPS + '?giorno=eq.' + g, { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
     } catch (_) {}
-    if (!silent) toast('Backup di oggi salvato', 'success');
+    if (!silent) toast('Backup salvato', 'success');
     return true;
   } catch (e) {
     if (!silent) toast('Backup non riuscito: ' + (e && e.message ? e.message : 'errore'), 'error');
@@ -8197,6 +8199,27 @@ function fmtBackupDate(g) {
   const yd = new Date(); yd.setDate(yd.getDate() - 1);
   if (y === yd.getFullYear() && m === yd.getMonth() + 1 && d === yd.getDate()) return 'Ieri';
   return d + ' ' + (MESI_FULL[m - 1] || '') + ' ' + y;
+}
+
+// Backup manuale (dal bottone in Impostazioni)
+async function doManualBackup() {
+  if (D.setBackupNow) setBtnLoading(D.setBackupNow, true);
+  try { await createBackupNow(false); }
+  finally { if (D.setBackupNow) setBtnLoading(D.setBackupNow, false); }
+}
+
+// Salva "quanti backup tenere" (in prefs, come il tema)
+async function saveBackupKeep() {
+  let n = parseInt(D.setBackupKeep && D.setBackupKeep.value, 10);
+  if (!n || n < 1) n = 1; if (n > 365) n = 365;
+  if (D.setBackupKeep) D.setBackupKeep.value = n;
+  S.prefs.backupKeep = n;
+  saveLocalCache();
+  toast('Terrò gli ultimi ' + n + ' backup', 'success');
+  const path = T.PREFS + '?id=eq.1';
+  const options = { method: 'PATCH', body: JSON.stringify({ dati: S.prefs }) };
+  try { if (isOnline()) await supaFetch(path, options); else enqueue({ path, options }); }
+  catch { enqueue({ path, options }); }
 }
 
 let _restore = { giorno: null, row: null, mods: new Set() };
@@ -8762,6 +8785,8 @@ function bindEvents() {
   bindCarousel();
   if (D.setSave)       D.setSave.addEventListener('click', saveSettings);
   if (D.setRestore)    D.setRestore.addEventListener('click', openRestore);
+  if (D.setBackupNow)  D.setBackupNow.addEventListener('click', doManualBackup);
+  if (D.setBackupKeepSave) D.setBackupKeepSave.addEventListener('click', saveBackupKeep);
   if (D.setClearCache) D.setClearCache.addEventListener('click', clearCache);
   if (D.setAddUser)    D.setAddUser.addEventListener('click', openUserAdd);
   if (D.userEditSave)  D.userEditSave.addEventListener('click', saveAuthorizedUser);
