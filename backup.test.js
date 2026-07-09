@@ -56,10 +56,25 @@ test('restorePlan TUTTI: 4 moduli → tutte le loro tabelle', () => {
   assert.strictEqual(plan.length, 6); // 3 (conti) + 1 + 1 + 1
 });
 
-test('backupsToPruneByCount: tiene gli ultimi N, elimina i più vecchi', () => {
-  const giorni = ['2026-01-01', '2026-04-01', '2026-06-30', '2026-07-09'];
-  const prune = B.backupsToPruneByCount(giorni, 2); // tiene 07-09 e 06-30
-  assert.deepStrictEqual(prune.sort(), ['2026-01-01', '2026-04-01']);
-  assert.deepStrictEqual(B.backupsToPruneByCount(giorni, 10), []);   // meno di N → niente da togliere
-  assert.deepStrictEqual(B.backupsToPruneByCount(giorni, 0).sort(), ['2026-01-01', '2026-04-01', '2026-06-30']); // keep<1 → tiene almeno 1 (il più recente)
+test('backupsToPruneByWindow: elimina i backup fuori dalla finestra giorni+ore', () => {
+  const now = Date.parse('2026-07-09T12:00:00Z');
+  const backups = [
+    { id: 1, creato_il: '2026-07-09T11:00:00Z' }, // 1h fa
+    { id: 2, creato_il: '2026-07-09T02:00:00Z' }, // 10h fa
+    { id: 3, creato_il: '2026-07-07T12:00:00Z' }, // 2 giorni fa
+    { id: 4, creato_il: '2026-06-01T12:00:00Z' }, // vecchissimo
+  ];
+  // finestra 1 giorno 0 ore → tieni id 1 e 2, elimina 3 e 4
+  assert.deepStrictEqual(B.backupsToPruneByWindow(backups, now, 1, 0).sort(), [3, 4]);
+  // finestra 0 giorni 6 ore → tieni solo id 1 (1h fa); elimina 2,3,4
+  assert.deepStrictEqual(B.backupsToPruneByWindow(backups, now, 0, 6).sort(), [2, 3, 4]);
+  // il più recente non si cancella MAI, anche con finestra minuscola
+  assert.ok(!B.backupsToPruneByWindow(backups, now, 0, 0).includes(1));
+});
+
+test('needsNewBackup: crea se manca o se l\'ultimo è più vecchio del gap', () => {
+  const now = Date.parse('2026-07-09T12:00:00Z');
+  assert.strictEqual(B.needsNewBackup(null, now, 60), true);                       // nessun backup
+  assert.strictEqual(B.needsNewBackup('2026-07-09T11:59:00Z', now, 60), false);    // 1 min fa → no
+  assert.strictEqual(B.needsNewBackup('2026-07-09T10:30:00Z', now, 60), true);     // 90 min fa → sì
 });

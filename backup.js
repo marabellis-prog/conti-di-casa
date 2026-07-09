@@ -68,13 +68,26 @@
     return plan;
   }
 
-  // Mantiene gli ultimi `keepCount` backup (le date più recenti); ritorna i
-  // `giorno` da ELIMINARE (i più vecchi oltre la soglia).
-  function backupsToPruneByCount(giorni, keepCount) {
-    keepCount = Math.max(1, Number(keepCount) || 1);
-    const sorted = (giorni || []).slice().sort().reverse(); // date desc
-    return sorted.slice(keepCount);
+  // Retention a FINESTRA TEMPORALE: conserva i backup fatti negli ultimi
+  // (keepDays giorni + keepHours ore). Ritorna gli `id` da ELIMINARE (più vecchi
+  // della finestra). Il backup PIÙ RECENTE non si cancella mai (rete di sicurezza).
+  //  backups = [{ id, creato_il (ISO) }], nowMs = Date.now() del chiamante.
+  function backupsToPruneByWindow(backups, nowMs, keepDays, keepHours) {
+    const winMs = ((Math.max(0, Number(keepDays) || 0) * 24) + Math.max(0, Number(keepHours) || 0)) * 3600000;
+    const arr = (backups || []).slice().sort((a, b) => Date.parse(b.creato_il) - Date.parse(a.creato_il)); // desc
+    const newest = arr.length ? arr[0].id : null;
+    if (winMs <= 0) return [];               // finestra nulla → non cancellare
+    const cutoff = nowMs - winMs;
+    return arr.filter(b => b.id !== newest && Date.parse(b.creato_il) < cutoff).map(b => b.id);
   }
 
-  return { MODULES, SISTEMA, RESTORABLE_KEYS, buildBackupRow, moduleCounts, modulesInBackup, restorePlan, backupsToPruneByCount };
+  // Serve un nuovo backup automatico? (evita di crearne troppi ad ogni apertura)
+  function needsNewBackup(lastCreatoIl, nowMs, minGapMinutes) {
+    if (!lastCreatoIl) return true;
+    const t = Date.parse(lastCreatoIl);
+    if (isNaN(t)) return true;
+    return (nowMs - t) >= (Number(minGapMinutes) || 60) * 60000;
+  }
+
+  return { MODULES, SISTEMA, RESTORABLE_KEYS, buildBackupRow, moduleCounts, modulesInBackup, restorePlan, backupsToPruneByWindow, needsNewBackup };
 });

@@ -4075,10 +4075,11 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 /* Backup: due bottoni affiancati + riga "quanti tenere" */
 .backup-actions { display: flex; gap: 10px; }
 .backup-actions .btn-secondary { flex: 1; margin: 0; }
-.backup-keep { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-.backup-keep label { font-size: 13px; color: var(--text-dim); flex: 1; }
-.backup-keep input { width: 68px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 15px; text-align: center; font-variant-numeric: tabular-nums; }
-.backup-keep .btn-secondary { margin: 0; width: auto; padding: 8px 16px; }
+.backup-keep { display: flex; align-items: center; gap: 7px; margin-top: 10px; flex-wrap: wrap; }
+.backup-keep label { font-size: 13px; color: var(--text-dim); }
+.backup-keep input { width: 58px; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 15px; text-align: center; font-variant-numeric: tabular-nums; }
+.backup-keep .bk-unit { font-size: 13px; color: var(--text-dim); margin-left: -3px; }
+.backup-keep .btn-secondary { margin: 0 0 0 auto; width: auto; padding: 8px 16px; }
 /* Ripristino da backup */
 .restore-step { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); font-weight: 700; margin: 6px 0 8px; }
 .restore-dates { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }

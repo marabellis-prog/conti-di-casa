@@ -18,11 +18,11 @@
   <!-- Font scritto a mano per la lavagna ToDo -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
   <!-- Preload degli asset locali critici -->
-  <link rel="preload" href="./app.css?v=195" as="style">
-  <link rel="preload" href="./equity.js?v=195" as="script">
-  <link rel="preload" href="./backup.js?v=195" as="script">
-  <link rel="preload" href="./app.js?v=195" as="script">
-  <link rel="preload" href="./charts.js?v=195" as="script">
+  <link rel="preload" href="./app.css?v=196" as="style">
+  <link rel="preload" href="./equity.js?v=196" as="script">
+  <link rel="preload" href="./backup.js?v=196" as="script">
+  <link rel="preload" href="./app.js?v=196" as="script">
+  <link rel="preload" href="./charts.js?v=196" as="script">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=4" type="image/png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=4">
@@ -45,7 +45,7 @@
       document.documentElement.setAttribute('data-theme', __t);
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="./app.css?v=195">
+  <link rel="stylesheet" href="./app.css?v=196">
   <title>Gestione Casa</title>
 </head>
 <body>
@@ -820,14 +820,15 @@
         <button id="setAddUser" class="btn-secondary" style="margin-top:8px">+ Aggiungi utente</button>
 
         <h3 class="card-title" style="margin-top:22px;margin-bottom:8px">Backup dei dati</h3>
-        <p class="txt-dim" style="font-size:12px;margin:0 0 10px;line-height:1.4;">Ogni giorno l'app salva in automatico un backup nel database (transazioni, spesa, to-do, scadenze). Puoi anche farne uno subito, o ripristinare una data scegliendo quali moduli.</p>
+        <p class="txt-dim" style="font-size:12px;margin:0 0 10px;line-height:1.4;">All'apertura l'app salva un backup nel database (max uno all'ora); puoi anche farne uno subito. Nel ripristino scegli data e ora e quali moduli.</p>
         <div class="backup-actions">
           <button id="setBackupNow" class="btn-secondary">💾 Esegui backup</button>
           <button id="setRestore" class="btn-secondary">↩︎ Ripristina</button>
         </div>
         <div class="backup-keep">
-          <label for="setBackupKeep">Backup da tenere</label>
-          <input type="number" id="setBackupKeep" min="1" max="365" inputmode="numeric" value="30">
+          <label>Tieni gli ultimi</label>
+          <input type="number" id="setBackupKeepDays" min="0" max="3650" inputmode="numeric" value="30"><span class="bk-unit">g</span>
+          <input type="number" id="setBackupKeepHours" min="0" max="23" inputmode="numeric" value="0"><span class="bk-unit">h</span>
           <button id="setBackupKeepSave" class="btn-secondary">Salva</button>
         </div>
 
@@ -1188,9 +1189,9 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script src="./equity.js?v=195"></script>
-  <script src="./backup.js?v=195"></script>
-  <script src="./charts.js?v=195"></script>
-  <script src="./app.js?v=195"></script>
+  <script src="./equity.js?v=196"></script>
+  <script src="./backup.js?v=196"></script>
+  <script src="./charts.js?v=196"></script>
+  <script src="./app.js?v=196"></script>
 </body>
 </html>

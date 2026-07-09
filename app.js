@@ -182,7 +182,7 @@ function cacheDOM() {
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditMacro','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
    'modalSettings','setTheme','setSave','setClearCache','setVersion','setRestore',
-   'setBackupNow','setBackupKeep','setBackupKeepSave','modalRestore','restoreBody',
+   'setBackupNow','setBackupKeepDays','setBackupKeepHours','setBackupKeepSave','modalRestore','restoreBody',
    'setUsersList','setAddUser','setLogout',
    'modalUser','userEditTitle','userEditNome','userEditEmail','userEditSave',
    'autoreDonutWrap'
@@ -8043,7 +8043,7 @@ async function deleteBudgetEdit() {
 // ─── IMPOSTAZIONI ───────────────────────────────────────────
 function renderSettings() {
   D.setTheme.value = S.prefs.theme || 'auto';
-  if (D.setBackupKeep) D.setBackupKeep.value = Number(S.prefs.backupKeep) || 30;
+  { const k = backupKeepDH(); if (D.setBackupKeepDays) D.setBackupKeepDays.value = k.d; if (D.setBackupKeepHours) D.setBackupKeepHours.value = k.h; }
   renderUsersList();
   // Logout button visibile solo se loggato
   if (D.setLogout) D.setLogout.style.display = (S.currentUser ? 'block' : 'none');
@@ -8198,20 +8198,26 @@ async function fetchAllForBackup() {
   return out;
 }
 
-// Crea/aggiorna il backup di OGGI (upsert su giorno) + potatura oltre 90 giorni.
+// Numeri di retention (finestra giorni+ore) dalle prefs, con default sensati.
+function backupKeepDH() {
+  let d = Number(S.prefs.backupKeepDays), h = Number(S.prefs.backupKeepHours);
+  if (isNaN(d)) d = 30; if (isNaN(h)) h = 0;
+  return { d: Math.max(0, d), h: Math.max(0, h) };
+}
+
+// Crea un NUOVO backup (con timestamp) + potatura fuori dalla finestra.
 async function createBackupNow(silent) {
   try {
     const data = await fetchAllForBackup();
-    const payload = Object.assign({ giorno: today(), updated_at: new Date().toISOString() }, CDCBackup.buildBackupRow(data));
-    await supaFetch(T.BACKUPS + '?on_conflict=giorno', {
-      method: 'POST', body: JSON.stringify(payload),
-      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' }
+    await supaFetch(T.BACKUPS, {
+      method: 'POST', body: JSON.stringify(CDCBackup.buildBackupRow(data)),
+      headers: { 'Prefer': 'return=minimal' }   // creato_il = now() lato DB
     });
     try {
-      const keep = Number(S.prefs.backupKeep) || 30;   // quanti backup conservare
-      const giorni = await supaFetch(T.BACKUPS + '?select=giorno');
-      const prune = CDCBackup.backupsToPruneByCount((giorni || []).map(r => r.giorno), keep);
-      for (const g of prune) await supaFetch(T.BACKUPS + '?giorno=eq.' + g, { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+      const { d, h } = backupKeepDH();
+      const rows = await supaFetch(T.BACKUPS + '?select=id,creato_il');
+      const prune = CDCBackup.backupsToPruneByWindow(rows || [], Date.now(), d, h);
+      for (const id of prune) await supaFetch(T.BACKUPS + '?id=eq.' + id, { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
     } catch (_) {}
     if (!silent) toast('Backup salvato', 'success');
     return true;
@@ -8221,24 +8227,27 @@ async function createBackupNow(silent) {
   }
 }
 
-// All'avvio: se manca il backup di oggi, crealo (silenzioso). Se la tabella non
-// esiste ancora (RLS script non eseguito) fallisce in silenzio.
-async function ensureDailyBackup() {
+// All'avvio: crea un backup se l'ultimo è più vecchio di 1 ora (o non esiste).
+// Silenzioso; se la tabella non esiste ancora fallisce senza disturbare.
+async function ensureBackupOnOpen() {
   try {
-    const ex = await supaFetch(T.BACKUPS + '?select=giorno&giorno=eq.' + today());
-    if (Array.isArray(ex) && ex.length) return;
-    await createBackupNow(true);
+    const rows = await supaFetch(T.BACKUPS + '?select=creato_il&order=creato_il.desc&limit=1');
+    const last = rows && rows[0] && rows[0].creato_il;
+    if (CDCBackup.needsNewBackup(last, Date.now(), 60)) await createBackupNow(true);
   } catch (_) {}
 }
 
-function fmtBackupDate(g) {
-  if (!g) return '';
-  const [y, m, d] = String(g).split('-').map(Number);
-  const t = today().split('-').map(Number);
-  if (y === t[0] && m === t[1] && d === t[2]) return 'Oggi';
+// Etichetta backup: "Oggi · 14:32", "Ieri · 09:05", "7 lug 2026 · 22:10".
+function fmtBackupDateTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
+  const now = new Date();
+  const sameDay = a => a.getFullYear() === d.getFullYear() && a.getMonth() === d.getMonth() && a.getDate() === d.getDate();
   const yd = new Date(); yd.setDate(yd.getDate() - 1);
-  if (y === yd.getFullYear() && m === yd.getMonth() + 1 && d === yd.getDate()) return 'Ieri';
-  return d + ' ' + (MESI_FULL[m - 1] || '') + ' ' + y;
+  const giorno = sameDay(now) ? 'Oggi' : (sameDay(yd) ? 'Ieri' : (d.getDate() + ' ' + (MESI_SHORT[d.getMonth()] || '') + ' ' + d.getFullYear()));
+  return giorno + ' · ' + hh + ':' + mm;
 }
 
 // Backup manuale (dal bottone in Impostazioni)
@@ -8248,55 +8257,60 @@ async function doManualBackup() {
   finally { if (D.setBackupNow) setBtnLoading(D.setBackupNow, false); }
 }
 
-// Salva "quanti backup tenere" (in prefs, come il tema)
+// Salva la finestra di retention (giorni + ore) nelle prefs.
 async function saveBackupKeep() {
-  let n = parseInt(D.setBackupKeep && D.setBackupKeep.value, 10);
-  if (!n || n < 1) n = 1; if (n > 365) n = 365;
-  if (D.setBackupKeep) D.setBackupKeep.value = n;
-  S.prefs.backupKeep = n;
+  let d = parseInt(D.setBackupKeepDays && D.setBackupKeepDays.value, 10);
+  let h = parseInt(D.setBackupKeepHours && D.setBackupKeepHours.value, 10);
+  if (isNaN(d) || d < 0) d = 0; if (d > 3650) d = 3650;
+  if (isNaN(h) || h < 0) h = 0; if (h > 23) h = 23;
+  if (d === 0 && h === 0) d = 1;   // finestra minima 1 giorno (evita crescita infinita)
+  if (D.setBackupKeepDays) D.setBackupKeepDays.value = d;
+  if (D.setBackupKeepHours) D.setBackupKeepHours.value = h;
+  S.prefs.backupKeepDays = d; S.prefs.backupKeepHours = h;
   saveLocalCache();
-  toast('Terrò gli ultimi ' + n + ' backup', 'success');
+  toast('Terrò i backup degli ultimi ' + d + 'g ' + (h ? h + 'h' : '') , 'success');
   const path = T.PREFS + '?id=eq.1';
   const options = { method: 'PATCH', body: JSON.stringify({ dati: S.prefs }) };
   try { if (isOnline()) await supaFetch(path, options); else enqueue({ path, options }); }
   catch { enqueue({ path, options }); }
 }
 
-let _restore = { giorno: null, row: null, mods: new Set() };
+let _restore = { id: null, creato: null, row: null, mods: new Set() };
 async function openRestore() {
-  _restore = { giorno: null, row: null, mods: new Set() };
+  _restore = { id: null, creato: null, row: null, mods: new Set() };
   openModal('modalRestore');
   if (!D.restoreBody) return;
   D.restoreBody.innerHTML = '<div class="txt-faint" style="padding:22px;text-align:center">Carico i backup…</div>';
   try {
-    const rows = await supaFetch(T.BACKUPS + '?select=giorno,created_at&order=giorno.desc');
+    const rows = await supaFetch(T.BACKUPS + '?select=id,creato_il&order=creato_il.desc');
     renderRestoreDates(rows || []);
   } catch (e) {
-    D.restoreBody.innerHTML = '<div class="cd-warn">Backup non disponibili. Se hai appena creato la tabella, riapri tra poco.</div>';
+    D.restoreBody.innerHTML = '<div class="cd-warn">Backup non disponibili. Se hai appena creato/aggiornato la tabella, riapri tra poco.</div>';
   }
 }
 function renderRestoreDates(list) {
   if (!D.restoreBody) return;
   if (!list.length) {
-    D.restoreBody.innerHTML = '<div class="txt-faint" style="padding:22px;text-align:center">Ancora nessun backup.<br>Ne viene creato uno in automatico ogni giorno all\'apertura.</div>';
+    D.restoreBody.innerHTML = '<div class="txt-faint" style="padding:22px;text-align:center">Ancora nessun backup.<br>Ne viene creato uno in automatico all\'apertura (max 1 all\'ora), o premi «Esegui backup».</div>';
     return;
   }
   D.restoreBody.innerHTML =
-    '<div class="restore-step">1 · Scegli una data</div>' +
+    '<div class="restore-step">1 · Scegli un backup</div>' +
     '<div class="restore-dates">' + list.map(b =>
-      '<button type="button" class="restore-date" data-g="' + b.giorno + '">' + esc(fmtBackupDate(b.giorno)) + '</button>'
+      '<button type="button" class="restore-date" data-id="' + b.id + '">' + esc(fmtBackupDateTime(b.creato_il)) + '</button>'
     ).join('') + '</div>' +
     '<div id="restoreModsWrap"></div>';
-  $$('.restore-date', D.restoreBody).forEach(el => el.addEventListener('click', () => selectRestoreDate(el.getAttribute('data-g'), el)));
+  $$('.restore-date', D.restoreBody).forEach(el => el.addEventListener('click', () => selectRestore(el.getAttribute('data-id'), el)));
 }
-async function selectRestoreDate(g, el) {
-  _restore.giorno = g; _restore.mods = new Set();
+async function selectRestore(id, el) {
+  _restore.id = id; _restore.mods = new Set();
   $$('.restore-date', D.restoreBody).forEach(b => b.classList.toggle('active', b === el));
   const wrap = document.getElementById('restoreModsWrap');
   if (wrap) wrap.innerHTML = '<div class="txt-faint" style="padding:12px">Carico i moduli…</div>';
   try {
-    const rows = await supaFetch(T.BACKUPS + '?giorno=eq.' + g + '&select=*');
+    const rows = await supaFetch(T.BACKUPS + '?id=eq.' + id + '&select=*');
     _restore.row = rows && rows[0];
+    _restore.creato = _restore.row && _restore.row.creato_il;
     renderRestoreModules(_restore.row);
   } catch (e) { if (wrap) wrap.innerHTML = '<div class="cd-warn">Backup non leggibile.</div>'; }
 }
@@ -8345,7 +8359,7 @@ async function executeRestore() {
   const nomi = keys.map(k => (CDCBackup.MODULES.find(m => m.key === k) || {}).nome).filter(Boolean);
   const ok = await confirmDlg({
     title: '⚠️ Ripristino dati',
-    message: 'SOVRASCRIVO questi moduli con il backup del ' + fmtBackupDate(_restore.giorno) + ':\n\n• ' + nomi.join('\n• ') +
+    message: 'SOVRASCRIVO questi moduli con il backup di ' + fmtBackupDateTime(_restore.creato) + ':\n\n• ' + nomi.join('\n• ') +
       '\n\nI dati attuali di questi moduli verranno sostituiti. Prima salvo un backup di sicurezza di oggi (così è reversibile). Procedo?',
     confirmLabel: 'Sì, ripristina', cancelLabel: 'Annulla', danger: true
   });
@@ -9415,8 +9429,8 @@ async function init() {
   } catch {}
   // utenti autorizzati (per gestione UI nelle impostazioni)
   loadAuthorizedUsers();
-  // backup giornaliero automatico nel DB (silenzioso, non blocca l'avvio)
-  setTimeout(() => { ensureDailyBackup(); }, 4000);
+  // backup automatico nel DB all'apertura (max 1/ora), silenzioso, non blocca l'avvio
+  setTimeout(() => { ensureBackupOnOpen(); }, 4000);
   // realtime
   setupRealtime();
   // Watchdog del badge "↻ Aggiorna": riconnette Realtime su visibilitychange/
