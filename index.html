@@ -18,9 +18,9 @@
   <!-- Font scritto a mano per la lavagna ToDo -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
   <!-- Preload degli asset locali critici -->
-  <link rel="preload" href="./app.css?v=187" as="style">
-  <link rel="preload" href="./app.js?v=187" as="script">
-  <link rel="preload" href="./charts.js?v=187" as="script">
+  <link rel="preload" href="./app.css?v=188" as="style">
+  <link rel="preload" href="./app.js?v=188" as="script">
+  <link rel="preload" href="./charts.js?v=188" as="script">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=4" type="image/png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=4">
@@ -43,7 +43,7 @@
       document.documentElement.setAttribute('data-theme', __t);
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="./app.css?v=187">
+  <link rel="stylesheet" href="./app.css?v=188">
   <title>Gestione Casa</title>
 </head>
 <body>
@@ -812,6 +812,10 @@
         <div id="setUsersList"></div>
         <button id="setAddUser" class="btn-secondary" style="margin-top:8px">+ Aggiungi utente</button>
 
+        <h3 class="card-title" style="margin-top:22px;margin-bottom:8px">Backup dati</h3>
+        <p class="txt-dim" style="font-size:12px;margin:0 0 10px;line-height:1.4;">Scarica una copia completa di tutti i dati (transazioni, categorie, spesa, to-do, scadenze). Conservala al sicuro: è il backup ripristinabile.</p>
+        <button id="setBackup" class="btn-secondary">⬇️ Esporta backup (JSON)</button>
+
         <button id="setClearCache" class="btn-secondary" style="margin-top:22px">Pulisci cache locale</button>
         <button id="setLogout" class="btn-secondary" style="margin-top:8px;display:none">Esci (logout)</button>
         <div class="txt-c txt-faint mt-16" style="font-size:11px">
@@ -1135,7 +1139,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script src="./charts.js?v=187"></script>
-  <script src="./app.js?v=187"></script>
+  <script src="./charts.js?v=188"></script>
+  <script src="./app.js?v=188"></script>
 </body>
 </html>

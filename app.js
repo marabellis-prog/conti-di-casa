@@ -72,6 +72,7 @@ const S = {
   prefs: { theme: 'auto' },
   authorizedUsers: [],  // whitelist email per login Google
   currentUser: null,    // {email, nome} se loggato
+  accessToken: null,    // JWT della sessione Supabase (per RLS: usa l'utente, non l'anon key)
   ts: 0,
   queue: [],
   // navigation
@@ -179,7 +180,7 @@ function cacheDOM() {
    'txEditCompQuick','txEditCompDa','txEditCompA',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditMacro','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
-   'modalSettings','setTheme','setSave','setClearCache','setVersion',
+   'modalSettings','setTheme','setSave','setClearCache','setVersion','setBackup',
    'setUsersList','setAddUser','setLogout',
    'modalUser','userEditTitle','userEditNome','userEditEmail','userEditSave',
    'autoreDonutWrap'
@@ -350,9 +351,15 @@ function confirmDlg(opts) {
 async function supaFetch(path, opts, retry) {
   opts = opts || {};
   retry = retry == null ? 0 : retry;
+  // apikey = SEMPRE la anon key (identifica il progetto). Authorization = JWT
+  // dell'utente loggato se disponibile → PostgREST valuta le RLS come QUELL'utente
+  // (auth.email()); se manca la sessione si ricade sulla anon key (comportamento
+  // storico). Così l'app resta identica finché le RLS restano permissive, ma è
+  // già pronta per le policy per-utente.
+  const bearer = S.accessToken || SUPA_KEY;
   const headers = Object.assign({
     'apikey': SUPA_KEY,
-    'Authorization': 'Bearer ' + SUPA_KEY,
+    'Authorization': 'Bearer ' + bearer,
     'Content-Type': 'application/json'
   }, opts.headers || {});
   if (opts.method && opts.method !== 'GET') {
@@ -8210,6 +8217,41 @@ async function cycleTheme() {
   try { if (isOnline()) await supaFetch(path, options); else enqueue({ path, options }); }
   catch { enqueue({ path, options }); }
 }
+// Backup COMPLETO di tutte le tabelle dati → file JSON scaricabile.
+// Rilegge fresco dal DB (con paginazione) per non dipendere dallo stato in RAM.
+async function exportBackupJson() {
+  if (D.setBackup) setBtnLoading(D.setBackup, true);
+  const tables = {
+    transazioni: T.TX, categorie: T.CATS, budget: T.BUDGET, prefs: T.PREFS,
+    lista_spesa: T.SPESA, lista_todo: T.TODO, scadenze: T.SCADENZE, authorized_users: T.USERS
+  };
+  const out = { _meta: { app: 'Conti di Casa', generatedAt: new Date().toISOString(), sha: (S.localSha || '').slice(0, 7) } };
+  try {
+    for (const [k, tbl] of Object.entries(tables)) {
+      let all = [], offset = 0;
+      for (let g = 0; g < 50; g++) {
+        const rows = await supaFetch(tbl + '?select=*&limit=1000&offset=' + offset);
+        if (!Array.isArray(rows)) throw new Error('lettura ' + k + ' fallita');
+        all.push(...rows);
+        if (rows.length < 1000) break;
+        offset += 1000;
+      }
+      out[k] = all;
+    }
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'backup-conti-' + today() + '.json';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 100);
+    toast('Backup scaricato (' + (out.transazioni ? out.transazioni.length : 0) + ' transazioni)', 'success');
+  } catch (e) {
+    toast('Backup non riuscito: ' + (e && e.message ? e.message : 'errore'), 'error');
+  } finally {
+    if (D.setBackup) setBtnLoading(D.setBackup, false);
+  }
+}
+
 function exportCsv() {
   const rows = [['data','tipo','importo','categoria','descrizione','autore']];
   S.tx.slice().sort((a,b) => a.data.localeCompare(b.data)).forEach(t => {
@@ -8348,8 +8390,21 @@ async function initAuth() {
     showLoginOverlay('Errore: libreria Supabase non caricata. Verifica connessione.');
     return false; // BLOCCA invece di lasciare entrare
   }
+  // Mantieni il token della sessione allineato (login iniziale, refresh automatico,
+  // logout) così supaFetch invia sempre il JWT giusto per le RLS.
+  if (!S._authSubscribed) {
+    S._authSubscribed = true;
+    try {
+      client.auth.onAuthStateChange((_e, sess) => {
+        S.accessToken = (sess && sess.access_token) || null;
+        // tieni allineato anche il canale Realtime (refresh token / re-login)
+        try { if (S.realtimeClient && S.realtimeClient.realtime && S.realtimeClient.realtime.setAuth) S.realtimeClient.realtime.setAuth(S.accessToken); } catch (_) {}
+      });
+    } catch (_) {}
+  }
   try {
     const { data: { session } } = await client.auth.getSession();
+    S.accessToken = (session && session.access_token) || null;
     console.log('[auth] session =', session ? session.user?.email : null);
     if (session && session.user && session.user.email) {
       const email = session.user.email.toLowerCase();
@@ -8450,6 +8505,10 @@ function setupRealtime() {
     S.realtimeClient = supabase.createClient(SUPA_URL, SUPA_KEY, {
       realtime: { params: { eventsPerSecond: 5 } }
     });
+    // Con le RLS attive il Realtime filtra gli eventi in base al ruolo: il canale
+    // deve autenticarsi come l'UTENTE (JWT), non come anon, altrimenti smette di
+    // ricevere le modifiche. Innocuo con RLS permissive.
+    try { if (S.accessToken && S.realtimeClient.realtime && S.realtimeClient.realtime.setAuth) S.realtimeClient.realtime.setAuth(S.accessToken); } catch (_) {}
     const ch = S.realtimeClient.channel('conti-di-casa-live');
     ch.on('postgres_changes', { event: '*', schema: 'public', table: T.TX }, p => onTxChange(p));
     ch.on('postgres_changes', { event: '*', schema: 'public', table: T.CATS }, p => onCatChange(p));
@@ -8632,6 +8691,7 @@ function bindEvents() {
   // carousel pagina Riepilogo (donut ↔ trend mesi)
   bindCarousel();
   if (D.setSave)       D.setSave.addEventListener('click', saveSettings);
+  if (D.setBackup)     D.setBackup.addEventListener('click', exportBackupJson);
   if (D.setClearCache) D.setClearCache.addEventListener('click', clearCache);
   if (D.setAddUser)    D.setAddUser.addEventListener('click', openUserAdd);
   if (D.userEditSave)  D.userEditSave.addEventListener('click', saveAuthorizedUser);
