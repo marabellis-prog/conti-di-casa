@@ -182,7 +182,7 @@ function cacheDOM() {
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditMacro','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
    'modalSettings','setTheme','setSave','setClearCache','setVersion','setRestore',
-   'setBackupNow','setBackupKeepDays','setBackupKeepHours','setBackupKeepSave','modalRestore','restoreBody',
+   'setBackupNow','setBackupKeepDays','setBackupKeepSave','modalRestore','restoreBody',
    'setUsersList','setAddUser','setLogout',
    'modalUser','userEditTitle','userEditNome','userEditEmail','userEditSave',
    'autoreDonutWrap'
@@ -3106,6 +3106,17 @@ function renderConti() {
     D.cdEquityPersons.insertAdjacentHTML('afterbegin',
       '<div class="cd-warn">⚠️ ' + _unk.length + (_unk.length === 1 ? ' movimento ha' : ' movimenti hanno') +
       ' un autore non in lista (' + _unk.map(esc).join(', ') + '): esclusi dall\'equilibrio. Correggili o aggiungi l\'utente nelle Impostazioni.</div>');
+    twemojify(D.cdEquityPersons);
+  }
+  // F-2: promemoria se l'ANNO PRECEDENTE si è chiuso sbilanciato e mai riequilibrato
+  // (l'equità riparte da zero il 1° gennaio: senza riequilibrio quel credito
+  // "sparirebbe"). Si dismette da sé registrando il riequilibrio datato in quell'anno.
+  const _yPrev = new Date().getFullYear() - 1;
+  const _sPrev = CDCEquity.equitySettlement(CDCEquity.computeEquity(S.tx || [], A, _yPrev));
+  if (D.cdEquityPersons && _sPrev.state === 'sbilanciato' && _sPrev.owed > 1) {
+    D.cdEquityPersons.insertAdjacentHTML('afterbegin',
+      '<div class="cd-warn cd-info">📅 Il ' + _yPrev + ' si è chiuso con <b>' + esc(shortName(_sPrev.creditor)) + '</b> in credito di ' + fmtEur(_sPrev.owed) +
+      '. Per non perderlo, registrate un «Riequilibrio conti» datato entro il 31/12/' + _yPrev + '.</div>');
     twemojify(D.cdEquityPersons);
   }
 
@@ -8043,7 +8054,7 @@ async function deleteBudgetEdit() {
 // ─── IMPOSTAZIONI ───────────────────────────────────────────
 function renderSettings() {
   D.setTheme.value = S.prefs.theme || 'auto';
-  { const k = backupKeepDH(); if (D.setBackupKeepDays) D.setBackupKeepDays.value = k.d; if (D.setBackupKeepHours) D.setBackupKeepHours.value = k.h; }
+  if (D.setBackupKeepDays) D.setBackupKeepDays.value = backupKeepDH().d;
   renderUsersList();
   // Logout button visibile solo se loggato
   if (D.setLogout) D.setLogout.style.display = (S.currentUser ? 'block' : 'none');
@@ -8200,9 +8211,9 @@ async function fetchAllForBackup() {
 
 // Numeri di retention (finestra giorni+ore) dalle prefs, con default sensati.
 function backupKeepDH() {
-  let d = Number(S.prefs.backupKeepDays), h = Number(S.prefs.backupKeepHours);
-  if (isNaN(d)) d = 30; if (isNaN(h)) h = 0;
-  return { d: Math.max(0, d), h: Math.max(0, h) };
+  let d = Number(S.prefs.backupKeepDays);
+  if (isNaN(d)) d = 30;
+  return { d: Math.max(1, d), h: 0 };
 }
 
 // Crea un NUOVO backup (con timestamp) + potatura fuori dalla finestra.
@@ -8257,18 +8268,14 @@ async function doManualBackup() {
   finally { if (D.setBackupNow) setBtnLoading(D.setBackupNow, false); }
 }
 
-// Salva la finestra di retention (giorni + ore) nelle prefs.
+// Salva la retention (giorni) nelle prefs.
 async function saveBackupKeep() {
   let d = parseInt(D.setBackupKeepDays && D.setBackupKeepDays.value, 10);
-  let h = parseInt(D.setBackupKeepHours && D.setBackupKeepHours.value, 10);
-  if (isNaN(d) || d < 0) d = 0; if (d > 3650) d = 3650;
-  if (isNaN(h) || h < 0) h = 0; if (h > 23) h = 23;
-  if (d === 0 && h === 0) d = 1;   // finestra minima 1 giorno (evita crescita infinita)
+  if (isNaN(d) || d < 1) d = 1; if (d > 3650) d = 3650;
   if (D.setBackupKeepDays) D.setBackupKeepDays.value = d;
-  if (D.setBackupKeepHours) D.setBackupKeepHours.value = h;
-  S.prefs.backupKeepDays = d; S.prefs.backupKeepHours = h;
+  S.prefs.backupKeepDays = d;
   saveLocalCache();
-  toast('Terrò i backup degli ultimi ' + d + 'g ' + (h ? h + 'h' : '') , 'success');
+  toast('Terrò i backup degli ultimi ' + d + (d === 1 ? ' giorno' : ' giorni'), 'success');
   const path = T.PREFS + '?id=eq.1';
   const options = { method: 'PATCH', body: JSON.stringify({ dati: S.prefs }) };
   try { if (isOnline()) await supaFetch(path, options); else enqueue({ path, options }); }

@@ -4066,6 +4066,8 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .cd-equity-instr { font-size: 14px; color: var(--text-dim); line-height: 1.45; }
 .cd-equity-persons { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .cd-warn { font-size: 12.5px; line-height: 1.4; color: var(--danger); background: rgba(224,110,95,.12); border: 1px solid rgba(224,110,95,.40); border-radius: 10px; padding: 8px 11px; margin-bottom: 8px; }
+.cd-warn.cd-info { color: #3a78b8; background: rgba(90,150,210,.12); border-color: rgba(90,150,210,.40); }
+.cd-warn.cd-info b { color: inherit; }
 .cd-guida-btn { margin-top: 10px; width: 100%; background: transparent; border: 1px dashed var(--border); color: var(--text-dim); border-radius: 10px; padding: 9px; font-size: 13px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .cd-guida-btn:active { opacity: .6; }
 .guida-item { display: flex; flex-direction: column; gap: 2px; padding: 11px 0; border-bottom: 1px solid var(--border); }
@@ -4075,11 +4077,11 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 /* Backup: due bottoni affiancati + riga "quanti tenere" */
 .backup-actions { display: flex; gap: 10px; }
 .backup-actions .btn-secondary { flex: 1; margin: 0; }
-.backup-keep { display: flex; align-items: center; gap: 7px; margin-top: 10px; flex-wrap: wrap; }
+.backup-keep { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .backup-keep label { font-size: 13px; color: var(--text-dim); }
 .backup-keep input { width: 58px; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 15px; text-align: center; font-variant-numeric: tabular-nums; }
-.backup-keep .bk-unit { font-size: 13px; color: var(--text-dim); margin-left: -3px; }
-.backup-keep .btn-secondary { margin: 0 0 0 auto; width: auto; padding: 8px 16px; }
+.backup-keep .bk-unit { font-size: 13px; color: var(--text-dim); }
+.backup-keep .btn-secondary { flex: 1; margin: 0; width: auto; padding: 8px 16px; }
 /* Ripristino da backup */
 .restore-step { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); font-weight: 700; margin: 6px 0 8px; }
 .restore-dates { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
