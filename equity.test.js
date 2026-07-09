@@ -128,12 +128,21 @@ test('FIX B-5: spesa personale DALLO SCATOLO scala il box e addebita', () => {
 
 test('media: spesa annuale spalmata conta solo i mesi trascorsi', () => {
   const tx = [{ fonte: 'conto', tipo_movimento: 'spesa', autore: A[0], importo: 1200, data: '2026-01-15', competenza_da: '2026-01-01', competenza_a: '2026-12-31' }];
-  const mi = E.mediaComuniAnnoInfo(tx, YR, 3); // marzo
+  const mi = E.mediaComuniAnnoInfo(tx, YR, 3); // marzo, mesi interi (no curDay)
   assert.strictEqual(mi.allocM[1], 100);
   assert.strictEqual(mi.allocM[2], 100);
   assert.strictEqual(mi.allocM[4], 0, 'aprile (futuro) non conta');
   assert.strictEqual(mi.win, 3);
   assert.strictEqual(mi.media, 100, '300 su 3 mesi');
+});
+
+test('FIX F-5: media pro-rata del mese in corso (spesa costante → media stabile)', () => {
+  const tx = [{ fonte: 'conto', tipo_movimento: 'spesa', autore: A[0], importo: 1200, data: '2026-01-15', competenza_da: '2026-01-01', competenza_a: '2026-12-31' }];
+  const m15 = E.mediaComuniAnnoInfo(tx, YR, 3, 15); // 15 marzo
+  const m1  = E.mediaComuniAnnoInfo(tx, YR, 4, 1);  // 1 aprile (cambio mese)
+  assert.ok(Math.abs(m15.media - 100) < 0.5, 'a metà marzo la media resta ~100 (era ' + m15.media.toFixed(2) + ')');
+  assert.ok(Math.abs(m1.media - 100) < 0.5, 'al cambio mese NON salta (era ' + m1.media.toFixed(2) + ')');
+  assert.strictEqual(m15.monthsCovered, 3, 'mesi coperti (interi) per l\'etichetta');
 });
 
 test('FIX B-4: fine competenza robusta ai fine-mese', () => {

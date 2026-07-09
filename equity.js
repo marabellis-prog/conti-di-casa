@@ -148,7 +148,11 @@
   }
 
   // Media mensile competenza-spread dell'anno in corso, fino al mese corrente.
-  function mediaComuniAnnoInfo(tx, yr, curMonth) {
+  // Con `curDay` valorizzato applica il PRO-RATA del mese in corso: la sua quota
+  // pesa in proporzione ai giorni trascorsi (numeratore E denominatore), così per
+  // una spesa costante la media resta stabile e non "salta" al cambio mese.
+  // Senza curDay (o null) → comportamento a mesi interi (retro-compatibile).
+  function mediaComuniAnnoInfo(tx, yr, curMonth, curDay) {
     const allocM = new Array(13).fill(0);
     commonSpese(tx).filter(t => !t.straordinaria).forEach(t => {
       const months = spesaCompMonths(t);
@@ -156,14 +160,18 @@
       const per = (Number(t.importo) || 0) / months.length;
       months.forEach(({ y, m }) => { if (y === yr && m <= curMonth) allocM[m] += per; });
     });
-    let firstM = null, sumYear = 0;
-    for (let m = 1; m <= curMonth; m++) {
-      if (allocM[m] > 0.0001 && firstM === null) firstM = m;
-      sumYear += allocM[m];
-    }
-    const win = firstM === null ? 1 : (curMonth - firstM + 1);
-    const media = firstM === null ? 0 : sumYear / win;
-    return { year: yr, curMonth, allocM, firstM, lastM: curMonth, win, media };
+    let firstM = null;
+    for (let m = 1; m <= curMonth; m++) { if (allocM[m] > 0.0001 && firstM === null) firstM = m; }
+    if (firstM === null) return { year: yr, curMonth, curDay: curDay || null, allocM, firstM: null, lastM: curMonth, win: 1, monthsCovered: 0, media: 0 };
+
+    const daysInCur = new Date(yr, curMonth, 0).getDate();     // deterministico (no "ora")
+    const frac = curDay ? Math.min(1, Math.max(1 / daysInCur, curDay / daysInCur)) : 1;
+    let num = 0;
+    for (let m = firstM; m < curMonth; m++) num += allocM[m];  // mesi completi
+    num += allocM[curMonth] * frac;                            // mese in corso pro-ratato
+    const win = (curMonth - firstM) + frac;                    // denominatore frazionario
+    const media = win > 0.0001 ? num / win : 0;
+    return { year: yr, curMonth, curDay: curDay || null, allocM, firstM, lastM: curMonth, win, monthsCovered: (curMonth - firstM + 1), media };
   }
 
   // Contribuzione per utente (versamenti + pagamenti diretti − prelievi).

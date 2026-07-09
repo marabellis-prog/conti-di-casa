@@ -3058,7 +3058,7 @@ function spesaCompMonths(t) { return CDCEquity.spesaCompMonths(t); }
 // vista Statistiche (linea media).
 function mediaComuniAnnoInfo() {
   const now = new Date();
-  return CDCEquity.mediaComuniAnnoInfo(S.tx || [], now.getFullYear(), now.getMonth() + 1);
+  return CDCEquity.mediaComuniAnnoInfo(S.tx || [], now.getFullYear(), now.getMonth() + 1, now.getDate());
 }
 
 function renderConti() {
@@ -5411,7 +5411,7 @@ function renderSpreadListInto(listEl, titleEl, mode, yr, m) {
   const total = items.reduce((s, x) => s + x.quota, 0);
   if (titleEl) {
     if (mode === 'mese') titleEl.textContent = 'Spese di ' + (MESI_FULL[m - 1] || '') + ' ' + yr + (items.length ? ' · ' + fmtEur(total) : '');
-    else { const mi = mediaComuniAnnoInfo(); titleEl.innerHTML = 'Media <b>' + fmtEur(mi.media) + '</b> · ' + mi.win + (mi.win === 1 ? ' mese' : ' mesi') + ' (totale ' + fmtEur(total) + ')'; }
+    else { const mi = mediaComuniAnnoInfo(); const mc = mi.monthsCovered || 1; titleEl.innerHTML = 'Media <b>' + fmtEur(mi.media) + '</b> · ' + mc + (mc === 1 ? ' mese' : ' mesi') + ' (totale ' + fmtEur(total) + ')'; }
   }
   if (!listEl) return;
   if (!items.length) { listEl.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:10px 2px">Nessuna spesa nel periodo.</div>'; return; }
