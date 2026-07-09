@@ -2986,19 +2986,7 @@ function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 // vecchie transazioni di test restano nello storico ma non sporcano l'equità.
 function isNuovoModello(t) { return !!t.fonte; }
 
-// Quota di divisione di una spesa comune → { nome: percentuale } che somma 100.
-// quota null/assente ⇒ divisione equa (50/50).
-function parseQuota(q, A) {
-  const out = {};
-  if (q && typeof q === 'object' && !Array.isArray(q)) {
-    let sum = 0;
-    A.forEach(n => { out[n] = Number(q[n]) || 0; sum += out[n]; });
-    if (sum > 0) return out;
-  }
-  const each = 100 / (A.length || 1);
-  A.forEach(n => out[n] = each);
-  return out;
-}
+function parseQuota(q, A) { return CDCEquity.parseQuota(q, A); }
 
 // Calcola lo stato dello scatolo + l'equità (modello a SOMMA ZERO).
 //   box        = contanti nello scatolo (versamenti − spese da scatolo − prelievi)
@@ -3008,55 +2996,10 @@ function parseQuota(q, A) {
 // Principio: ogni euro che n mette di tasca propria (versamento nello scatolo
 // o spesa pagata dal suo conto/buoni) è un contributo comune 50/50 → l'altro
 // gliene deve metà. Le spese pagate DALLO SCATOLO sono neutre (denaro comune).
+// Motore contabile in equity.js (testato con node --test). Qui solo il wiring
+// coi dati dell'app: transazioni, lista autori, anno solare corrente.
 function computeEquity() {
-  const A = getAutoriList();
-  const yr = new Date().getFullYear();          // equilibrio per ANNO SOLARE (riparte il 1° gen)
-  const res = { A, year: yr, box: 0, contrib: {}, over: {}, totComuni: 0 };
-  A.forEach(n => { res.contrib[n] = 0; res.over[n] = 0; });
-  const otherOf = n => A.find(x => x !== n);   // coppia: l'altro autore
-  // Sposta `amt` di credito verso `who` (e debito sull'altro). Somma zero.
-  const credit = (who, amt) => {
-    if (!who) return;
-    const o = otherOf(who);
-    res.over[who] = (res.over[who] || 0) + amt;
-    if (o) res.over[o] = (res.over[o] || 0) - amt;
-  };
-  (S.tx || []).forEach(t => {
-    if (!isNuovoModello(t)) return;            // ignora i dati pre-modello
-    const mov = t.tipo_movimento || 'spesa';
-    const imp = Number(t.importo) || 0;
-    if (!imp) return;
-    const inYear = String(t.data || '').slice(0, 4) === String(yr);
-    if (mov === 'versamento') {
-      res.box += imp;                          // scatolo = cassa CUMULATIVA (i contanti restano)
-      if (inYear) {
-        if (res.contrib[t.autore] != null) res.contrib[t.autore] += imp;
-        credit(t.autore, imp / 2);             // contributo comune: l'altro ne deve metà
-      }
-    } else if (mov === 'prelievo') {
-      res.box -= imp;
-      if (inYear) {
-        if (res.contrib[t.autore] != null) res.contrib[t.autore] -= imp;
-        credit(t.autore, -imp / 2);            // ha ripreso denaro comune
-      }
-    } else { // spesa
-      if (t.personale) return;                 // le personali sono fuori dall'equità
-      if (t.fonte === 'scatolo') {
-        res.box -= imp;                        // pagata con denaro comune: NEUTRA per l'equità
-        if (inYear) res.totComuni += imp;
-      } else if (t.autore && inYear) {
-        res.totComuni += imp;
-        if (res.contrib[t.autore] != null) res.contrib[t.autore] += imp;
-        // pagata di tasca propria: l'altro deve la sua quota (default 50%)
-        const q = parseQuota(t.quota, A);
-        const o = otherOf(t.autore);
-        credit(t.autore, imp * ((o ? q[o] : 50) || 0) / 100);
-      }
-    }
-  });
-  A.forEach(n => { res.over[n] = round2(res.over[n]); res.contrib[n] = round2(res.contrib[n]); });
-  res.box = round2(res.box);
-  return res;
+  return CDCEquity.computeEquity(S.tx || [], getAutoriList(), new Date().getFullYear());
 }
 
 // Dato lo stato di equità (2 persone) calcola chi deve dare quanto a chi.
@@ -3067,16 +3010,7 @@ function computeEquity() {
 // via scatolo: il debitore mette `owed` e il creditore ritira `owed`
 // (fondo invariato, saldi a zero).
 function equitySettlement(eq) {
-  const A = eq.A;
-  if (A.length !== 2) return { state: 'na' };
-  const [a, b] = A;
-  const oa = round2(eq.over[a]), ob = round2(eq.over[b]);
-  const box = round2(eq.box);
-  if (Math.abs(oa) < 0.01 && Math.abs(ob) < 0.01) return { state: 'pari', box };
-  const creditor = oa > 0 ? a : b;
-  const debtor   = oa > 0 ? b : a;
-  const owed     = round2(Math.abs(eq.over[creditor]));
-  return { state: 'sbilanciato', creditor, debtor, owed, box };
+  return CDCEquity.equitySettlement(eq);
 }
 
 // Carica TUTTO lo storico transazioni (serve all'equità cumulativa).
@@ -3103,30 +3037,11 @@ async function ensureAllTxLoaded() {
   } catch (e) { /* offline: usa la cache disponibile */ }
 }
 
-// Spese comuni "valide" (nuovo modello, non personali) eventualmente filtrate.
-function commonSpese() {
-  return (S.tx || []).filter(t => isNuovoModello(t) && (t.tipo_movimento || 'spesa') === 'spesa' && !t.personale);
-}
+// Spese comuni "valide" (nuovo modello, non personali).
+function commonSpese() { return CDCEquity.commonSpese(S.tx || []); }
 
-// Mesi coperti dal periodo di competenza di una spesa (per spalmare l'importo).
-// Se manca la competenza, ricade sul mese del pagamento.
-function spesaCompMonths(t) {
-  const da = t.competenza_da, a = t.competenza_a;
-  if (da && a && da <= a) {
-    const [sy, sm] = da.split('-').map(Number);
-    const [ey, em] = a.split('-').map(Number);
-    const out = [];
-    let cy = sy, cmn = sm, guard = 0;
-    while ((cy < ey || (cy === ey && cmn <= em)) && guard < 120) {
-      out.push({ y: cy, m: cmn });
-      cmn++; if (cmn > 12) { cmn = 1; cy++; }
-      guard++;
-    }
-    if (out.length) return out;
-  }
-  const [yy, mm] = (t.data || today()).split('-').map(Number);
-  return [{ y: yy, m: mm }];
-}
+// Mesi coperti dalla competenza (in equity.js, testato). Se manca → mese pagamento.
+function spesaCompMonths(t) { return CDCEquity.spesaCompMonths(t); }
 
 // Media mensile delle spese comuni dell'ANNO IN CORSO (competenza-spread,
 // straordinarie escluse). È una media "in divenire": si ferma al MESE CORRENTE
@@ -3137,24 +3052,7 @@ function spesaCompMonths(t) {
 // vista Statistiche (linea media).
 function mediaComuniAnnoInfo() {
   const now = new Date();
-  const yr = now.getFullYear();
-  const curMonth = now.getMonth() + 1; // 1..12
-  const allocM = new Array(13).fill(0); // indici 1..12
-  commonSpese().filter(t => !t.straordinaria).forEach(t => {
-    const months = spesaCompMonths(t);
-    if (!months.length) return;
-    const per = (Number(t.importo) || 0) / months.length;
-    months.forEach(({ y, m }) => { if (y === yr && m <= curMonth) allocM[m] += per; });
-  });
-  let firstM = null, sumYear = 0;
-  for (let m = 1; m <= curMonth; m++) {
-    if (allocM[m] > 0.0001 && firstM === null) firstM = m;
-    sumYear += allocM[m];
-  }
-  const lastM = curMonth; // la media termina con i mesi fino a oggi
-  const win = firstM === null ? 1 : (curMonth - firstM + 1);
-  const media = firstM === null ? 0 : sumYear / win;
-  return { year: yr, curMonth, allocM, firstM, lastM, win, media };
+  return CDCEquity.mediaComuniAnnoInfo(S.tx || [], now.getFullYear(), now.getMonth() + 1);
 }
 
 function renderConti() {
@@ -3195,6 +3093,15 @@ function renderConti() {
   if (D.cdEquityMain) D.cdEquityMain.textContent = mainTxt;
   if (D.cdEquityInstr) D.cdEquityInstr.textContent = instrTxt;
   if (D.cdSettleBtn) D.cdSettleBtn.hidden = !showBtn;
+  // Sentinella "autore fantasma": movimenti con autore fuori whitelist non
+  // entrano nell'equità → avvisa (raro, ma altrimenti silenzioso).
+  const _unk = Object.keys(eq.unknownAutori || {});
+  if (D.cdEquityPersons && _unk.length) {
+    D.cdEquityPersons.insertAdjacentHTML('afterbegin',
+      '<div class="cd-warn">⚠️ ' + _unk.length + (_unk.length === 1 ? ' movimento ha' : ' movimenti hanno') +
+      ' un autore non in lista (' + _unk.map(esc).join(', ') + '): esclusi dall\'equilibrio. Correggili o aggiungi l\'utente nelle Impostazioni.</div>');
+    twemojify(D.cdEquityPersons);
+  }
 
   // ── MEDIE SPESE COMUNI (spalmate sul periodo di competenza) ──
   // Sempre il mese/anno reale di oggi (il Riepilogo non ha più selettore mese).
@@ -5551,22 +5458,7 @@ function renderStatsList(month) {
 // Contribuzione per utente (anticipi scatolo + pagamenti diretti − prelievi).
 // month null = tutto l'anno; day null = tutto il mese.
 function contribByAutore(yr, month, day) {
-  const A = getAutoriList();
-  const out = {}; A.forEach(n => { out[n] = 0; });
-  (S.tx || []).forEach(t => {
-    if (!isNuovoModello(t)) return;
-    const [y, m, d] = String(t.data || '').split('-').map(Number);
-    if (y !== yr) return;
-    if (month && m !== month) return;
-    if (day && d !== day) return;
-    const a = t.autore; if (!a || out[a] == null) return;
-    const mov = t.tipo_movimento || 'spesa';
-    const imp = Number(t.importo) || 0;
-    if (mov === 'versamento') out[a] += imp;
-    else if (mov === 'prelievo') out[a] -= imp;
-    else { if (t.personale || t.fonte === 'scatolo') return; out[a] += imp; }
-  });
-  return out;
+  return CDCEquity.contribByAutore(S.tx || [], getAutoriList(), yr, month, day);
 }
 
 // ── Helper condivisi Statistiche (Anno + Mese) ──
@@ -6774,6 +6666,20 @@ function renderWizChi() {
 function renderWizMotivo() {
   if (!D.wizMotivo) return;
   $$('button', D.wizMotivo).forEach(b => b.classList.toggle('active', b.getAttribute('data-motivo') === WIZ.motivo));
+  // F-6: il prelievo con motivo "Riequilibrio" fatto a mano compensa solo metà
+  // (lo scatolo è comune 50/50). Rimanda al bottone corretto della dashboard.
+  let hint = document.getElementById('wizRiqHint');
+  const show = WIZ.motivo === 'riequilibrio';
+  if (show && !hint && D.wizMotivoWrap) {
+    hint = document.createElement('div');
+    hint.id = 'wizRiqHint';
+    hint.className = 'wiz-hint';
+    D.wizMotivoWrap.appendChild(hint);
+  }
+  if (hint) {
+    hint.hidden = !show;
+    if (show) hint.textContent = '⚠️ Per pareggiare i conti usa «⚖️ Registra il riequilibrio» nella dashboard: questo prelievo da solo non azzera i saldi.';
+  }
 }
 
 function renderWizSplit() {
@@ -6992,14 +6898,9 @@ function setWizComp(type) {
 function compDurationMonths(type) {
   return type === 'annuale' ? 12 : type === 'semestrale' ? 6 : type === 'bimestrale' ? 2 : 1;
 }
-// Fine del periodo = inizio + N mesi − 1 giorno (periodo che PARTE dalla data scelta).
-function compEndFromStart(startStr, months) {
-  const d = new Date(startStr + 'T00:00:00');
-  d.setMonth(d.getMonth() + months);
-  d.setDate(d.getDate() - 1);
-  const pad = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-}
+// Fine del periodo = inizio + N mesi − 1 giorno (in equity.js, robusto ai
+// fine-mese: 31 gen +1 → 27 feb, non 2 mar). Testato con node --test.
+function compEndFromStart(startStr, months) { return CDCEquity.compEndFromStart(startStr, months); }
 
 // Cambio data INIZIO: se c'è un preset attivo, la fine si adatta alla durata
 // (es. bimestrale: 1 mar → 30 apr; annuale: 1 gen → 31 dic).
@@ -7469,10 +7370,13 @@ async function saveTransaction(payload) {
     if (!isOnline()) { enqueue({ path, options }); return; }
     const res = await supaFetch(path, options);
     if (res && res[0]) {
-      // sostituisci tmp con quello reale
+      // sostituisci tmp con quello reale — ma prima elimina un eventuale
+      // doppione già inserito dall'evento Realtime (che può arrivare PRIMA
+      // della risposta del POST): altrimenti la stessa tx comparirebbe 2 volte.
       const realId = res[0].id;
+      S.tx = S.tx.filter(t => t.id === tmpId || t.id !== realId);
       const idx = S.tx.findIndex(t => t.id === tmpId);
-      if (idx >= 0) S.tx[idx] = res[0];
+      if (idx >= 0) S.tx[idx] = res[0]; else if (!S.tx.some(t => t.id === realId)) S.tx.unshift(res[0]);
       S.pendingTxIds.delete(tmpId);
       invalidateTxCharts();
       saveLocalCache();
@@ -7712,8 +7616,15 @@ function getAutoriList() {
   if (names.length) return names;
   return ['Stefano Marabelli', 'Flavia Spina']; // fallback se whitelist non ancora caricata
 }
+// Default autore = il nome della WHITELIST che corrisponde all'email loggata
+// (NON il nome del profilo Google, che può differire e creare un "autore
+// fantasma" fuori lista → equità sbilanciata). Fallback: primo della lista.
 function getDefaultAutore() {
-  if (S.currentUser && S.currentUser.nome) return S.currentUser.nome;
+  const email = S.currentUser && S.currentUser.email;
+  if (email) {
+    const u = (S.authorizedUsers || []).find(x => (x.email || '').toLowerCase() === String(email).toLowerCase());
+    if (u && u.nome) return u.nome;
+  }
   const list = getAutoriList();
   return list[0] || 'Stefano Marabelli';
 }
@@ -8277,7 +8188,9 @@ async function clearCache() {
   if (!ok) return;
   const keys = await caches.keys();
   await Promise.all(keys.map(k => caches.delete(k)));
-  ['cdc-cats','cdc-tx','cdc-budgets','cdc-prefs','cdc-ts','cdc-deploy-sha'].forEach(k => localStorage.removeItem(k));
+  // pulisce TUTTE le chiavi note (comprese spesa/todo/scadenze/queue), non un
+  // sottoinsieme scritto a mano.
+  Object.values(LS).forEach(k => localStorage.removeItem(k));
   location.reload();
 }
 
