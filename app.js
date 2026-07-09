@@ -169,7 +169,7 @@ function cacheDOM() {
    'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizDataLbl','wizStep3Title','wizCompSection','wizCompQuick','wizCompDa','wizCompA','wizRecap','wizNote',
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
-   'cdCashFlow','cdCashFlowK','cdAvgMonthCell','cdAvgMonth','cdAvgMonthK','cdAvgMeanCell','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdRecent',
+   'cdCashFlow','cdCashFlowK','cdAvgMonthCell','cdAvgMonth','cdAvgMonthK','cdAvgMeanCell','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdGuidaBtn','cdRecent',
    'statsSpeseMeseBtn','statsMediaBtn','statsDetNav','statsDetPrev','statsDetMonthLabel','statsDetNext','statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsListTitle','statsList',
    'statsMPrev','statsMLabel','statsMNext','statsMTitle','statsMChart','statsMSub','statsMContribTitle','statsMContrib','statsMListTitle','statsMList',
    'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
@@ -3129,7 +3129,7 @@ function renderConti() {
     const rangeLbl = '1 ' + ms(fM) + ' - ' + endDay + ' ' + ms(lM) + ' ' + cm.anno;
     D.cdAvgMeanSub.innerHTML = 'anno in corso<br><span class="cd-avg-range">(' + rangeLbl + ')</span>';
   }
-  if (D.cdAvgNote) D.cdAvgNote.textContent = 'Spese spalmate sul periodo di competenza · straordinarie escluse.';
+  if (D.cdAvgNote) D.cdAvgNote.innerHTML = '<b>Spese per questo mese</b> e <b>Media</b>: spalmate per competenza, <b>straordinarie escluse</b>. <b>Flusso cassa</b>: tutto il contante uscito nel mese, <b>incluse le straordinarie</b>.';
 
   // ── ULTIME OPERAZIONI ──
   if (D.cdRecent) {
@@ -5354,7 +5354,7 @@ function renderStats() {
   const legendExtra = media > 0 ? [{ label: 'Media', value: media, color: 'var(--accent)', dash: true }] : [];
 
   if (D.statsTitle) D.statsTitle.textContent = 'Uscite ' + yr;
-  if (D.statsSub) D.statsSub.textContent = 'Totale anno ' + fmtEur(tot);
+  if (D.statsSub) D.statsSub.textContent = 'Totale anno ' + fmtEur(tot) + ' · per data, incl. straordinarie · la linea Media le esclude';
   if (D.statsDetNav) D.statsDetNav.style.display = (view === 'mese') ? '' : 'none';
 
   const baseOpts = {
@@ -8764,6 +8764,7 @@ function bindEvents() {
   };
   bindCell(D.cdAvgMonthCell, 'mese');
   bindCell(D.cdAvgMeanCell, 'media');
+  if (D.cdGuidaBtn) D.cdGuidaBtn.addEventListener('click', () => openModal('modalGuida'));
   // Statistiche Mese: frecce selettore mese + toggle dettagli per utente
   if (D.statsMPrev) D.statsMPrev.addEventListener('click', () => statsMeseShiftMonth(-1));
   if (D.statsMNext) D.statsMNext.addEventListener('click', () => statsMeseShiftMonth(1));

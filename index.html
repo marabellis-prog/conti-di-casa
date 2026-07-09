@@ -18,10 +18,10 @@
   <!-- Font scritto a mano per la lavagna ToDo -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
   <!-- Preload degli asset locali critici -->
-  <link rel="preload" href="./app.css?v=189" as="style">
-  <link rel="preload" href="./equity.js?v=189" as="script">
-  <link rel="preload" href="./app.js?v=189" as="script">
-  <link rel="preload" href="./charts.js?v=189" as="script">
+  <link rel="preload" href="./app.css?v=190" as="style">
+  <link rel="preload" href="./equity.js?v=190" as="script">
+  <link rel="preload" href="./app.js?v=190" as="script">
+  <link rel="preload" href="./charts.js?v=190" as="script">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=4" type="image/png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=4">
@@ -44,7 +44,7 @@
       document.documentElement.setAttribute('data-theme', __t);
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="./app.css?v=189">
+  <link rel="stylesheet" href="./app.css?v=190">
   <title>Gestione Casa</title>
 </head>
 <body>
@@ -216,6 +216,7 @@
             </div>
           </div>
           <div class="cd-avg-note" id="cdAvgNote"></div>
+          <button type="button" id="cdGuidaBtn" class="cd-guida-btn">ℹ️ Come leggere i numeri</button>
         </div>
 
         <!-- Ultime operazioni -->
@@ -1138,10 +1139,30 @@
     </div>
   </div>
 
+  <!-- Guida: come leggere i numeri (cassa vs competenza) -->
+  <div class="modal modal-center" id="modalGuida">
+    <div class="sheet">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3>Come leggere i numeri</h3>
+        <button class="sheet-close" data-close="modalGuida">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="guida-item"><b>📦 Scatolo</b><span>I contanti nel fondo comune: versamenti − spese pagate dallo scatolo − prelievi. È cumulativo (non riparte ogni anno).</span></div>
+        <div class="guida-item"><b>⚖️ Equilibrio</b><span>Chi ha anticipato più dell'altro, <b>quest'anno</b>. Ogni euro messo di tasca propria (versamento o spesa dal proprio conto) è comune 50/50: l'altro ne deve metà. Le spese dallo scatolo sono neutre.</span></div>
+        <div class="guida-item"><b>💸 Flusso cassa</b><span>Quanti soldi sono <b>usciti davvero</b> questo mese, contati per data di pagamento. Include le spese straordinarie.</span></div>
+        <div class="guida-item"><b>🗓️ Spese per questo mese</b><span>Quanto ci <b>costa</b> questo mese: le bollette lunghe (TARI, assicurazione…) sono <b>spalmate</b> sui mesi di competenza. Straordinarie escluse.</span></div>
+        <div class="guida-item"><b>📊 Media mensile</b><span>Quanto costa vivere insieme, al mese: spese spalmate dell'anno ÷ mesi trascorsi. Straordinarie escluse.</span></div>
+        <div class="guida-item"><b>👥 Contribuzione</b><span>Quanto ha messo ciascuno: versamenti + pagamenti diretti − prelievi.</span></div>
+        <div class="guida-note">Perché a volte due schermate mostrano cifre diverse? Perché rispondono a domande diverse: <b>Flusso cassa</b> = «quanto è uscito» (per data), <b>Spese/Media</b> = «quanto ci costa» (spalmato per competenza). Una bolletta di 240€ pagata a gennaio è 240€ di flusso a gennaio, ma 20€/mese di costo per tutto l'anno.</div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script src="./equity.js?v=189"></script>
-  <script src="./charts.js?v=189"></script>
-  <script src="./app.js?v=189"></script>
+  <script src="./equity.js?v=190"></script>
+  <script src="./charts.js?v=190"></script>
+  <script src="./app.js?v=190"></script>
 </body>
 </html>
