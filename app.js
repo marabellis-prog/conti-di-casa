@@ -156,7 +156,7 @@ function cacheDOM() {
    'tx2Search','tx2SearchClear','tx2FiltBtn','tx2FiltBadge','tx2ActiveBar','tx2Panel',
    'tx2Quick','tx2From','tx2To','tx2DatesClear','tx2CatFilter','tx2AutoreFilter','tx2ScatoloChip','tx2Chart','tx2Summary','tx2List',
    'tx2PerPage','tx2Prev','tx2Next','tx2PageInfo',
-   'budgetList','catTabs','catList','btnAddCat',
+   'budgetList','budgetMonthLbl','catTabs','catList','btnAddCat',
    'fab','toast',
    // modals
    'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaDesc','qaAutore','qaPersonale',
@@ -5407,6 +5407,9 @@ function renderStats() {
   renderStatsCat(view === 'mese' ? S.statsSelMonth : null);
   // Riepilogo per anno (sfoglia gli anni)
   renderStatsYearReport();
+  // Budget del mese corrente (imposta/modifica per categoria)
+  if (D.budgetMonthLbl && S.currentMonth) D.budgetMonthLbl.textContent = (MESI_FULL[S.currentMonth.mese - 1] || '') + ' ' + S.currentMonth.anno;
+  renderBudgetView();
 }
 
 // Lista "spalmata" (competenza) in pagina. mode 'mese' = quota nel mese (yr,m);
