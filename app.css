@@ -4078,8 +4078,8 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   background: var(--accent); color: #0f1419;
   font-weight: 800; font-size: 15px; cursor: pointer;
 }
-/* Temporaneamente disabilitato: appare spento ma resta cliccabile (mostra un avviso) */
-.cd-settle-btn.is-soon { background: var(--surface-2); color: var(--text-dim); cursor: not-allowed; }
+/* Il messaggio del modal di conferma rispetta i \n (paragrafi) */
+#confirmMsg { white-space: pre-line; }
 /* Medie */
 .cd-avg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .cd-avg-cell { background: var(--surface-2); border-radius: 14px; padding: 12px 8px; text-align: center; }

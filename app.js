@@ -3052,7 +3052,13 @@ function computeEquity() {
   return res;
 }
 
-// Dato lo stato di equità (2 persone) calcola chi recupera quanto e da dove.
+// Dato lo stato di equità (2 persone) calcola chi deve dare quanto a chi.
+// NOTA MATEMATICA: prelevare dallo scatolo NON compensa 1:1 il creditore
+// (lo scatolo è fondo comune al 50%: prelevare P lo compensa solo di P/2,
+// perché metà di quel denaro era già suo). L'unico pareggio esatto è il
+// trasferimento DIRETTO debitore→creditore dell'intero `owed` — volendo anche
+// via scatolo: il debitore mette `owed` e il creditore ritira `owed`
+// (fondo invariato, saldi a zero).
 function equitySettlement(eq) {
   const A = eq.A;
   if (A.length !== 2) return { state: 'na' };
@@ -3062,23 +3068,31 @@ function equitySettlement(eq) {
   if (Math.abs(oa) < 0.01 && Math.abs(ob) < 0.01) return { state: 'pari', box };
   const creditor = oa > 0 ? a : b;
   const debtor   = oa > 0 ? b : a;
-  const owed     = round2(eq.over[creditor]);
-  const fromBox  = round2(Math.min(owed, Math.max(box, 0)));
-  const fromDebtor = round2(owed - fromBox);
-  return { state: 'sbilanciato', creditor, debtor, owed, fromBox, fromDebtor, box };
+  const owed     = round2(Math.abs(eq.over[creditor]));
+  return { state: 'sbilanciato', creditor, debtor, owed, box };
 }
 
 // Carica TUTTO lo storico transazioni (serve all'equità cumulativa).
+// ⚠ PostgREST tronca ogni risposta a max 1000 righe: senza paginazione, oltre
+// le 1000 transazioni il saldo scatolo verrebbe amputato in silenzio.
 async function ensureAllTxLoaded() {
   if (S.allTxLoaded) return;
   try {
-    const rows = await supaFetch(T.TX + '?select=*&order=data.desc,id.desc');
-    if (Array.isArray(rows)) {
-      const ids = new Set(S.tx.map(t => t.id));
-      rows.forEach(r => { if (!ids.has(r.id)) S.tx.push(r); });
-      S.allTxLoaded = true;
-      saveLocalCache();
+    const PAGE = 1000;
+    let offset = 0, complete = false;
+    const fetched = [];
+    for (let guard = 0; guard < 50; guard++) {   // hard cap 50k righe
+      const rows = await supaFetch(T.TX + '?select=*&order=data.desc,id.desc&limit=' + PAGE + '&offset=' + offset);
+      if (!Array.isArray(rows)) return;          // risposta anomala: non marcare loaded
+      fetched.push(...rows);
+      if (rows.length < PAGE) { complete = true; break; }
+      offset += PAGE;
     }
+    if (!complete) return;
+    const ids = new Set(S.tx.map(t => t.id));
+    fetched.forEach(r => { if (!ids.has(r.id)) S.tx.push(r); });
+    S.allTxLoaded = true;
+    saveLocalCache();
   } catch (e) { /* offline: usa la cache disponibile */ }
 }
 
@@ -3162,15 +3176,10 @@ function renderConti() {
   if (s.state === 'pari') {
     mainTxt = '✅ Siete in pari';
     instrTxt = eq.box > 0.005 ? 'Nello scatolo ci sono ' + fmtEur(eq.box) + ' di fondo comune.' : 'Nessuno deve niente all\'altro.';
-  } else if (s.state === 'credito') {
-    mainTxt = '✅ Nessuno è in debito';
-    instrTxt = 'I soldi versati in più sono ancora nello scatolo (' + fmtEur(eq.box) + ').';
   } else if (s.state === 'sbilanciato') {
     mainTxt = shortName(s.creditor) + ' ha anticipato ' + fmtEur(s.owed) + ' in più';
-    const parts = [];
-    if (s.fromBox > 0.005) parts.push('prende ' + fmtEur(s.fromBox) + ' dallo scatolo');
-    if (s.fromDebtor > 0.005) parts.push((parts.length ? 'e ' : 'prende ') + fmtEur(s.fromDebtor) + ' da ' + shortName(s.debtor));
-    instrTxt = 'Per pareggiare: ' + (parts.join(' ') || '—') + '.';
+    instrTxt = 'Per pareggiare: ' + shortName(s.debtor) + ' dà ' + fmtEur(s.owed) + ' a ' + shortName(s.creditor) +
+      '. Quando è fatto, premi «Registra il riequilibrio».';
     showBtn = true;
   } else {
     mainTxt = '—';
@@ -3226,24 +3235,30 @@ function renderConti() {
   }
 }
 
-// Registra il riequilibrio: versamento del debitore (la sua parte) +
-// prelievo del creditore (quanto recupera), così scatolo e saldi tornano a zero.
+// Registra il riequilibrio: il debitore dà l'intero `owed` al creditore.
+// Viene annotato come coppia di movimenti "Riequilibrio conti" (versamento del
+// debitore + prelievo del creditore, STESSO importo): lo scatolo resta
+// invariato (+X e −X), i saldi di equità tornano a zero (credit ±X/2 ±X/2 = X),
+// i contributi dell'anno si pareggiano, e NULLA entra in spese/medie/flusso di
+// cassa (è un trasferimento tra persone, non un costo della casa).
+const RIEQ_DESC = 'Riequilibrio conti';
+
 async function registerRiequilibrio() {
   const eq = computeEquity();
   const s = equitySettlement(eq);
   if (!s || s.state !== 'sbilanciato') { toast('Siete già in pari', 'info'); return; }
-  const msg = shortName(s.creditor) + ' recupera ' + fmtEur(s.owed) + ': ' +
-    (s.fromBox > 0.005 ? fmtEur(s.fromBox) + ' dallo scatolo' : '') +
-    (s.fromBox > 0.005 && s.fromDebtor > 0.005 ? ' e ' : '') +
-    (s.fromDebtor > 0.005 ? fmtEur(s.fromDebtor) + ' da ' + shortName(s.debtor) : '') +
-    '. Registro il riequilibrio?';
-  const ok = await confirmDlg({ title: '⚖️ Riequilibrio', message: msg, confirmLabel: 'Registra', cancelLabel: 'Annulla' });
+  const msg = shortName(s.debtor) + ' deve dare ' + fmtEur(s.owed) + ' a ' + shortName(s.creditor) + ' per tornare in pari.\n\n' +
+    'Potete farlo a mano o con bonifico — oppure via scatolo: ' + shortName(s.debtor) + ' mette ' + fmtEur(s.owed) +
+    ' e ' + shortName(s.creditor) + ' li ritira (il fondo resta uguale).\n\n' +
+    'Premi «Fatto, registra» quando lo avete fatto: verranno annotati due movimenti «Riequilibrio conti», esclusi dalle spese di casa.';
+  const ok = await confirmDlg({ title: '⚖️ Registra il riequilibrio', message: msg, confirmLabel: 'Fatto, registra', cancelLabel: 'Annulla' });
   if (!ok) return;
   const d = today();
+  const note = 'Riequilibrio: ' + shortName(s.debtor) + ' → ' + shortName(s.creditor) + ' ' + fmtEur(s.owed);
   try {
-    if (s.fromDebtor > 0.005) await saveTransaction(boxPayload('versamento', s.debtor, s.fromDebtor, d, 'Riequilibrio'));
-    await saveTransaction(boxPayload('prelievo', s.creditor, s.owed, d, 'Riequilibrio'));
-    toast('Riequilibrio registrato', 'success');
+    await saveTransaction(boxPayload('versamento', s.debtor, s.owed, d, RIEQ_DESC, note));
+    await saveTransaction(boxPayload('prelievo',  s.creditor, s.owed, d, RIEQ_DESC, note));
+    toast('Riequilibrio registrato: siete in pari', 'success');
   } catch (e) {
     toast('Errore: ' + (e && e.message ? e.message : 'non riuscito'), 'error');
   }
@@ -4532,10 +4547,11 @@ function txRowHtml(t) {
   const amtHtml = '<div class="tx-amt ' + amtCls + '">' + (t.tipo === 'entrata' ? '+' : '−') + fmtEur(Number(t.importo)) + '</div>';
   if (mov === 'versamento' || mov === 'prelievo') {
     const isVers = mov === 'versamento';
-    const icon = isVers ? '📥' : '📤';
-    const color = isVers ? '#22c55e' : '#ef4444';
-    const name = isVers ? 'Versamento scatolo' : 'Prelievo scatolo';
-    const meta = [fmtData(t.data), t.descrizione || '', t.autore ? '👤 ' + t.autore : ''].filter(Boolean).join(' • ');
+    const isRieq = String(t.descrizione || '').startsWith('Riequilibrio');
+    const icon = isRieq ? '⚖️' : (isVers ? '📥' : '📤');
+    const color = isRieq ? '#f59e0b' : (isVers ? '#22c55e' : '#ef4444');
+    const name = isRieq ? ('Riequilibrio conti · ' + (isVers ? 'dà' : 'riceve')) : (isVers ? 'Versamento scatolo' : 'Prelievo scatolo');
+    const meta = [fmtData(t.data), isRieq ? '' : (t.descrizione || ''), t.autore ? '👤 ' + t.autore : ''].filter(Boolean).join(' • ');
     const noteLine = t.note ? '<div class="tx-note">' + esc(t.note) + '</div>' : '';
     return '<div class="tx-row' + pendingCls + '" data-tx-id="' + t.id + '">' +
       '<div class="tx-icon" style="background:' + color + '22;color:' + color + '">' + icon + '</div>' +
@@ -6565,7 +6581,8 @@ function closeTxWizard() {
 }
 
 function motivoKeyFromPlain(s) {
-  return s === 'Riequilibrio' ? 'riequilibrio' : (s === 'Spesa personale' ? 'personale' : 'altro');
+  // startsWith: copre sia 'Riequilibrio' (wizard) sia 'Riequilibrio conti' (bottone dashboard)
+  return String(s || '').startsWith('Riequilibrio') ? 'riequilibrio' : (s === 'Spesa personale' ? 'personale' : 'altro');
 }
 
 // Apre il wizard in modalità MODIFICA, precompilato col movimento esistente.
@@ -8736,10 +8753,8 @@ function bindEvents() {
   if (D.wizStraord) D.wizStraord.addEventListener('change', () => { WIZ.straord = D.wizStraord.checked; });
   // Slider divisione personalizzata
   if (D.wizSplitRange) D.wizSplitRange.addEventListener('input', () => { WIZ.splitA = Number(D.wizSplitRange.value); renderWizSplitReadout(); updateWizNext(); });
-  // Bottone "Registra riequilibrio" nella dashboard — TEMPORANEAMENTE disabilitato:
-  // mostra solo un avviso. Per riattivarlo: ripristina `registerRiequilibrio`
-  // come handler e togli la classe is-soon dal bottone in index.html.
-  if (D.cdSettleBtn) D.cdSettleBtn.addEventListener('click', () => toast('Non al momento disponibile', 'warn'));
+  // Bottone "Registra il riequilibrio" nella dashboard
+  if (D.cdSettleBtn) D.cdSettleBtn.addEventListener('click', registerRiequilibrio);
   // Card scatolo cliccabile → pagina Transazioni filtrata sui movimenti scatolo
   if (D.cdScatoloCard) {
     const goScatolo = () => {
