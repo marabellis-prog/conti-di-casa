@@ -171,7 +171,7 @@ function cacheDOM() {
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdCashFlow','cdCashFlowK','cdAvgMonthCell','cdAvgMonth','cdAvgMonthK','cdAvgMeanCell','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdGuidaBtn','cdRecent',
-   'statsSpeseMeseBtn','statsMediaBtn','statsDetNav','statsDetPrev','statsDetMonthLabel','statsDetNext','statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsListTitle','statsList',
+   'statsSpeseMeseBtn','statsMediaBtn','statsDetNav','statsDetPrev','statsDetMonthLabel','statsDetNext','statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsCatTitle','statsCatDonut','statsListTitle','statsList',
    'statsMPrev','statsMLabel','statsMNext','statsMTitle','statsMChart','statsMSub','statsMContribTitle','statsMContrib','statsMListTitle','statsMList',
    'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
@@ -5392,6 +5392,8 @@ function renderStats() {
     }));
     renderStatsMonth(S.statsSelMonth);
   }
+  // "Dove vanno i soldi": uscite per categoria del periodo (mese scelto o anno)
+  renderStatsCat(view === 'mese' ? S.statsSelMonth : null);
 }
 
 // Lista "spalmata" (competenza) in pagina. mode 'mese' = quota nel mese (yr,m);
@@ -5431,6 +5433,44 @@ function renderSpreadListInto(listEl, titleEl, mode, yr, m) {
   }).join('');
   $$('.spread-row', listEl).forEach(el => el.addEventListener('click', () => openTxEdit(el.getAttribute('data-tx-id'))));
   twemojify(listEl);
+}
+
+// ── Uscite per macro-categoria (dove vanno i soldi) ──
+// Spese comuni per DATA (grezze, come il grafico uscite), aggregate per macro.
+function statsCatSegs(yr, month) {
+  const byMacro = {};
+  commonSpese().forEach(t => {
+    const [y, m] = String(t.data || '').split('-').map(Number);
+    if (y !== yr) return;
+    if (month && m !== month) return;
+    const c = catById(t.categoria_id);
+    const mid = (c && c.macro_categoria) || 'altro';
+    byMacro[mid] = (byMacro[mid] || 0) + (Number(t.importo) || 0);
+  });
+  return Object.keys(byMacro).map(mid => {
+    const mm = macroById(mid);
+    return { label: mm ? macroLabel(mid) : 'Altro', value: round2(byMacro[mid]), color: MACRO_COLORS[mid] || '#94a3b8', icon: mm ? mm.icon : '📦' };
+  }).filter(s => s.value > 0.005).sort((a, b) => b.value - a.value);
+}
+function renderStatsCat(month) {
+  const yr = new Date().getFullYear();
+  const segs = statsCatSegs(yr, month);
+  if (D.statsCatTitle) D.statsCatTitle.textContent = 'Uscite per categoria · ' + (month ? (MESI_FULL[month - 1] || '') + ' ' + yr : yr);
+  const wrap = D.statsCatDonut;
+  if (!wrap || !window.Charts) return;
+  if (!segs.length) { wrap.innerHTML = '<div class="txt-faint" style="font-size:13px;padding:8px 2px">Nessuna spesa nel periodo.</div>'; return; }
+  Charts.renderDonut(wrap, segs.map(s => ({ label: s.label, value: s.value, color: s.color })), { noLegend: true, subLabel: 'uscite' });
+  const total = segs.reduce((s, x) => s + x.value, 0);
+  const leg = document.createElement('div');
+  leg.className = 'donut-legend scl-legend';
+  leg.innerHTML = segs.map(s => {
+    const pct = total > 0 ? Math.round(s.value / total * 100) : 0;
+    return '<div class="legend-row"><span class="legend-dot" style="background:' + s.color + '"></span>' +
+      '<span class="scl-txt">' + s.icon + ' ' + esc(s.label) + ' ' + fmtEur(s.value) +
+      ' <span class="scl-pct">(' + pct + '%)</span></span></div>';
+  }).join('');
+  wrap.appendChild(leg);
+  twemojify(leg);
 }
 
 // Toggle bottoni: ripremendo torna alla vista principale (come "Statistiche").
