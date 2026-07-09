@@ -2548,6 +2548,8 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
   border-bottom: 1px solid var(--border);
 }
 .ricorrente-row:last-child { border-bottom: none; }
+.ricorrente-rem { flex: none; background: transparent; border: 1px solid var(--border); border-radius: 8px; width: 34px; height: 32px; font-size: 16px; cursor: pointer; -webkit-tap-highlight-color: transparent; padding: 0; }
+.ricorrente-rem:active { opacity: .6; }
 .ricorrente-icon {
   width: 30px; height: 30px;
   border-radius: 50%;

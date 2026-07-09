@@ -156,7 +156,7 @@ function cacheDOM() {
    'tx2Search','tx2SearchClear','tx2FiltBtn','tx2FiltBadge','tx2ActiveBar','tx2Panel',
    'tx2Quick','tx2From','tx2To','tx2DatesClear','tx2CatFilter','tx2AutoreFilter','tx2ScatoloChip','tx2Chart','tx2Summary','tx2List',
    'tx2PerPage','tx2Prev','tx2Next','tx2PageInfo',
-   'budgetList','budgetMonthLbl','catTabs','catList','btnAddCat',
+   'budgetList','budgetMonthLbl','ricorrentiWrap','catTabs','catList','btnAddCat',
    'fab','toast',
    // modals
    'modalQa','sheetQa','qaToggle','qaAmt','qaAmtVal','numpad','qaCats','qaTitle','qaDesc','qaAutore','qaPersonale',
@@ -4206,9 +4206,26 @@ function renderRicorrenti() {
       '</div>' +
       '<span class="ricorrente-badge ' + badgeCls + '">' + badge + '</span>' +
       '<div class="ricorrente-amt">' + Charts.fmtEur(r.media) + '</div>' +
+      '<button type="button" class="ricorrente-rem" data-cat-id="' + c.id + '" title="Crea un promemoria in Scadenze">🔔</button>' +
     '</div>';
   });
   D.ricorrentiWrap.innerHTML = html;
+  twemojify(D.ricorrentiWrap);
+  $$('.ricorrente-rem', D.ricorrentiWrap).forEach(el => el.addEventListener('click', () => promemoriaDaRicorrente(catById(Number(el.getAttribute('data-cat-id'))))));
+}
+
+// "Ricorrenza → Scadenza": apre il modulo Scadenze con una nuova scadenza
+// pre-compilata (titolo + icona della categoria ricorrente). L'utente sceglie
+// data e ricorrenza e salva — nessuna scrittura automatica.
+function promemoriaDaRicorrente(cat) {
+  if (!cat) return;
+  if (typeof switchView === 'function') switchView('scadenze');
+  openScadenzaAdd();
+  if (D.scadenzaEditTitolo) D.scadenzaEditTitolo.value = cat.nome || '';
+  if (cat.icona && typeof updateScadenzaEditIcons === 'function') {
+    try { _scadenzaEditState.icone = [cat.icona]; _scadenzaEditState.iconaManual = true; updateScadenzaEditIcons([cat.icona]); } catch (_) {}
+  }
+  toast('Scegli data e ricorrenza, poi salva', 'info');
 }
 
 // ─── ALTRE ANALISI DONUT ────────────────────────────────────
@@ -5410,6 +5427,8 @@ function renderStats() {
   // Budget del mese corrente (imposta/modifica per categoria)
   if (D.budgetMonthLbl && S.currentMonth) D.budgetMonthLbl.textContent = (MESI_FULL[S.currentMonth.mese - 1] || '') + ' ' + S.currentMonth.anno;
   renderBudgetView();
+  // Spese ricorrenti rilevate (+ crea promemoria in Scadenze)
+  renderRicorrenti();
 }
 
 // Lista "spalmata" (competenza) in pagina. mode 'mese' = quota nel mese (yr,m);
