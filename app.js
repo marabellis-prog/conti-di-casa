@@ -171,7 +171,7 @@ function cacheDOM() {
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
    'cdCashFlow','cdCashFlowK','cdAvgMonthCell','cdAvgMonth','cdAvgMonthK','cdAvgMeanCell','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdGuidaBtn','cdRecent',
-   'statsSpeseMeseBtn','statsMediaBtn','statsDetNav','statsDetPrev','statsDetMonthLabel','statsDetNext','statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsCatTitle','statsCatDonut','statsListTitle','statsList',
+   'statsSpeseMeseBtn','statsMediaBtn','statsDetNav','statsDetPrev','statsDetMonthLabel','statsDetNext','statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsCatTitle','statsCatDonut','statsListTitle','statsList','statsYearPrev','statsYearLabel','statsYearNext','statsYearBody',
    'statsMPrev','statsMLabel','statsMNext','statsMTitle','statsMChart','statsMSub','statsMContribTitle','statsMContrib','statsMListTitle','statsMList',
    'tx2RiallineaBtn','modalRiallineo','rialBalance','rialDir','rialAmt','rialContaRow','rialConta','rialNote','rialSave','rialHint',
    'modalTx','txEditTitle','txEditTypeBadge','txEditAmt','txEditData','txEditSave','txEditDelete',
@@ -5405,6 +5405,8 @@ function renderStats() {
   }
   // "Dove vanno i soldi": uscite per categoria del periodo (mese scelto o anno)
   renderStatsCat(view === 'mese' ? S.statsSelMonth : null);
+  // Riepilogo per anno (sfoglia gli anni)
+  renderStatsYearReport();
 }
 
 // Lista "spalmata" (competenza) in pagina. mode 'mese' = quota nel mese (yr,m);
@@ -5482,6 +5484,64 @@ function renderStatsCat(month) {
   }).join('');
   wrap.appendChild(leg);
   twemojify(leg);
+}
+
+// ── Riepilogo per ANNO (sfoglia gli anni: chiusura/archivio) ──
+// Intervallo di anni con dati (spese comuni), cap all'anno corrente.
+function availableYears() {
+  const now = new Date().getFullYear();
+  let min = now, max = now;
+  commonSpese().forEach(t => { const y = Number(String(t.data || '').slice(0, 4)); if (y) { if (y < min) min = y; if (y > max) max = y; } });
+  if (max > now) max = now;
+  if (min > max) min = max;
+  return { min, max };
+}
+function renderStatsYearReport() {
+  if (!D.statsYearBody) return;
+  const now = new Date();
+  const yrs = availableYears();
+  if (S.statsYear == null) S.statsYear = yrs.max;
+  if (S.statsYear > yrs.max) S.statsYear = yrs.max;
+  if (S.statsYear < yrs.min) S.statsYear = yrs.min;
+  const yr = S.statsYear;
+  if (D.statsYearLabel) D.statsYearLabel.textContent = yr;
+  if (D.statsYearPrev) D.statsYearPrev.disabled = (yr <= yrs.min);
+  if (D.statsYearNext) D.statsYearNext.disabled = (yr >= yrs.max);
+
+  const A = getAutoriList();
+  const isCur = (yr === now.getFullYear());
+  const curMonth = isCur ? now.getMonth() + 1 : 12;
+  const mi = CDCEquity.mediaComuniAnnoInfo(S.tx || [], yr, curMonth, isCur ? now.getDate() : null);
+  const totale = commonSpese().filter(t => String(t.data || '').slice(0, 4) === String(yr)).reduce((s, t) => s + (Number(t.importo) || 0), 0);
+  const contrib = CDCEquity.contribByAutore(S.tx || [], A, yr, null, null);
+  const eq = CDCEquity.computeEquity(S.tx || [], A, yr);
+  const sEq = CDCEquity.equitySettlement(eq);
+  const nRieq = (S.tx || []).filter(t => (t.tipo_movimento === 'prelievo') && String(t.data || '').slice(0, 4) === String(yr) && String(t.descrizione || '').startsWith('Riequilibrio')).length;
+
+  const eqTxt = sEq.state === 'pari' ? '<span class="pos">in pari</span>'
+    : (sEq.state === 'sbilanciato' ? esc(shortName(sEq.creditor)) + ' <span class="pos">+' + fmtEur(sEq.owed) + '</span>' : '—');
+  const contribRows = A.map(n => {
+    const v = Math.max(0, round2(contrib[n] || 0));
+    return '<div class="yr-row"><span class="yr-name">' + esc(shortName(n)) + '</span><span class="yr-amt">' + fmtEur(v) + '</span></div>';
+  }).join('');
+
+  D.statsYearBody.innerHTML =
+    '<div class="cd-card-lbl">Riepilogo ' + yr + (isCur ? ' <small>(in corso)</small>' : '') + '</div>' +
+    '<div class="yr-grid">' +
+      '<div class="yr-cell"><div class="yr-k">Totale uscite</div><div class="yr-v">' + fmtEur(totale) + '</div></div>' +
+      '<div class="yr-cell"><div class="yr-k">Media / mese</div><div class="yr-v">' + fmtEur(mi.media) + '</div></div>' +
+      '<div class="yr-cell"><div class="yr-k">Riequilibri</div><div class="yr-v">' + nRieq + '</div></div>' +
+    '</div>' +
+    '<div class="yr-sub">Contribuzione</div>' +
+    '<div class="yr-contrib">' + contribRows + '</div>' +
+    '<div class="yr-eq">Equilibrio a fine periodo: ' + eqTxt + '</div>';
+}
+function statsYearShift(delta) {
+  const yrs = availableYears();
+  let y = (S.statsYear || yrs.max) + delta;
+  if (y < yrs.min) y = yrs.min; if (y > yrs.max) y = yrs.max;
+  S.statsYear = y;
+  renderStatsYearReport();
 }
 
 // Toggle bottoni: ripremendo torna alla vista principale (come "Statistiche").
@@ -8992,6 +9052,8 @@ function bindEvents() {
   // Selettore mese della vista 'mese' (sincronizzato col grafico)
   if (D.statsDetPrev) D.statsDetPrev.addEventListener('click', () => statsDetShiftMonth(-1));
   if (D.statsDetNext) D.statsDetNext.addEventListener('click', () => statsDetShiftMonth(1));
+  if (D.statsYearPrev) D.statsYearPrev.addEventListener('click', () => statsYearShift(-1));
+  if (D.statsYearNext) D.statsYearNext.addEventListener('click', () => statsYearShift(1));
   // Dashboard: i riquadri "Spese per questo mese" / "Media mensile" aprono la
   // vista Statistiche nel dettaglio corrispondente.
   const goStatsDetail = (mode) => {

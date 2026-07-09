@@ -4140,6 +4140,21 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 /* Dettaglio spalmato (in pagina) */
 .stats-det-nav { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 0 0 10px; }
 #statsDetMonthLabel { font-size: 16px; font-weight: 800; color: var(--text); min-width: 150px; text-align: center; text-transform: capitalize; }
+/* Riepilogo per anno */
+.stats-year-nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 10px; }
+#statsYearLabel { font-size: 18px; font-weight: 800; color: var(--text); min-width: 80px; text-align: center; font-variant-numeric: tabular-nums; }
+.yr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0 4px; }
+.yr-cell { background: var(--surface-2); border-radius: 10px; padding: 10px 8px; text-align: center; }
+.yr-k { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-dim); font-weight: 700; }
+.yr-v { font-size: 17px; font-weight: 800; color: var(--text); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.yr-sub { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); font-weight: 700; margin: 12px 0 6px; }
+.yr-contrib { display: flex; flex-direction: column; gap: 4px; }
+.yr-row { display: flex; justify-content: space-between; font-size: 14px; padding: 5px 2px; border-bottom: 1px solid var(--border); }
+.yr-row:last-child { border-bottom: none; }
+.yr-name { color: var(--text); font-weight: 600; }
+.yr-amt { color: var(--text); font-variant-numeric: tabular-nums; }
+.yr-eq { margin-top: 10px; font-size: 13px; color: var(--text-dim); }
+.yr-eq .pos { color: var(--ok); font-weight: 700; }
 .spread-sub { font-size: 13px; color: var(--text-dim); margin: 2px 2px 12px; line-height: 1.4; }
 .spread-sub b { color: var(--text); }
 .spread-list { display: flex; flex-direction: column; }

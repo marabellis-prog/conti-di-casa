@@ -18,11 +18,11 @@
   <!-- Font scritto a mano per la lavagna ToDo -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
   <!-- Preload degli asset locali critici -->
-  <link rel="preload" href="./app.css?v=197" as="style">
-  <link rel="preload" href="./equity.js?v=197" as="script">
-  <link rel="preload" href="./backup.js?v=197" as="script">
-  <link rel="preload" href="./app.js?v=197" as="script">
-  <link rel="preload" href="./charts.js?v=197" as="script">
+  <link rel="preload" href="./app.css?v=198" as="style">
+  <link rel="preload" href="./equity.js?v=198" as="script">
+  <link rel="preload" href="./backup.js?v=198" as="script">
+  <link rel="preload" href="./app.js?v=198" as="script">
+  <link rel="preload" href="./charts.js?v=198" as="script">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=4" type="image/png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=4">
@@ -45,7 +45,7 @@
       document.documentElement.setAttribute('data-theme', __t);
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="./app.css?v=197">
+  <link rel="stylesheet" href="./app.css?v=198">
   <title>Gestione Casa</title>
 </head>
 <body>
@@ -341,6 +341,14 @@
           </div>
           <div class="cd-card-lbl" id="statsListTitle">Spese del mese</div>
           <div id="statsList"></div>
+        </div>
+        <div class="cd-card stats-year-card">
+          <div class="stats-year-nav">
+            <button type="button" id="statsYearPrev" class="stats-msel-arr" aria-label="Anno precedente">‹</button>
+            <span id="statsYearLabel">—</span>
+            <button type="button" id="statsYearNext" class="stats-msel-arr" aria-label="Anno successivo">›</button>
+          </div>
+          <div id="statsYearBody"></div>
         </div>
       </div>
       <div id="statsMese" hidden>
@@ -1189,9 +1197,9 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script src="./equity.js?v=197"></script>
-  <script src="./backup.js?v=197"></script>
-  <script src="./charts.js?v=197"></script>
-  <script src="./app.js?v=197"></script>
+  <script src="./equity.js?v=198"></script>
+  <script src="./backup.js?v=198"></script>
+  <script src="./charts.js?v=198"></script>
+  <script src="./app.js?v=198"></script>
 </body>
 </html>
