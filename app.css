@@ -4135,8 +4135,7 @@ h2 { font-size: 18px; margin: 12px 4px 8px; font-weight: 600; }
 .stats-contrib .scl-legend .legend-row { cursor: default; }
 .scl-legend .legend-row .scl-txt { flex: 1; min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; font-weight: 600; }
 .scl-legend .scl-pct { color: var(--text-faint); font-size: .85em; font-weight: 600; white-space: nowrap; }
-#statsTitle { cursor: pointer; -webkit-tap-highlight-color: transparent; display: inline-block; border-bottom: 1px dashed var(--text-faint); padding-bottom: 1px; }
-#statsTitle:active { opacity: .6; }
+/* (il titolo Statistiche non è più cliccabile: il toggle dettagli è nei due bottoni) */
 .stats-chart { margin-top: 12px; }
 .stats-chart svg { width: 100%; height: auto; display: block; }
 .stats-card .cd-avg-note { margin-top: 10px; text-align: center; }

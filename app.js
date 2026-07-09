@@ -4926,7 +4926,9 @@ function renderList() {
 // giorno se il periodo è breve (≤ ~75 gg), altrimenti per mese.
 function renderTx2Chart(all) {
   if (!D.tx2Chart || !window.Charts) return;
-  const usc = (all || []).filter(t => t.tipo === 'uscita');
+  // Solo SPESE vere: prelievi/versamenti scatolo (incl. riequilibri) sono
+  // movimenti di cassa, non costi → fuori dal grafico "Uscite".
+  const usc = (all || []).filter(t => (t.tipo_movimento || 'spesa') === 'spesa' && t.tipo === 'uscita');
   if (usc.length < 2) { D.tx2Chart.hidden = true; D.tx2Chart.innerHTML = ''; return; }
   const dates = usc.map(t => String(t.data)).sort();
   const start = new Date(dates[0] + 'T00:00:00');
