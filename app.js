@@ -379,8 +379,12 @@ async function supaFetch(path, opts, retry) {
       }
       throw err;
     }
-    if (res.status === 204) return null;
-    return await res.json();
+    // Robusto ai corpi VUOTI: con `Prefer: return=minimal` PostgREST risponde
+    // 200/201 SENZA body → res.json() darebbe "Unexpected end of JSON input".
+    if (res.status === 204 || res.status === 205) return null;
+    const text = await res.text();
+    if (!text) return null;
+    try { return JSON.parse(text); } catch (_) { return null; }
   } catch (err) {
     if (err.name === 'TypeError' && retry < 2) {
       await sleep(300 * Math.pow(2, retry));
