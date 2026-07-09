@@ -20,7 +20,8 @@ const T = {
   USERS: 'cdc_authorized_users',
   SPESA: 'cdc_lista_spesa',
   TODO: 'cdc_lista_todo',
-  SCADENZE: 'cdc_scadenze'
+  SCADENZE: 'cdc_scadenze',
+  BACKUPS: 'cdc_backups'
 };
 const OWNER_EMAIL = 'marabelli.s@gmail.com';
 
@@ -180,7 +181,8 @@ function cacheDOM() {
    'txEditCompQuick','txEditCompDa','txEditCompA',
    'modalCat','catEditTitle','catEditName','catEditTipo','catEditMacro','catEditEmojis','catEditColors','catEditSave','catEditDelete',
    'modalBudget','budgetEditTitle','budgetEditAmt','budgetEditSave','budgetEditDelete',
-   'modalSettings','setTheme','setSave','setClearCache','setVersion','setBackup',
+   'modalSettings','setTheme','setSave','setClearCache','setVersion','setRestore',
+   'modalRestore','restoreBody',
    'setUsersList','setAddUser','setLogout',
    'modalUser','userEditTitle','userEditNome','userEditEmail','userEditSave',
    'autoreDonutWrap'
@@ -8128,38 +8130,189 @@ async function cycleTheme() {
   try { if (isOnline()) await supaFetch(path, options); else enqueue({ path, options }); }
   catch { enqueue({ path, options }); }
 }
-// Backup COMPLETO di tutte le tabelle dati → file JSON scaricabile.
-// Rilegge fresco dal DB (con paginazione) per non dipendere dallo stato in RAM.
-async function exportBackupJson() {
-  if (D.setBackup) setBtnLoading(D.setBackup, true);
-  const tables = {
-    transazioni: T.TX, categorie: T.CATS, budget: T.BUDGET, prefs: T.PREFS,
-    lista_spesa: T.SPESA, lista_todo: T.TODO, scadenze: T.SCADENZE, authorized_users: T.USERS
-  };
-  const out = { _meta: { app: 'Conti di Casa', generatedAt: new Date().toISOString(), sha: (S.localSha || '').slice(0, 7) } };
-  try {
-    for (const [k, tbl] of Object.entries(tables)) {
+// ─── BACKUP / RIPRISTINO NEL DB (tabella cdc_backups, 1 riga per giorno) ────
+// Logica pura in backup.js (testata). Qui le chiamate REST.
+
+// Rilegge fresco tutte le tabelle dei moduli (+ sistema), con paginazione.
+async function fetchAllForBackup() {
+  const out = {};
+  const groups = CDCBackup.MODULES.concat([CDCBackup.SISTEMA]);
+  for (const m of groups) {
+    for (const { t } of m.tables) {
       let all = [], offset = 0;
       for (let g = 0; g < 50; g++) {
-        const rows = await supaFetch(tbl + '?select=*&limit=1000&offset=' + offset);
-        if (!Array.isArray(rows)) throw new Error('lettura ' + k + ' fallita');
+        const rows = await supaFetch(t + '?select=*&limit=1000&offset=' + offset);
+        if (!Array.isArray(rows)) throw new Error('lettura ' + t + ' fallita');
         all.push(...rows);
         if (rows.length < 1000) break;
         offset += 1000;
       }
-      out[k] = all;
+      out[t] = all;
     }
-    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'backup-conti-' + today() + '.json';
-    document.body.appendChild(a); a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 100);
-    toast('Backup scaricato (' + (out.transazioni ? out.transazioni.length : 0) + ' transazioni)', 'success');
+  }
+  return out;
+}
+
+// Crea/aggiorna il backup di OGGI (upsert su giorno) + potatura oltre 90 giorni.
+async function createBackupNow(silent) {
+  try {
+    const data = await fetchAllForBackup();
+    const payload = Object.assign({ giorno: today(), updated_at: new Date().toISOString() }, CDCBackup.buildBackupRow(data));
+    await supaFetch(T.BACKUPS + '?on_conflict=giorno', {
+      method: 'POST', body: JSON.stringify(payload),
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' }
+    });
+    try {
+      const giorni = await supaFetch(T.BACKUPS + '?select=giorno');
+      const prune = CDCBackup.backupsToPrune((giorni || []).map(r => r.giorno), today(), 90);
+      for (const g of prune) await supaFetch(T.BACKUPS + '?giorno=eq.' + g, { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+    } catch (_) {}
+    if (!silent) toast('Backup di oggi salvato', 'success');
+    return true;
   } catch (e) {
-    toast('Backup non riuscito: ' + (e && e.message ? e.message : 'errore'), 'error');
-  } finally {
-    if (D.setBackup) setBtnLoading(D.setBackup, false);
+    if (!silent) toast('Backup non riuscito: ' + (e && e.message ? e.message : 'errore'), 'error');
+    return false;
+  }
+}
+
+// All'avvio: se manca il backup di oggi, crealo (silenzioso). Se la tabella non
+// esiste ancora (RLS script non eseguito) fallisce in silenzio.
+async function ensureDailyBackup() {
+  try {
+    const ex = await supaFetch(T.BACKUPS + '?select=giorno&giorno=eq.' + today());
+    if (Array.isArray(ex) && ex.length) return;
+    await createBackupNow(true);
+  } catch (_) {}
+}
+
+function fmtBackupDate(g) {
+  if (!g) return '';
+  const [y, m, d] = String(g).split('-').map(Number);
+  const t = today().split('-').map(Number);
+  if (y === t[0] && m === t[1] && d === t[2]) return 'Oggi';
+  const yd = new Date(); yd.setDate(yd.getDate() - 1);
+  if (y === yd.getFullYear() && m === yd.getMonth() + 1 && d === yd.getDate()) return 'Ieri';
+  return d + ' ' + (MESI_FULL[m - 1] || '') + ' ' + y;
+}
+
+let _restore = { giorno: null, row: null, mods: new Set() };
+async function openRestore() {
+  _restore = { giorno: null, row: null, mods: new Set() };
+  openModal('modalRestore');
+  if (!D.restoreBody) return;
+  D.restoreBody.innerHTML = '<div class="txt-faint" style="padding:22px;text-align:center">Carico i backup…</div>';
+  try {
+    const rows = await supaFetch(T.BACKUPS + '?select=giorno,created_at&order=giorno.desc');
+    renderRestoreDates(rows || []);
+  } catch (e) {
+    D.restoreBody.innerHTML = '<div class="cd-warn">Backup non disponibili. Se hai appena creato la tabella, riapri tra poco.</div>';
+  }
+}
+function renderRestoreDates(list) {
+  if (!D.restoreBody) return;
+  if (!list.length) {
+    D.restoreBody.innerHTML = '<div class="txt-faint" style="padding:22px;text-align:center">Ancora nessun backup.<br>Ne viene creato uno in automatico ogni giorno all\'apertura.</div>';
+    return;
+  }
+  D.restoreBody.innerHTML =
+    '<div class="restore-step">1 · Scegli una data</div>' +
+    '<div class="restore-dates">' + list.map(b =>
+      '<button type="button" class="restore-date" data-g="' + b.giorno + '">' + esc(fmtBackupDate(b.giorno)) + '</button>'
+    ).join('') + '</div>' +
+    '<div id="restoreModsWrap"></div>';
+  $$('.restore-date', D.restoreBody).forEach(el => el.addEventListener('click', () => selectRestoreDate(el.getAttribute('data-g'), el)));
+}
+async function selectRestoreDate(g, el) {
+  _restore.giorno = g; _restore.mods = new Set();
+  $$('.restore-date', D.restoreBody).forEach(b => b.classList.toggle('active', b === el));
+  const wrap = document.getElementById('restoreModsWrap');
+  if (wrap) wrap.innerHTML = '<div class="txt-faint" style="padding:12px">Carico i moduli…</div>';
+  try {
+    const rows = await supaFetch(T.BACKUPS + '?giorno=eq.' + g + '&select=*');
+    _restore.row = rows && rows[0];
+    renderRestoreModules(_restore.row);
+  } catch (e) { if (wrap) wrap.innerHTML = '<div class="cd-warn">Backup non leggibile.</div>'; }
+}
+function renderRestoreModules(row) {
+  const wrap = document.getElementById('restoreModsWrap');
+  if (!wrap) return;
+  const counts = CDCBackup.moduleCounts(row || {});
+  const present = CDCBackup.MODULES.filter(m => counts[m.key] > 0);
+  if (!present.length) { wrap.innerHTML = '<div class="txt-faint" style="padding:12px">Questo backup è vuoto.</div>'; return; }
+  wrap.innerHTML =
+    '<div class="restore-step">2 · Cosa ripristinare</div>' +
+    '<div class="restore-mods">' + present.map(m =>
+      '<button type="button" class="restore-mod" data-k="' + m.key + '">' +
+        '<span class="restore-mod-ic">' + m.icona + '</span>' +
+        '<span class="restore-mod-nome">' + esc(m.nome) + '</span>' +
+        '<span class="restore-mod-n">' + counts[m.key] + (counts[m.key] === 1 ? ' voce' : ' voci') + '</span>' +
+      '</button>'
+    ).join('') + '</div>' +
+    '<label class="restore-all"><input type="checkbox" id="restoreAll"> <span>Tutti i moduli</span></label>' +
+    '<button type="button" id="restoreGo" class="btn-danger" disabled>Ripristina</button>';
+  twemojify(wrap);
+  const sync = () => {
+    const allCb = document.getElementById('restoreAll');
+    if (allCb) allCb.checked = present.every(m => _restore.mods.has(m.key));
+    const go = document.getElementById('restoreGo');
+    if (go) { go.disabled = _restore.mods.size === 0; go.textContent = _restore.mods.size ? ('Ripristina ' + _restore.mods.size + (_restore.mods.size === 1 ? ' modulo' : ' moduli')) : 'Ripristina'; }
+  };
+  $$('.restore-mod', wrap).forEach(el => el.addEventListener('click', () => {
+    const k = el.getAttribute('data-k');
+    if (_restore.mods.has(k)) _restore.mods.delete(k); else _restore.mods.add(k);
+    el.classList.toggle('sel', _restore.mods.has(k));
+    sync();
+  }));
+  const allCb = document.getElementById('restoreAll');
+  if (allCb) allCb.addEventListener('change', () => {
+    _restore.mods = new Set(allCb.checked ? present.map(m => m.key) : []);
+    $$('.restore-mod', wrap).forEach(el => el.classList.toggle('sel', _restore.mods.has(el.getAttribute('data-k'))));
+    sync();
+  });
+  const go = document.getElementById('restoreGo');
+  if (go) go.addEventListener('click', executeRestore);
+}
+async function executeRestore() {
+  const keys = Array.from(_restore.mods);
+  if (!keys.length || !_restore.row) return;
+  const nomi = keys.map(k => (CDCBackup.MODULES.find(m => m.key === k) || {}).nome).filter(Boolean);
+  const ok = await confirmDlg({
+    title: '⚠️ Ripristino dati',
+    message: 'SOVRASCRIVO questi moduli con il backup del ' + fmtBackupDate(_restore.giorno) + ':\n\n• ' + nomi.join('\n• ') +
+      '\n\nI dati attuali di questi moduli verranno sostituiti. Prima salvo un backup di sicurezza di oggi (così è reversibile). Procedo?',
+    confirmLabel: 'Sì, ripristina', cancelLabel: 'Annulla', danger: true
+  });
+  if (!ok) return;
+  const go = document.getElementById('restoreGo');
+  if (go) setBtnLoading(go, true);
+  try {
+    await createBackupNow(true);                     // rete di sicurezza: stato attuale in "oggi"
+    const plan = CDCBackup.restorePlan(_restore.row, keys);
+    for (const { table, rows } of plan) await restoreTable(table, rows);
+    await reloadAll(); renderAll();
+    closeModal('modalRestore');
+    toast('Ripristino completato', 'success');
+  } catch (e) {
+    toast('Ripristino interrotto: ' + (e && e.message ? e.message : '') + ' — lo stato attuale è salvato nel backup di oggi.', 'error');
+  } finally { if (go) setBtnLoading(go, false); }
+}
+// Riporta una tabella allo stato del backup: upsert delle righe del backup
+// (aggiorna le esistenti, reinserisce le mancanti) poi elimina gli "extra"
+// aggiunti dopo il backup. Lo stato pre-ripristino è nel backup di oggi.
+async function restoreTable(table, rows) {
+  rows = rows || [];
+  if (rows.length) {
+    for (let i = 0; i < rows.length; i += 500) {
+      await supaFetch(table + '?on_conflict=id', {
+        method: 'POST', body: JSON.stringify(rows.slice(i, i + 500)),
+        headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' }
+      });
+    }
+    const ids = rows.map(r => r.id);
+    const list = ids.map(v => (typeof v === 'number' ? v : '"' + String(v).replace(/"/g, '') + '"')).join(',');
+    await supaFetch(table + '?id=not.in.(' + list + ')', { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+  } else {
+    await supaFetch(table + '?id=not.is.null', { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
   }
 }
 
@@ -8604,7 +8757,7 @@ function bindEvents() {
   // carousel pagina Riepilogo (donut ↔ trend mesi)
   bindCarousel();
   if (D.setSave)       D.setSave.addEventListener('click', saveSettings);
-  if (D.setBackup)     D.setBackup.addEventListener('click', exportBackupJson);
+  if (D.setRestore)    D.setRestore.addEventListener('click', openRestore);
   if (D.setClearCache) D.setClearCache.addEventListener('click', clearCache);
   if (D.setAddUser)    D.setAddUser.addEventListener('click', openUserAdd);
   if (D.userEditSave)  D.userEditSave.addEventListener('click', saveAuthorizedUser);
@@ -9193,6 +9346,8 @@ async function init() {
   } catch {}
   // utenti autorizzati (per gestione UI nelle impostazioni)
   loadAuthorizedUsers();
+  // backup giornaliero automatico nel DB (silenzioso, non blocca l'avvio)
+  setTimeout(() => { ensureDailyBackup(); }, 4000);
   // realtime
   setupRealtime();
   // Watchdog del badge "↻ Aggiorna": riconnette Realtime su visibilitychange/
