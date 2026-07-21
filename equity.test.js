@@ -91,6 +91,32 @@ test('versamento 200 di A → A +100 / B −100; poi riequilibrio azzera e NON t
   assert.strictEqual(E.equitySettlement(eq).state, 'pari');
 });
 
+test('riequilibrio PARZIALE: pagare X riduce lo squilibrio di X PIENO (non X/2)', () => {
+  // Flavia versa 740 → è in credito di 370, Stefano in debito di 370
+  const base = [{ fonte: 'scatolo', tipo_movimento: 'versamento', autore: A[1], importo: 740, data: '2026-03-01' }];
+  let eq = E.computeEquity(base, A, YR);
+  assert.strictEqual(eq.over[A[1]], 370);
+  assert.strictEqual(eq.over[A[0]], -370);
+  const s = E.equitySettlement(eq);
+  assert.strictEqual(s.debtor, A[0]);
+  assert.strictEqual(s.owed, 370, 'Stefano deve 370');
+
+  // Stefano ne dà solo 200 (parziale): coppia versamento(debitore) + prelievo(creditore)
+  const dopo = base.concat([
+    { fonte: 'scatolo', tipo_movimento: 'versamento', autore: A[0], importo: 200, data: '2026-03-05', descrizione: 'Riequilibrio conti' },
+    { fonte: 'scatolo', tipo_movimento: 'prelievo',   autore: A[1], importo: 200, data: '2026-03-05', descrizione: 'Riequilibrio conti' },
+  ]);
+  eq = E.computeEquity(dopo, A, YR);
+  assert.strictEqual(eq.over[A[1]], 170, '370 − 200 = 170: si scala del 100%, NON del 50%');
+  assert.strictEqual(eq.over[A[0]], -170);
+  assert.strictEqual(E.equitySettlement(eq).owed, 170, 'restano 170 da dare');
+  assert.strictEqual(eq.box, 740, 'lo scatolo NON cambia (entra ed esce lo stesso importo)');
+  // e la contribuzione dell'anno si sposta di 200 da Flavia a Stefano (coerente)
+  const contrib = E.contribByAutore(dopo, A, YR, null, null);
+  assert.strictEqual(contrib[A[0]], 200, 'Stefano ha contribuito 200');
+  assert.strictEqual(contrib[A[1]], 540, 'Flavia 740 − 200 rimborsati = 540');
+});
+
 test('FIX F-1: quota ≠ 50/50 su spesa DALLO SCATOLO ora ha effetto', () => {
   // spesa 100 dallo scatolo, beneficio 100% a Stefano → Stefano deve 50 a Flavia
   const tx = [{ fonte: 'scatolo', tipo_movimento: 'spesa', autore: null, importo: 100, data: '2026-04-01', quota: { [A[0]]: 100, [A[1]]: 0 } }];

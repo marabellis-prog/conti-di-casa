@@ -170,6 +170,7 @@ function cacheDOM() {
    'wizDataPagBtn','wizDataPag','wizDataPagLabel','wizDataLbl','wizStep3Title','wizCompSection','wizCompQuick','wizCompDa','wizCompA','wizRecap','wizNote',
    // Conti — dashboard Riepilogo (modello scatolo/equità)
    'cdScatolo','cdScatoloCard','cdScatoloFoot','cdEquityLbl','cdEquityMain','cdEquityInstr','cdEquityPersons','cdSettleBtn',
+   'modalRieq','rieqWho','rieqAmt','rieqAfter','rieqSave',
    'cdCashFlow','cdCashFlowK','cdAvgMonthCell','cdAvgMonth','cdAvgMonthK','cdAvgMeanCell','cdAvgMean','cdAvgMeanSub','cdAvgNote','cdGuidaBtn','cdRecent',
    'statsSpeseMeseBtn','statsMediaBtn','statsDetNav','statsDetPrev','statsDetMonthLabel','statsDetNext','statsScope','statsAnno','statsMese','statsTitle','statsSub','statsChart','statsContribTitle','statsContrib','statsCatTitle','statsCatDonut','statsListTitle','statsList','statsYearPrev','statsYearLabel','statsYearNext','statsYearBody',
    'statsMPrev','statsMLabel','statsMNext','statsMTitle','statsMChart','statsMSub','statsMContribTitle','statsMContrib','statsMListTitle','statsMList',
@@ -3090,7 +3091,7 @@ function renderConti() {
   } else if (s.state === 'sbilanciato') {
     mainTxt = shortName(s.creditor) + ' ha anticipato ' + fmtEur(s.owed) + ' in più';
     instrTxt = 'Per pareggiare: ' + shortName(s.debtor) + ' dà ' + fmtEur(s.owed) + ' a ' + shortName(s.creditor) +
-      '. Quando è fatto, premi «Registra il riequilibrio».';
+      '. Premi «Registra il riequilibrio» per annotarlo — anche solo un acconto.';
     showBtn = true;
   } else {
     mainTxt = '—';
@@ -3174,24 +3175,56 @@ function renderConti() {
 // cassa (è un trasferimento tra persone, non un costo della casa).
 const RIEQ_DESC = 'Riequilibrio conti';
 
-async function registerRiequilibrio() {
+let _rieq = null;   // stato del riequilibrio in corso {creditor, debtor, owed}
+
+// Apre il modal con l'importo pre-compilato al dovuto, ma MODIFICABILE: si può
+// registrare un acconto. L'importo scritto si scala PER INTERO dallo squilibrio
+// (la coppia versamento+prelievo sposta l'equità di `v`, non di `v/2`).
+function registerRiequilibrio() {
   const eq = computeEquity();
   const s = equitySettlement(eq);
   if (!s || s.state !== 'sbilanciato') { toast('Siete già in pari', 'info'); return; }
-  const msg = shortName(s.debtor) + ' deve dare ' + fmtEur(s.owed) + ' a ' + shortName(s.creditor) + ' per tornare in pari.\n\n' +
-    'Potete farlo a mano o con bonifico — oppure via scatolo: ' + shortName(s.debtor) + ' mette ' + fmtEur(s.owed) +
-    ' e ' + shortName(s.creditor) + ' li ritira (il fondo resta uguale).\n\n' +
-    'Premi «Fatto, registra» quando lo avete fatto: verranno annotati due movimenti «Riequilibrio conti», esclusi dalle spese di casa.';
-  const ok = await confirmDlg({ title: '⚖️ Registra il riequilibrio', message: msg, confirmLabel: 'Fatto, registra', cancelLabel: 'Annulla' });
-  if (!ok) return;
+  _rieq = s;
+  if (D.rieqWho) D.rieqWho.innerHTML = '<b>' + esc(shortName(s.debtor)) + '</b> deve dare <b>' + fmtEur(s.owed) +
+    '</b> a <b>' + esc(shortName(s.creditor)) + '</b>';
+  if (D.rieqAmt) D.rieqAmt.value = round2(s.owed);
+  updateRieqAfter();
+  openModal('modalRieq');
+}
+
+// Anteprima live: cosa resta dopo l'importo digitato.
+function updateRieqAfter() {
+  if (!D.rieqAfter) return;
+  if (!_rieq) { D.rieqAfter.innerHTML = ''; return; }
+  const v = parseAmount(D.rieqAmt ? D.rieqAmt.value : '') || 0;
+  const resto = round2(_rieq.owed - v);
+  if (v <= 0) { D.rieqAfter.innerHTML = '<span class="txt-faint">Scrivi quanto è stato dato.</span>'; return; }
+  if (Math.abs(resto) < 0.01) D.rieqAfter.innerHTML = '✅ Dopo sarete <b>in pari</b>.';
+  else if (resto > 0) D.rieqAfter.innerHTML = 'Dopo resteranno <b>' + fmtEur(resto) + '</b> da dare a ' + esc(shortName(_rieq.creditor)) + '.';
+  else D.rieqAfter.innerHTML = '⚠️ Sono ' + fmtEur(-resto) + ' <b>in più</b> del dovuto: l\'equilibrio si inverte (dovrà ' + esc(shortName(_rieq.creditor)) + ').';
+  twemojify(D.rieqAfter);
+}
+
+async function saveRiequilibrio() {
+  if (!_rieq) return;
+  const v = parseAmount(D.rieqAmt ? D.rieqAmt.value : '');
+  if (!v || v <= 0) { toast('Inserisci un importo valido', 'warn'); return; }
+  const s = _rieq, resto = round2(s.owed - v);
+  setBtnLoading(D.rieqSave, true);
   const d = today();
-  const note = 'Riequilibrio: ' + shortName(s.debtor) + ' → ' + shortName(s.creditor) + ' ' + fmtEur(s.owed);
+  const note = 'Riequilibrio: ' + shortName(s.debtor) + ' → ' + shortName(s.creditor) + ' ' + fmtEur(v);
   try {
-    await saveTransaction(boxPayload('versamento', s.debtor, s.owed, d, RIEQ_DESC, note));
-    await saveTransaction(boxPayload('prelievo',  s.creditor, s.owed, d, RIEQ_DESC, note));
-    toast('Riequilibrio registrato: siete in pari', 'success');
+    // Coppia a somma zero: lo scatolo resta invariato, l'equilibrio si sposta di `v` pieni.
+    await saveTransaction(boxPayload('versamento', s.debtor, v, d, RIEQ_DESC, note));
+    await saveTransaction(boxPayload('prelievo',  s.creditor, v, d, RIEQ_DESC, note));
+    closeModal('modalRieq');
+    toast(Math.abs(resto) < 0.01 ? 'Riequilibrio registrato: siete in pari'
+      : ('Registrato · restano ' + fmtEur(Math.abs(resto)) + (resto > 0 ? ' da dare' : ' a credito')), 'success');
   } catch (e) {
     toast('Errore: ' + (e && e.message ? e.message : 'non riuscito'), 'error');
+  } finally {
+    setBtnLoading(D.rieqSave, false);
+    _rieq = null;
   }
 }
 
@@ -9053,8 +9086,10 @@ function bindEvents() {
   if (D.wizStraord) D.wizStraord.addEventListener('change', () => { WIZ.straord = D.wizStraord.checked; });
   // Slider divisione personalizzata
   if (D.wizSplitRange) D.wizSplitRange.addEventListener('input', () => { WIZ.splitA = Number(D.wizSplitRange.value); renderWizSplitReadout(); updateWizNext(); });
-  // Bottone "Registra il riequilibrio" nella dashboard
+  // Bottone "Registra il riequilibrio" nella dashboard + modal con importo
   if (D.cdSettleBtn) D.cdSettleBtn.addEventListener('click', registerRiequilibrio);
+  if (D.rieqAmt) D.rieqAmt.addEventListener('input', updateRieqAfter);
+  if (D.rieqSave) D.rieqSave.addEventListener('click', saveRiequilibrio);
   // Card scatolo cliccabile → pagina Transazioni filtrata sui movimenti scatolo
   if (D.cdScatoloCard) {
     const goScatolo = () => {

@@ -18,11 +18,11 @@
   <!-- Font scritto a mano per la lavagna ToDo -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
   <!-- Preload degli asset locali critici -->
-  <link rel="preload" href="./app.css?v=200" as="style">
-  <link rel="preload" href="./equity.js?v=200" as="script">
-  <link rel="preload" href="./backup.js?v=200" as="script">
-  <link rel="preload" href="./app.js?v=200" as="script">
-  <link rel="preload" href="./charts.js?v=200" as="script">
+  <link rel="preload" href="./app.css?v=201" as="style">
+  <link rel="preload" href="./equity.js?v=201" as="script">
+  <link rel="preload" href="./backup.js?v=201" as="script">
+  <link rel="preload" href="./app.js?v=201" as="script">
+  <link rel="preload" href="./charts.js?v=201" as="script">
   <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
   <link rel="shortcut icon" href="./favicon.png?v=4" type="image/png">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=4">
@@ -45,7 +45,7 @@
       document.documentElement.setAttribute('data-theme', __t);
     } catch(e) {}
   </script>
-  <link rel="stylesheet" href="./app.css?v=200">
+  <link rel="stylesheet" href="./app.css?v=201">
   <title>Gestione Casa</title>
 </head>
 <body>
@@ -1191,6 +1191,27 @@
     </div>
   </div>
 
+  <!-- Registra il riequilibrio (importo anche parziale) -->
+  <div class="modal modal-center" id="modalRieq">
+    <div class="sheet">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3>⚖️ Registra il riequilibrio</h3>
+        <button class="sheet-close" data-close="modalRieq">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="rieq-who" id="rieqWho"></div>
+        <div class="form-field">
+          <label for="rieqAmt">Quanto è stato dato davvero</label>
+          <input type="number" id="rieqAmt" step="0.01" min="0" inputmode="decimal">
+        </div>
+        <div class="rieq-after" id="rieqAfter"></div>
+        <p class="txt-dim" style="font-size:12px;line-height:1.45;margin:12px 0 14px">Puoi registrare anche un <b>acconto</b>: l'importo che scrivi viene scalato <b>per intero</b> dallo squilibrio. Vengono annotati due movimenti «Riequilibrio conti» — non entrano nelle spese di casa né nelle medie, spostano solo l'equilibrio.</p>
+        <button id="rieqSave" class="btn-primary">Registra</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Ripristino da backup (modal) -->
   <div class="modal modal-center" id="modalRestore">
     <div class="sheet">
@@ -1207,9 +1228,9 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script src="./equity.js?v=200"></script>
-  <script src="./backup.js?v=200"></script>
-  <script src="./charts.js?v=200"></script>
-  <script src="./app.js?v=200"></script>
+  <script src="./equity.js?v=201"></script>
+  <script src="./backup.js?v=201"></script>
+  <script src="./charts.js?v=201"></script>
+  <script src="./app.js?v=201"></script>
 </body>
 </html>
