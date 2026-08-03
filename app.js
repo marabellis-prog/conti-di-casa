@@ -8054,20 +8054,33 @@ async function saveCatEdit() {
 }
 async function deleteCatEdit() {
   if (S.editCatId == null) return;
+  const id = S.editCatId;
+  const c = catById(id);
+  const nome = c ? ((c.icona ? c.icona + ' ' : '') + c.nome) : 'questa categoria';
+  // Conta TUTTI i movimenti collegati (non solo quelli in cache): carica lo storico.
+  await ensureAllTxLoaded();
+  const collegate = (S.tx || []).filter(t => t.categoria_id === id);
+  const n = collegate.length;
+  const tot = collegate.reduce((s, t) => s + (Number(t.importo) || 0), 0);
+  const msg = n > 0
+    ? '⚠️ «' + nome + '» ha ' + n + (n === 1 ? ' movimento collegato' : ' movimenti collegati') + ' (totale ' + fmtEur(tot) + ').\n\n' +
+      'Se la elimini quei movimenti NON vengono cancellati, ma restano SENZA categoria: perdono l\'etichetta e spariscono dalle statistiche per categoria.\n\nVuoi eliminarla lo stesso?'
+    : 'Vuoi eliminare «' + nome + '»? Non ha movimenti collegati. L\'azione non è reversibile.';
   const ok = await confirmDlg({
-    title: 'Elimina categoria',
-    message: 'Le transazioni associate diventeranno "Senza categoria" ma non verranno cancellate. Procedere?',
-    confirmLabel: 'Elimina',
+    title: (n > 0 ? '⚠️ ' : '') + 'Elimina categoria',
+    message: msg,
+    confirmLabel: n > 0 ? 'Elimina comunque' : 'Elimina',
+    cancelLabel: 'Annulla',
     danger: true
   });
   if (!ok) return;
   setBtnLoading(D.catEditDelete, true);
   try {
-    S.cats = S.cats.filter(c => c.id !== S.editCatId);
-    S.tx.forEach(t => { if (t.categoria_id === S.editCatId) t.categoria_id = null; });
+    S.cats = S.cats.filter(x => x.id !== id);
+    S.tx.forEach(t => { if (t.categoria_id === id) t.categoria_id = null; });
     saveLocalCache();
     renderCatView(); renderHomeGestione(); renderConti(); renderList();
-    const path = T.CATS + '?id=eq.' + S.editCatId;
+    const path = T.CATS + '?id=eq.' + id;
     const options = { method: 'DELETE' };
     if (isOnline()) {
       try { await supaFetch(path, options); } catch { enqueue({ path, options }); }
@@ -8075,7 +8088,7 @@ async function deleteCatEdit() {
       enqueue({ path, options });
     }
     closeModal('modalCat');
-    toast('Categoria eliminata', 'success');
+    toast(n > 0 ? ('Categoria eliminata · ' + n + (n === 1 ? ' movimento' : ' movimenti') + ' ora senza categoria') : 'Categoria eliminata', 'success');
   } catch (e) {
     toast('Errore: ' + (e && e.message ? e.message : 'eliminazione non riuscita'), 'error');
   } finally {
