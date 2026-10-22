@@ -1,0 +1,93 @@
+// ============================================================================
+//  backup.js — logica PURA di backup/ripristino (UMD, testabile con node)
+//  Un backup = una riga per GIORNO in cdc_backups, con i dati dei moduli in
+//  colonne JSONB distinte. Qui solo trasformazioni pure; le chiamate REST stanno
+//  in app.js. Vedi tabella in RLS-conti-di-casa.sql.
+// ============================================================================
+;(function (root, factory) {
+  const api = factory();
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.CDCBackup = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  // I 4 moduli dell'app + "sistema" (salvato ma non ripristinabile da UI:
+  // prefs/whitelist non vanno sovrascritti per errore).
+  const MODULES = [
+    { key: 'conti',    nome: 'Conti di Casa',     icona: '💰', tables: [
+      { k: 'transazioni', t: 'cdc_transazioni' }, { k: 'categorie', t: 'cdc_categorie' }, { k: 'budget', t: 'cdc_budget' } ] },
+    { key: 'spesa',    nome: 'Lista della spesa', icona: '🛒', tables: [ { k: 'lista_spesa', t: 'cdc_lista_spesa' } ] },
+    { key: 'todo',     nome: 'To-Do',             icona: '✅', tables: [ { k: 'lista_todo', t: 'cdc_lista_todo' } ] },
+    { key: 'scadenze', nome: 'Scadenze',          icona: '📅', tables: [ { k: 'scadenze', t: 'cdc_scadenze' } ] },
+  ];
+  const SISTEMA = { key: 'sistema', tables: [ { k: 'prefs', t: 'cdc_prefs' }, { k: 'authorized_users', t: 'cdc_authorized_users' } ] };
+  const RESTORABLE_KEYS = MODULES.map(m => m.key);
+
+  // Costruisce l'oggetto-riga di backup da una mappa {nomeTabella: righe[]}.
+  function buildBackupRow(dataByTable) {
+    const row = {};
+    MODULES.concat([SISTEMA]).forEach(m => {
+      const obj = {};
+      m.tables.forEach(({ k, t }) => { obj[k] = Array.isArray(dataByTable[t]) ? dataByTable[t] : []; });
+      row[m.key] = obj;
+    });
+    return row; // { conti:{transazioni,categorie,budget}, spesa:{lista_spesa}, ... }
+  }
+
+  // Numero di elementi per modulo (per le card del ripristino). Considera solo
+  // la tabella "principale" del modulo (transazioni, lista_spesa, ...): è ciò che
+  // l'utente riconosce come "quante cose c'erano".
+  function moduleCounts(backupRow) {
+    const out = {};
+    MODULES.forEach(m => {
+      const main = m.tables[0];
+      const box = (backupRow && backupRow[m.key]) || {};
+      out[m.key] = Array.isArray(box[main.k]) ? box[main.k].length : 0;
+    });
+    return out;
+  }
+
+  // I moduli effettivamente presenti (con almeno un dato) in un backup.
+  function modulesInBackup(backupRow) {
+    const counts = moduleCounts(backupRow);
+    return MODULES.filter(m => counts[m.key] > 0).map(m => m.key);
+  }
+
+  // Piano di ripristino: per ogni modulo selezionato, la lista {table, rows} da
+  // riscrivere. Ignora chiavi non ripristinabili/sconosciute.
+  function restorePlan(backupRow, selectedKeys) {
+    const plan = [];
+    (selectedKeys || []).forEach(key => {
+      if (RESTORABLE_KEYS.indexOf(key) < 0) return;
+      const mod = MODULES.find(m => m.key === key);
+      const box = (backupRow && backupRow[key]) || {};
+      mod.tables.forEach(({ k, t }) => {
+        plan.push({ table: t, rows: Array.isArray(box[k]) ? box[k] : [] });
+      });
+    });
+    return plan;
+  }
+
+  // Retention a FINESTRA TEMPORALE: conserva i backup fatti negli ultimi
+  // (keepDays giorni + keepHours ore). Ritorna gli `id` da ELIMINARE (più vecchi
+  // della finestra). Il backup PIÙ RECENTE non si cancella mai (rete di sicurezza).
+  //  backups = [{ id, creato_il (ISO) }], nowMs = Date.now() del chiamante.
+  function backupsToPruneByWindow(backups, nowMs, keepDays, keepHours) {
+    const winMs = ((Math.max(0, Number(keepDays) || 0) * 24) + Math.max(0, Number(keepHours) || 0)) * 3600000;
+    const arr = (backups || []).slice().sort((a, b) => Date.parse(b.creato_il) - Date.parse(a.creato_il)); // desc
+    const newest = arr.length ? arr[0].id : null;
+    if (winMs <= 0) return [];               // finestra nulla → non cancellare
+    const cutoff = nowMs - winMs;
+    return arr.filter(b => b.id !== newest && Date.parse(b.creato_il) < cutoff).map(b => b.id);
+  }
+
+  // Serve un nuovo backup automatico? (evita di crearne troppi ad ogni apertura)
+  function needsNewBackup(lastCreatoIl, nowMs, minGapMinutes) {
+    if (!lastCreatoIl) return true;
+    const t = Date.parse(lastCreatoIl);
+    if (isNaN(t)) return true;
+    return (nowMs - t) >= (Number(minGapMinutes) || 60) * 60000;
+  }
+
+  return { MODULES, SISTEMA, RESTORABLE_KEYS, buildBackupRow, moduleCounts, modulesInBackup, restorePlan, backupsToPruneByWindow, needsNewBackup };
+});

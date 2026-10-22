@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="auto">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#0f1419">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Casa">
+  <link rel="manifest" href="./manifest.json">
+  <!-- Preconnect ai CDN per accelerare il primo paint -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://lrvkchqvjzynfzevpqaj.supabase.co" crossorigin>
+  <link rel="dns-prefetch" href="https://lrvkchqvjzynfzevpqaj.supabase.co">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Font scritto a mano per la lavagna ToDo -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap">
+  <!-- Preload degli asset locali critici -->
+  <link rel="preload" href="./app.css?v=202" as="style">
+  <link rel="preload" href="./equity.js?v=202" as="script">
+  <link rel="preload" href="./backup.js?v=202" as="script">
+  <link rel="preload" href="./app.js?v=202" as="script">
+  <link rel="preload" href="./charts.js?v=202" as="script">
+  <!-- Favicon (per il bookmark "Aggiungi ai preferiti" Safari iOS) -->
+  <link rel="shortcut icon" href="./favicon.png?v=4" type="image/png">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=4">
+  <link rel="icon" type="image/png" sizes="96x96" href="./favicon.png?v=4">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=4">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png?v=4">
+  <link rel="icon" type="image/svg+xml" href="./icon.svg?v=4">
+  <!-- Apple Touch Icon (per "Aggiungi a Home") tutte le sizes esplicite -->
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=4">
+  <link rel="apple-touch-icon" sizes="76x76"   href="./apple-touch-icon-76.png?v=4">
+  <link rel="apple-touch-icon" sizes="120x120" href="./apple-touch-icon-120.png?v=4">
+  <link rel="apple-touch-icon" sizes="152x152" href="./apple-touch-icon-152.png?v=4">
+  <link rel="apple-touch-icon" sizes="167x167" href="./apple-touch-icon-167.png?v=4">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-180.png?v=4">
+  <!-- PRELOAD tema dal localStorage PRIMA del primo paint (no flash dark→light) -->
+  <script>
+    try {
+      var __p = JSON.parse(localStorage.getItem('cdc-prefs') || '{}');
+      var __t = (__p && __p.theme) ? __p.theme : 'auto';
+      document.documentElement.setAttribute('data-theme', __t);
+    } catch(e) {}
+  </script>
+  <link rel="stylesheet" href="./app.css?v=202">
+  <title>Gestione Casa</title>
+</head>
+<body>
+
+  <!-- Splash veloce — nascosto da app.js appena init è pronto -->
+  <div id="bootSplash" aria-hidden="true">
+    <img class="bs-logo" src="./favicon.png?v=4" alt="" width="72" height="72">
+    <div class="bs-title">Gestione Casa</div>
+    <div class="bs-spinner"></div>
+  </div>
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="app-header-inner">
+      <nav class="app-title breadcrumb" id="appBreadcrumb" aria-label="Percorso">
+        <button class="bc-link bc-root" id="bcRoot" type="button">🏠 Gestione Casa</button>
+        <span class="bc-sep" id="bcSep1" hidden>›</span>
+        <button class="bc-link bc-module" id="bcModule" type="button" hidden></button>
+        <span class="bc-sep" id="bcSep2" hidden>›</span>
+        <span class="bc-leaf" id="bcLeaf" hidden></span>
+      </nav>
+      <button id="btnUpdate" title="Nuovo aggiornamento disponibile — clicca per ricaricare" aria-label="Aggiornamento disponibile">
+        <span>↻</span><span>Aggiorna</span>
+      </button>
+      <button id="themeToggle" class="icon-btn" aria-label="Cambia tema">🌓</button>
+    </div>
+    <!-- Action-pill del modulo: dentro l'header, sporgenti verso il basso -->
+    <div id="moduleActionPills" class="ma-pills" style="display:none"></div>
+  </header>
+
+  <!-- Mese-nav del modulo (visibile sotto le pill quando serve) -->
+  <div id="moduleActions" class="module-actions-bar" style="display:none">
+    <div id="moduleMonth" class="ma-month" style="display:none">
+      <button id="btnMonthPrev" class="icon-btn" aria-label="Mese precedente">‹</button>
+      <span id="monthLabel" class="month-label">—</span>
+      <button id="btnMonthNext" class="icon-btn" aria-label="Mese successivo">›</button>
+    </div>
+  </div>
+
+  <!-- Pull-to-refresh indicator -->
+  <div id="ptr" class="ptr" aria-hidden="true"><span class="ptr-ic">↓</span></div>
+
+  <!-- Login overlay (mostrato se non loggato) -->
+  <div id="loginOverlay" class="login-overlay" style="display:none">
+    <div class="login-card">
+      <div class="login-logo">🏠</div>
+      <h1 class="login-title">Gestione Casa</h1>
+      <p class="login-sub">Accedi con il tuo account Google.<br>Solo gli utenti autorizzati possono entrare.</p>
+      <button id="loginGoogleBtn" class="login-google">
+        <svg width="20" height="20" viewBox="0 0 48 48" style="margin-right:8px;vertical-align:-4px"><path fill="#FFC107" d="M43.6 20.5h-1.6V20H24v8h11.3c-1.6 4.7-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 5.1 29.3 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.2-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 5.1 29.3 3 24 3 16.3 3 9.6 7.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.5-4.5 2.4-7.2 2.4-5.3 0-9.7-3.4-11.3-8.1l-6.5 5C9.5 40.6 16.2 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.2-.1-2.4-.4-3.5z"/></svg>
+        Accedi con Google
+      </button>
+      <p id="loginError" class="login-err" style="display:none"></p>
+      <p class="login-foot">v.<span id="loginVer">—</span></p>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <main>
+
+    <!-- HOME GESTIONE CASA -->
+    <section id="view-home" class="view active">
+      <div class="module-grid">
+
+        <div class="module-card module-conti" data-mod="conti">
+          <span class="mc-drag" title="Trascina per riordinare">⋮⋮</span>
+          <div class="mc-header">
+            <span class="mc-icon">💰</span>
+            <span class="mc-title">Conti di Casa</span>
+            <span class="mc-period" id="homeContiPeriod"></span>
+            <span class="mc-go">›</span>
+          </div>
+          <div class="mc-body">
+            <div id="homeContiDonut" class="mc-mini-donut"></div>
+            <div class="mc-stats">
+              <div class="mc-saldo" id="homeContiSaldo">—</div>
+              <div class="mc-subtle" id="homeContiSubtle">saldo del mese</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="module-card module-spesa" data-mod="spesa">
+          <span class="mc-drag" title="Trascina per riordinare">⋮⋮</span>
+          <div class="mc-header">
+            <span class="mc-icon">🛒</span>
+            <span class="mc-title">Lista della spesa</span>
+            <span class="mc-period" id="homeSpesaCount"></span>
+            <span class="mc-go">›</span>
+          </div>
+          <div class="mc-body">
+            <div id="homeSpesaPreview" class="mc-spesa-preview"></div>
+          </div>
+        </div>
+
+        <div class="module-card module-todo" data-mod="todo">
+          <span class="mc-drag" title="Trascina per riordinare">⋮⋮</span>
+          <div class="mc-header">
+            <span class="mc-icon">✅</span>
+            <span class="mc-title">ToDo</span>
+            <span class="mc-period" id="homeTodoCount"></span>
+            <span class="mc-go">›</span>
+          </div>
+          <div class="mc-body">
+            <div id="homeTodoPreview" class="mc-spesa-preview"></div>
+          </div>
+        </div>
+
+        <div class="module-card module-scadenze" data-mod="scadenze">
+          <span class="mc-drag" title="Trascina per riordinare">⋮⋮</span>
+          <div class="mc-header">
+            <span class="mc-icon">📅</span>
+            <span class="mc-title">Scadenze</span>
+            <span class="mc-period" id="homeScadenzeCount"></span>
+            <span class="mc-go">›</span>
+          </div>
+          <div class="mc-body">
+            <div id="homeScadenzePreview" class="mc-spesa-preview"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- MODULO CONTI DI CASA — pagine svuotate, da ricostruire da zero.
+         Le 4 pill in alto (Transazioni, +, Categorie, Personale) restano
+         attive. I dati restano nel DB (cdc_transazioni, cdc_categorie...). -->
+    <section id="view-conti" class="view">
+      <div class="cd-wrap">
+        <!-- Scatolo: contante comune disponibile -->
+        <div class="cd-card cd-scatolo" id="cdScatoloCard" role="button" tabindex="0">
+          <div class="cd-scatolo-top">
+            <span class="cd-scatolo-ic">📦</span>
+            <div class="cd-scatolo-info">
+              <div class="cd-card-lbl">Nello scatolo</div>
+              <div class="cd-scatolo-num" id="cdScatolo">— €</div>
+            </div>
+            <span class="cd-scatolo-arrow">›</span>
+          </div>
+          <div class="cd-scatolo-foot" id="cdScatoloFoot">Tocca per operazioni e riallineo</div>
+        </div>
+
+        <!-- Equilibrio spese comuni -->
+        <div class="cd-card cd-equity">
+          <div class="cd-card-lbl" id="cdEquityLbl">Equilibrio spese comuni</div>
+          <div class="cd-equity-main" id="cdEquityMain">—</div>
+          <div class="cd-equity-instr" id="cdEquityInstr"></div>
+          <div class="cd-equity-persons" id="cdEquityPersons"></div>
+          <button class="cd-settle-btn" id="cdSettleBtn" type="button" hidden>⚖️ Registra il riequilibrio</button>
+        </div>
+
+        <!-- Medie di spesa comune -->
+        <div class="cd-card cd-avg">
+          <div class="cd-card-lbl">Spese comuni</div>
+          <div class="cd-avg-grid cd-avg-grid-3">
+            <div class="cd-avg-cell">
+              <div class="cd-avg-k">Flusso cassa</div>
+              <div class="cd-avg-v" id="cdCashFlow">—</div>
+              <div class="cd-avg-sub" id="cdCashFlowK">—</div>
+            </div>
+            <div class="cd-avg-cell cd-avg-cell-link" id="cdAvgMonthCell" role="button" tabindex="0">
+              <div class="cd-avg-k">Spese per questo mese</div>
+              <div class="cd-avg-v" id="cdAvgMonth">—</div>
+              <div class="cd-avg-sub" id="cdAvgMonthK">—</div>
+            </div>
+            <div class="cd-avg-cell cd-avg-cell-link" id="cdAvgMeanCell" role="button" tabindex="0">
+              <div class="cd-avg-k">Media mensile</div>
+              <div class="cd-avg-v" id="cdAvgMean">—</div>
+              <div class="cd-avg-sub" id="cdAvgMeanSub">—</div>
+            </div>
+          </div>
+          <div class="cd-avg-note" id="cdAvgNote"></div>
+          <button type="button" id="cdGuidaBtn" class="cd-guida-btn">ℹ️ Come leggere i numeri</button>
+        </div>
+
+        <!-- Ultime operazioni -->
+        <div class="cd-card cd-recent">
+          <div class="cd-card-lbl">Ultime operazioni</div>
+          <div id="cdRecent"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRANSAZIONI -->
+    <section id="view-list" class="view">
+      <!-- Barra fissa: ricerca + bottone filtri -->
+      <div class="tx2-bar">
+        <div class="tx2-search">
+          <span class="tx2-search-ic">🔍</span>
+          <input type="search" id="tx2Search" placeholder="Cerca…" autocomplete="off">
+          <button class="tx2-search-clear" id="tx2SearchClear" type="button" hidden aria-label="Pulisci">✕</button>
+        </div>
+        <button class="tx2-filtbtn" id="tx2FiltBtn" type="button" aria-label="Filtri">
+          <svg class="tx2-filtbtn-ic" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+          <span class="tx2-filtbadge" id="tx2FiltBadge" hidden>0</span>
+        </button>
+      </div>
+
+      <!-- Badge filtri attivi (compaiono solo se attivi) -->
+      <div class="tx2-activebar" id="tx2ActiveBar" hidden></div>
+
+      <!-- Pannello filtri (a scomparsa, nascosto di default) -->
+      <div class="tx2-panel" id="tx2Panel" hidden>
+        <div class="tx2-panel-sec">
+          <div class="tx2-panel-lbl">Periodo rapido</div>
+          <div class="tx2-quick" id="tx2Quick">
+            <button type="button" data-q="month">Questo mese</button>
+            <button type="button" data-q="lastmonth">Mese scorso</button>
+            <button type="button" data-q="3m">Ultimi 3 mesi</button>
+            <button type="button" data-q="6m">Ultimi 6 mesi</button>
+            <button type="button" data-q="year">Quest'anno</button>
+          </div>
+        </div>
+        <div class="tx2-panel-sec">
+          <div class="tx2-panel-lbl">Periodo personalizzato</div>
+          <div class="tx2-dates">
+            <input type="date" id="tx2From" aria-label="Da">
+            <span class="tx2-dates-sep">→</span>
+            <input type="date" id="tx2To" aria-label="A">
+            <button class="tx2-dates-clear" id="tx2DatesClear" type="button" aria-label="Azzera date">✕</button>
+          </div>
+        </div>
+        <div class="tx2-panel-sec">
+          <div class="tx2-panel-lbl">Persona</div>
+          <div class="tx2-catfilter" id="tx2AutoreFilter"></div>
+        </div>
+        <div class="tx2-panel-sec">
+          <div class="tx2-panel-lbl">Scatolo</div>
+          <div class="tx2-catfilter">
+            <button type="button" class="tx2-cat-chip" id="tx2ScatoloChip">📦 Solo movimenti scatolo</button>
+          </div>
+        </div>
+        <div class="tx2-panel-sec">
+          <div class="tx2-panel-lbl">Categorie</div>
+          <div class="tx2-catfilter" id="tx2CatFilter"></div>
+        </div>
+      </div>
+
+      <div id="tx2Chart" class="tx2-chart" hidden></div>
+      <div class="tx2-summary" id="tx2Summary"></div>
+      <button class="tx2-riallinea" id="tx2RiallineaBtn" type="button" hidden>⚖️ Riallinea fondi scatolo</button>
+      <div id="tx2List"></div>
+
+      <div class="tx2-pager" id="tx2Pager">
+        <div class="tx2-perpage" id="tx2PerPage">
+          <span class="tx2-perpage-lbl">Per pagina</span>
+          <button type="button" data-pp="20" class="active">20</button>
+          <button type="button" data-pp="50">50</button>
+          <button type="button" data-pp="100">100</button>
+        </div>
+        <div class="tx2-pagenav">
+          <button type="button" id="tx2Prev" aria-label="Pagina precedente">‹</button>
+          <span id="tx2PageInfo">1 / 1</span>
+          <button type="button" id="tx2Next" aria-label="Pagina successiva">›</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CATEGORIE -->
+    <section id="view-cat" class="view">
+      <div class="cat-tabs" id="catTabs">
+        <button class="active" data-tipo="uscita">Uscite</button>
+        <button data-tipo="entrata">Entrate</button>
+      </div>
+      <div id="catList"></div>
+      <button id="btnAddCat" class="add-cat-btn">+ Aggiungi categoria</button>
+    </section>
+
+    <!-- STATISTICHE -->
+    <section id="view-stats" class="view">
+      <div class="stats-scope stats-scope-2">
+        <button type="button" id="statsSpeseMeseBtn">Spese per il mese</button>
+        <button type="button" id="statsMediaBtn">Media mensile</button>
+      </div>
+      <div id="statsAnno">
+        <div class="cd-card stats-card">
+          <div class="cd-card-lbl" id="statsTitle">Uscite</div>
+          <div id="statsChart" class="stats-chart"></div>
+          <div class="cd-avg-note" id="statsSub"></div>
+        </div>
+        <div class="cd-card stats-contrib-card">
+          <div class="cd-card-lbl" id="statsContribTitle">Contribuzione</div>
+          <div id="statsContrib" class="stats-contrib"></div>
+        </div>
+        <div class="cd-card stats-cat-card">
+          <div class="cd-card-lbl" id="statsCatTitle">Uscite per categoria</div>
+          <div id="statsCatDonut" class="stats-contrib"></div>
+        </div>
+        <div class="cd-card stats-list-card">
+          <div class="stats-det-nav" id="statsDetNav" style="display:none">
+            <button type="button" id="statsDetPrev" class="stats-msel-arr" aria-label="Mese precedente">‹</button>
+            <span id="statsDetMonthLabel">—</span>
+            <button type="button" id="statsDetNext" class="stats-msel-arr" aria-label="Mese successivo">›</button>
+          </div>
+          <div class="cd-card-lbl" id="statsListTitle">Spese del mese</div>
+          <div id="statsList"></div>
+        </div>
+        <div class="cd-card stats-year-card">
+          <div class="stats-year-nav">
+            <button type="button" id="statsYearPrev" class="stats-msel-arr" aria-label="Anno precedente">‹</button>
+            <span id="statsYearLabel">—</span>
+            <button type="button" id="statsYearNext" class="stats-msel-arr" aria-label="Anno successivo">›</button>
+          </div>
+          <div id="statsYearBody"></div>
+        </div>
+        <div class="cd-card stats-budget-card">
+          <div class="cd-card-lbl">🎯 Budget del mese <small id="budgetMonthLbl"></small></div>
+          <p class="txt-dim" style="font-size:12px;margin:0 0 10px;line-height:1.4;">Tocca una categoria per impostare o modificare il suo budget mensile.</p>
+          <div id="budgetList"></div>
+        </div>
+        <div class="cd-card stats-ricorrenti-card">
+          <div class="cd-card-lbl">🔁 Spese ricorrenti</div>
+          <p class="txt-dim" style="font-size:12px;margin:0 0 10px;line-height:1.4;">Categorie che si ripetono negli ultimi mesi. Tocca 🔔 per crearne un promemoria in Scadenze.</p>
+          <div id="ricorrentiWrap"></div>
+        </div>
+      </div>
+      <div id="statsMese" hidden>
+        <div class="stats-msel">
+          <button type="button" id="statsMPrev" class="stats-msel-arr" aria-label="Mese precedente">‹</button>
+          <span id="statsMLabel">—</span>
+          <button type="button" id="statsMNext" class="stats-msel-arr" aria-label="Mese successivo">›</button>
+        </div>
+        <div class="cd-card stats-card">
+          <div class="cd-card-lbl" id="statsMTitle">Uscite</div>
+          <div id="statsMChart" class="stats-chart"></div>
+          <div class="cd-avg-note" id="statsMSub"></div>
+        </div>
+        <div class="cd-card stats-contrib-card">
+          <div class="cd-card-lbl" id="statsMContribTitle">Contribuzione</div>
+          <div id="statsMContrib" class="stats-contrib"></div>
+        </div>
+        <div class="cd-card stats-list-card">
+          <div class="cd-card-lbl" id="statsMListTitle">Spese</div>
+          <div id="statsMList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LISTA DELLA SPESA — un solo block-notes con due sub-sezioni -->
+    <section id="view-spesa" class="view">
+      <div class="spesa-section">
+        <div class="spesa-subsection">
+          <h3 class="spesa-section-title">
+            <span>Da prendere</span>
+            <span class="spesa-count" id="spesaCountToBuy">0</span>
+          </h3>
+          <div id="spesaListToBuy" class="spesa-list"></div>
+        </div>
+        <div class="spesa-subsection spesa-subsection-bought">
+          <h3 class="spesa-section-title">
+            <span>Presi</span>
+            <span class="spesa-count" id="spesaCountBought">0</span>
+          </h3>
+          <div id="spesaListBought" class="spesa-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TODO — lavagna a quadretti -->
+    <section id="view-todo" class="view">
+      <div class="todo-section">
+        <div class="todo-subsection">
+          <h3 class="todo-section-title">
+            <span>Da fare</span>
+            <span class="todo-count" id="todoCountToDo">0</span>
+          </h3>
+          <div id="todoListToDo" class="todo-list"></div>
+        </div>
+        <div class="todo-subsection todo-subsection-done">
+          <h3 class="todo-section-title">
+            <span>Fatti</span>
+            <span class="todo-count" id="todoCountDone">0</span>
+          </h3>
+          <div id="todoListDone" class="todo-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCADENZE — vista lista (gruppi per mese) -->
+    <section id="view-scadenze-list" class="view">
+      <div id="scadenzeListContent" class="scadenze-list-wrap">
+        <!-- popolato da renderScadenzeList -->
+      </div>
+    </section>
+
+    <!-- SCADENZE — vista calendario (griglia mensile) -->
+    <section id="view-scadenze-cal" class="view">
+      <div class="scad-cal-wrap">
+        <div class="scad-cal-header">
+          <button class="scad-cal-nav" id="scadCalPrev" aria-label="Mese precedente">‹</button>
+          <div class="scad-cal-title" id="scadCalTitle">—</div>
+          <button class="scad-cal-nav" id="scadCalNext" aria-label="Mese successivo">›</button>
+        </div>
+        <div class="scad-cal-weekdays">
+          <div>L</div><div>M</div><div>M</div><div>G</div><div>V</div><div class="we">S</div><div class="we">D</div>
+        </div>
+        <div id="scadCalGrid" class="scad-cal-grid"></div>
+        <div id="scadCalDayDetails" class="scad-cal-day-details">
+          <div class="scad-cal-day-title" id="scadCalDayTitle">Seleziona un giorno</div>
+          <div id="scadCalDayList" class="scad-cal-day-list"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM NAV (6 pill tonde sporgenti — moduli + impostazioni) -->
+  <nav class="bottom-nav nav-pills">
+    <button class="nav-pill active" data-view="home" aria-label="Home"><span class="np-ic">🏠</span><span class="np-lbl">Home</span></button>
+    <button class="nav-pill" data-view="conti" aria-label="Conti di Casa"><span class="np-ic">💰</span><span class="np-lbl">Conti</span></button>
+    <button class="nav-pill" data-view="todo" aria-label="ToDo"><span class="np-ic">✅</span><span class="np-lbl">ToDo</span></button>
+    <button class="nav-pill" data-view="spesa" aria-label="Lista spesa"><span class="np-ic">🛒</span><span class="np-lbl">Spesa</span></button>
+    <button class="nav-pill" data-view="scadenze-list" aria-label="Scadenze"><span class="np-ic">📅</span><span class="np-lbl">Scadenze</span></button>
+    <button class="nav-pill" data-action="settings" aria-label="Impostazioni"><span class="np-ic">⚙️</span><span class="np-lbl">Impostaz.</span></button>
+  </nav>
+
+  <!-- ─────────── MODALS ─────────── -->
+
+  <!-- ══ WIZARD NUOVA TRANSAZIONE (fullscreen, multi-step) ══ -->
+  <div class="wiz" id="modalWizard">
+    <!-- Header: progress + chiudi -->
+    <div class="wiz-header">
+      <button class="wiz-close" id="wizClose" type="button" aria-label="Chiudi">✕</button>
+      <div class="wiz-progress" id="wizProgress">
+        <span class="wiz-dot active" data-step="1"></span>
+        <span class="wiz-dot" data-step="2"></span>
+        <span class="wiz-dot" data-step="3"></span>
+        <span class="wiz-dot" data-step="4"></span>
+      </div>
+      <span class="wiz-step-num" id="wizStepNum">1 / 4</span>
+    </div>
+
+    <!-- Corpo: gli step si alternano -->
+    <div class="wiz-body">
+
+      <!-- ── STEP 1 ── -->
+      <section class="wiz-step active" data-step="1">
+        <h2 class="wiz-title" id="wizStep1Title">Che movimento è?</h2>
+
+        <!-- Tipo di movimento -->
+        <div class="wiz-mov" id="wizMov">
+          <button type="button" data-mov="spesa" class="active"><span class="wm-ic">💸</span><span class="wm-lbl">Spesa</span></button>
+          <button type="button" data-mov="versamento"><span class="wm-ic">📥</span><span class="wm-lbl">Versamento</span></button>
+          <button type="button" data-mov="prelievo"><span class="wm-ic">📤</span><span class="wm-lbl">Prelievo</span></button>
+        </div>
+
+        <!-- ════ BLOCCO SPESA ════ -->
+        <div id="wizSpesaBlock">
+          <!-- In comune / Personale -->
+          <div class="wiz-seg" id="wizComune" data-val="comune">
+            <div class="wiz-seg-bg"></div>
+            <button type="button" data-val="comune" class="active">🤝 In comune</button>
+            <button type="button" data-val="personale">👤 Personale</button>
+          </div>
+
+          <!-- Fonte -->
+          <h3 class="wiz-label">Da dove escono i soldi?</h3>
+          <div class="wiz-chips" id="wizFonti"></div>
+
+          <!-- Categoria -->
+          <h3 class="wiz-label" id="wizCatLabel">Categoria</h3>
+          <div class="wiz-cats" id="wizCats"></div>
+
+          <!-- Divisione (solo spese in comune) -->
+          <div class="wiz-split" id="wizSplit">
+            <h3 class="wiz-label">Come si divide?</h3>
+            <div class="wiz-chips wiz-split-chips" id="wizSplitChips"></div>
+            <div class="wiz-split-custom" id="wizSplitCustom" hidden>
+              <input type="range" id="wizSplitRange" min="0" max="100" step="5" value="50" aria-label="Percentuale di divisione">
+              <div class="wiz-split-readout" id="wizSplitReadout"></div>
+            </div>
+          </div>
+
+          <!-- Straordinaria -->
+          <label class="wiz-pers" id="wizStraordRow" for="wizStraord">
+            <input type="checkbox" id="wizStraord">
+            <span class="wiz-pers-track"></span>
+            <span class="wiz-pers-label"><span class="wiz-pers-ic">✨</span> Spesa <b>straordinaria</b> (esclusa dalle medie)</span>
+          </label>
+        </div>
+
+        <!-- ════ BLOCCO VERSAMENTO / PRELIEVO ════ -->
+        <div id="wizBoxBlock" hidden>
+          <div class="wiz-boxinfo" id="wizBoxInfo"></div>
+          <h3 class="wiz-label" id="wizChiLabel">Chi mette i soldi nello scatolo?</h3>
+          <div class="wiz-chips" id="wizChi"></div>
+          <div id="wizMotivoWrap" hidden>
+            <h3 class="wiz-label">Motivo del prelievo</h3>
+            <div class="wiz-chips" id="wizMotivo">
+              <button type="button" class="wiz-chip active" data-motivo="riequilibrio">⚖️ Riequilibrio</button>
+              <button type="button" class="wiz-chip" data-motivo="personale">👤 Spesa personale</button>
+              <button type="button" class="wiz-chip" data-motivo="altro">📝 Altro</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── STEP 2: importo + tastierino ── -->
+      <section class="wiz-step" data-step="2" hidden>
+        <h2 class="wiz-title">Immetti la cifra e premi Continua</h2>
+        <div class="wiz-amt is-empty" id="wizAmt"><span class="wiz-euro">€</span><span id="wizAmtVal">0</span></div>
+        <div class="wiz-numpad" id="wizNumpad">
+          <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+          <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+          <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+          <button type="button" data-k=",">,</button><button type="button" data-k="0">0</button><button type="button" class="bs" data-k="bs">⌫</button>
+        </div>
+      </section>
+
+      <!-- ── STEP 3: data pagamento + periodo competenza ── -->
+      <section class="wiz-step" data-step="3" hidden>
+        <h2 class="wiz-title" id="wizStep3Title">Quando e per quale periodo?</h2>
+
+        <h3 class="wiz-label" id="wizDataLbl">Giorno del pagamento</h3>
+        <label class="wiz-date-pill" id="wizDataPagBtn" for="wizDataPag">
+          <span class="wiz-date-ic">🗓</span>
+          <span id="wizDataPagLabel">Oggi</span>
+          <span class="wiz-date-arrow">▾</span>
+          <input type="date" id="wizDataPag" class="wiz-date-hidden">
+        </label>
+
+        <div id="wizCompSection">
+          <h3 class="wiz-label">Periodo di competenza</h3>
+          <p class="wiz-hint">Su quale periodo va spalmata questa cifra?</p>
+          <div class="wiz-comp-quick" id="wizCompQuick">
+            <button type="button" data-comp="annuale">Annuale</button>
+            <button type="button" data-comp="semestrale">Semestrale</button>
+            <button type="button" data-comp="bimestrale">Bimestrale</button>
+            <button type="button" data-comp="mensile">Mensile</button>
+          </div>
+          <div class="wiz-comp-dates">
+            <input type="date" id="wizCompDa" aria-label="Competenza da">
+            <span class="wiz-comp-sep">→</span>
+            <input type="date" id="wizCompA" aria-label="Competenza a">
+          </div>
+        </div>
+      </section>
+
+      <!-- ── STEP 4: riepilogo + salva ── -->
+      <section class="wiz-step" data-step="4" hidden>
+        <h2 class="wiz-title">Riepilogo</h2>
+        <div class="wiz-recap" id="wizRecap"></div>
+        <div class="wiz-note-field">
+          <label class="wiz-label" for="wizNote">Note <span class="wiz-note-opt">(opzionale)</span></label>
+          <textarea id="wizNote" class="wiz-note" rows="2" placeholder="Descrivi questa transazione…"></textarea>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Footer: Indietro / Continua -->
+    <div class="wiz-footer">
+      <button class="wiz-btn wiz-del" id="wizDelFooter" type="button" aria-label="Elimina movimento" hidden>🗑</button>
+      <button class="wiz-btn wiz-back" id="wizBack" type="button" disabled>Indietro</button>
+      <button class="wiz-btn wiz-next" id="wizNext" type="button" disabled>Continua</button>
+    </div>
+  </div>
+
+  <!-- Quick Add (legacy, non più usato — sostituito dal wizard) -->
+  <div class="modal" id="modalQa">
+    <div class="sheet" id="sheetQa">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="qaTitle">Nuova uscita</h3>
+        <button class="sheet-close" data-close="modalQa">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="qa-toggle" id="qaToggle" data-tipo="uscita">
+          <div class="qa-toggle-bg"></div>
+          <button data-tipo="uscita" class="active">Uscita</button>
+          <button data-tipo="entrata">Entrata</button>
+        </div>
+
+        <!-- Riga compatta: data a sx + toggle personale a dx -->
+        <div class="qa-meta-row">
+          <label id="qaDateBtn" class="qa-date-pill" for="qaDatePicker" aria-label="Cambia data">
+            <span class="qa-date-ic">🗓</span>
+            <span id="qaDateLabel">Oggi</span>
+            <span class="qa-date-arrow">▾</span>
+            <input type="date" id="qaDatePicker" class="qa-date-hidden">
+          </label>
+          <label class="pers-toggle pers-toggle-compact" for="qaPersonale" aria-label="Spesa personale">
+            <input type="checkbox" id="qaPersonale">
+            <span class="pers-toggle-track"></span>
+            <span class="pers-toggle-label">
+              <span class="pers-toggle-ic">👤</span>Personale
+            </span>
+          </label>
+        </div>
+
+        <div id="qaAmt" class="qa-amt empty"><span class="euro">€</span><span id="qaAmtVal">0</span></div>
+
+        <div class="qa-desc-row">
+          <input type="text" id="qaDesc" class="qa-desc-input" placeholder="Descrizione (opzionale)" autocomplete="off">
+          <select id="qaAutore" class="qa-autore-select" title="Chi sta inserendo la spesa"></select>
+        </div>
+
+        <div class="numpad" id="numpad">
+          <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+          <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+          <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+          <button data-k=",">,</button><button data-k="0">0</button><button class="bs" data-k="bs">⌫</button>
+        </div>
+
+        <h3 class="card-title qa-cats-title">Scegli categoria</h3>
+        <div class="qa-cats" id="qaCats"></div>
+
+        <button id="qaSaveBtn" class="qa-save-btn" type="button" style="display:none">
+          <span id="qaSaveLabel">Salva</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dettaglio transazione (edit) -->
+  <div class="modal" id="modalTx">
+    <div class="sheet" id="sheetTx">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="txEditTitle">Modifica</h3>
+        <button class="sheet-close" data-close="modalTx">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="tx-edit-typebadge" id="txEditTypeBadge"></div>
+
+        <div class="form-field">
+          <label>Importo</label>
+          <input type="number" id="txEditAmt" step="0.01" min="0">
+        </div>
+        <div class="form-field">
+          <label>Data</label>
+          <input type="date" id="txEditData">
+        </div>
+
+        <!-- ════ Campi SPESA ════ -->
+        <div id="txEditSpesaFields">
+          <div class="form-field">
+            <label>Da dove escono i soldi</label>
+            <select id="txEditFonte"></select>
+          </div>
+          <div class="form-field">
+            <label>Categoria</label>
+            <select id="txEditCat"></select>
+          </div>
+          <label class="pers-toggle" for="txEditPersonale">
+            <input type="checkbox" id="txEditPersonale">
+            <span class="pers-toggle-track"></span>
+            <span class="pers-toggle-label">
+              <span class="pers-toggle-ic">👤</span>
+              Spesa <b>personale</b> (fuori dall'equità)
+            </span>
+          </label>
+          <div class="form-field" id="txEditSplitWrap">
+            <label>Come si divide</label>
+            <select id="txEditSplit">
+              <option value="5050">50 / 50</option>
+              <option value="allA">Tutta …</option>
+              <option value="allB">Tutta …</option>
+              <option value="custom">Personalizzata…</option>
+            </select>
+            <div id="txEditSplitCustom" hidden style="margin-top:8px">
+              <input type="range" id="txEditSplitRange" min="0" max="100" step="5" value="50" style="width:100%;accent-color:var(--accent)">
+              <div id="txEditSplitReadout" style="text-align:center;font-size:14px;margin-top:4px"></div>
+            </div>
+          </div>
+          <label class="pers-toggle" id="txEditStraordRow" for="txEditStraord">
+            <input type="checkbox" id="txEditStraord">
+            <span class="pers-toggle-track"></span>
+            <span class="pers-toggle-label">
+              <span class="pers-toggle-ic">✨</span>
+              Spesa <b>straordinaria</b> (esclusa dalle medie)
+            </span>
+          </label>
+          <div class="form-field">
+            <label>Periodo di competenza</label>
+            <div class="tx2-quick" id="txEditCompQuick">
+              <button type="button" data-comp="annuale">Annuale</button>
+              <button type="button" data-comp="semestrale">Semestrale</button>
+              <button type="button" data-comp="bimestrale">Bimestrale</button>
+              <button type="button" data-comp="mensile">Mensile</button>
+            </div>
+            <div class="tx2-dates" style="margin-top:8px">
+              <input type="date" id="txEditCompDa" aria-label="Competenza da">
+              <span class="tx2-dates-sep">→</span>
+              <input type="date" id="txEditCompA" aria-label="Competenza a">
+            </div>
+          </div>
+        </div>
+
+        <!-- ════ Campi VERSAMENTO / PRELIEVO ════ -->
+        <div id="txEditBoxFields" hidden>
+          <div class="form-field">
+            <label id="txEditChiLabel">Chi</label>
+            <select id="txEditAutore"></select>
+          </div>
+          <div class="form-field" id="txEditMotivoWrap" hidden>
+            <label>Motivo</label>
+            <select id="txEditMotivo">
+              <option value="Riequilibrio">Riequilibrio</option>
+              <option value="Spesa personale">Spesa personale</option>
+              <option value="Altro">Altro</option>
+            </select>
+          </div>
+        </div>
+
+        <button id="txEditSave" class="btn-primary">Salva</button>
+        <button id="txEditDelete" class="btn-danger">Elimina</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Categoria edit -->
+  <div class="modal" id="modalCat">
+    <div class="sheet" id="sheetCat">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="catEditTitle">Modifica categoria</h3>
+        <button class="sheet-close" data-close="modalCat">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="form-field">
+          <label>Nome</label>
+          <input type="text" id="catEditName" placeholder="es. Spesa">
+        </div>
+        <div class="form-field">
+          <label>Tipo</label>
+          <select id="catEditTipo">
+            <option value="uscita">Uscita</option>
+            <option value="entrata">Entrata</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Macro-categoria</label>
+          <select id="catEditMacro"></select>
+        </div>
+        <div class="form-field">
+          <label>Icona</label>
+          <div class="emoji-grid" id="catEditEmojis"></div>
+        </div>
+        <div class="form-field">
+          <label>Colore</label>
+          <div class="color-grid" id="catEditColors"></div>
+        </div>
+        <button id="catEditSave" class="btn-primary">Salva</button>
+        <button id="catEditDelete" class="btn-danger">Elimina</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Budget edit -->
+  <div class="modal" id="modalBudget">
+    <div class="sheet" id="sheetBudget">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="budgetEditTitle">Budget</h3>
+        <button class="sheet-close" data-close="modalBudget">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="form-field">
+          <label>Limite mensile (€)</label>
+          <input type="number" id="budgetEditAmt" step="1" min="0" inputmode="decimal">
+        </div>
+        <button id="budgetEditSave" class="btn-primary">Salva</button>
+        <button id="budgetEditDelete" class="btn-danger">Rimuovi budget</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Impostazioni -->
+  <div class="modal" id="modalSettings">
+    <div class="sheet" id="sheetSettings">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3>Impostazioni</h3>
+        <button class="sheet-close" data-close="modalSettings">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="form-field">
+          <label>Tema</label>
+          <select id="setTheme">
+            <option value="auto">Automatico (sistema)</option>
+            <option value="dark">Scuro</option>
+            <option value="light">Chiaro</option>
+          </select>
+        </div>
+        <button id="setSave" class="btn-primary">Salva impostazioni</button>
+
+        <h3 class="card-title" style="margin-top:22px;margin-bottom:8px">Utenti autorizzati</h3>
+        <p class="txt-dim" style="font-size:12px;margin:0 0 10px;line-height:1.4;">Solo gli account Gmail in questa lista potranno accedere all'app dopo il login con Google.</p>
+        <div id="setUsersList"></div>
+        <button id="setAddUser" class="btn-secondary" style="margin-top:8px">+ Aggiungi utente</button>
+
+        <h3 class="card-title" style="margin-top:22px;margin-bottom:8px">Backup dei dati</h3>
+        <p class="txt-dim" style="font-size:12px;margin:0 0 10px;line-height:1.4;">All'apertura l'app salva un backup nel database (max uno all'ora); puoi anche farne uno subito. Nel ripristino scegli data e ora e quali moduli.</p>
+        <div class="backup-actions">
+          <button id="setBackupNow" class="btn-secondary">💾 Esegui backup</button>
+          <button id="setRestore" class="btn-secondary">↩︎ Ripristina</button>
+        </div>
+        <div class="backup-keep">
+          <label>Tieni gli ultimi</label>
+          <input type="number" id="setBackupKeepDays" min="1" max="3650" inputmode="numeric" value="30">
+          <span class="bk-unit">giorni</span>
+          <button id="setBackupKeepSave" class="btn-secondary">Salva</button>
+        </div>
+
+        <button id="setClearCache" class="btn-secondary" style="margin-top:22px">Pulisci cache locale</button>
+        <button id="setLogout" class="btn-secondary" style="margin-top:8px;display:none">Esci (logout)</button>
+        <div class="txt-c txt-faint mt-16" style="font-size:11px">
+          Versione SHA: <span id="setVersion">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aggiungi/Modifica utente autorizzato -->
+  <!-- Modal selettore icone: overlay centrato (sopra il modal Spesa) -->
+  <div class="modal modal-center" id="modalIconPicker">
+    <div class="sheet" id="sheetIconPicker">
+      <div class="sheet-header">
+        <h3>Scegli icona</h3>
+        <button class="sheet-close" data-close="modalIconPicker">✕</button>
+      </div>
+      <div class="sheet-body">
+        <input type="search" id="iconPickerSearch" class="search-input" placeholder="Cerca (pane, regalo, natale...)" autocomplete="off">
+        <div id="iconPickerCategories" class="icon-picker-cats"></div>
+        <div id="iconPickerGrid" class="icon-picker-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal nuovo/modifica elemento Lista Spesa -->
+  <div class="modal" id="modalSpesa">
+    <div class="sheet" id="sheetSpesa">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="spesaEditTitle">Nuovo elemento</h3>
+        <button class="sheet-close" data-close="modalSpesa">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="spesa-icon-row">
+          <button class="spesa-icon-side" data-slot="3" type="button" aria-label="Suggerimento icona" hidden></button>
+          <button class="spesa-icon-side" data-slot="1" type="button" aria-label="Suggerimento icona" hidden></button>
+          <button id="spesaEditIconBtn" class="spesa-icon-circle" type="button" aria-label="Apri selettore icone">🛒</button>
+          <button class="spesa-icon-side" data-slot="2" type="button" aria-label="Suggerimento icona" hidden></button>
+          <button class="spesa-icon-side" data-slot="4" type="button" aria-label="Suggerimento icona" hidden></button>
+        </div>
+        <div class="form-field">
+          <label>Nome</label>
+          <input type="text" id="spesaEditNome" placeholder="Pane, Latte, Pomodori..." autocomplete="off" autocapitalize="sentences">
+        </div>
+        <div class="form-field">
+          <label>Quantità</label>
+          <div class="qty-row">
+            <button type="button" id="spesaEditQtyMinus" class="qty-btn">−</button>
+            <span id="spesaEditQtyValue" class="qty-value">1</span>
+            <button type="button" id="spesaEditQtyPlus" class="qty-btn">+</button>
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Note (opzionale)</label>
+          <input type="text" id="spesaEditNote" placeholder="es. integrale, altrimenti saraceno" autocomplete="off">
+        </div>
+        <button id="spesaEditSave" class="btn-primary">Salva</button>
+        <button id="spesaEditDelete" class="btn-secondary" style="margin-top:8px;display:none">Elimina</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nuovo/Modifica ToDo -->
+  <div class="modal" id="modalTodo">
+    <div class="sheet" id="sheetTodo">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="todoEditTitle">Nuovo ToDo</h3>
+        <button class="sheet-close" data-close="modalTodo">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="spesa-icon-row">
+          <button class="spesa-icon-side" data-todo-slot="3" type="button" aria-label="Suggerimento icona" hidden></button>
+          <button class="spesa-icon-side" data-todo-slot="1" type="button" aria-label="Suggerimento icona" hidden></button>
+          <button id="todoEditIconBtn" class="spesa-icon-circle" type="button" aria-label="Apri selettore icone">📝</button>
+          <button class="spesa-icon-side" data-todo-slot="2" type="button" aria-label="Suggerimento icona" hidden></button>
+          <button class="spesa-icon-side" data-todo-slot="4" type="button" aria-label="Suggerimento icona" hidden></button>
+        </div>
+        <div class="form-field">
+          <label>Cosa devi fare</label>
+          <input type="text" id="todoEditNome" placeholder="Chiamare elettricista, pagare bolletta..." autocomplete="off" autocapitalize="sentences">
+        </div>
+        <div class="form-field">
+          <label>Scadenza (opzionale)</label>
+          <input type="date" id="todoEditScadenza">
+        </div>
+        <div class="form-field">
+          <label>Note (opzionale)</label>
+          <input type="text" id="todoEditNote" placeholder="dettagli, numero di telefono..." autocomplete="off">
+        </div>
+        <button id="todoEditSave" class="btn-primary">Salva</button>
+        <button id="todoEditDelete" class="btn-secondary" style="margin-top:8px;display:none">Elimina</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal scelta scope svuotamento ToDo -->
+  <div class="modal modal-center" id="modalClearTodo">
+    <div class="sheet" id="sheetClearTodo">
+      <div class="sheet-header">
+        <h3>Svuota la lavagna</h3>
+        <button class="sheet-close" data-close="modalClearTodo">✕</button>
+      </div>
+      <div class="sheet-body">
+        <p class="txt-dim" style="font-size:14px;margin:4px 0 14px;line-height:1.5;">Cosa vuoi svuotare?</p>
+        <button id="clearTodoToDo" class="btn-secondary" type="button" style="margin-bottom:8px">📋 Solo "Da fare"</button>
+        <button id="clearTodoDone" class="btn-secondary" type="button" style="margin-bottom:8px">✓ Solo "Fatti"</button>
+        <button id="clearTodoAll" class="btn-primary" type="button">🧽 Pulisci tutta la lavagna</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal nuova/modifica Scadenza -->
+  <div class="modal" id="modalScadenza">
+    <div class="sheet" id="sheetScadenza">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="scadenzaEditTitle">Nuova Scadenza</h3>
+        <button class="sheet-close" data-close="modalScadenza">✕</button>
+      </div>
+      <div class="sheet-body">
+        <!-- icona centrale + suggerimenti laterali -->
+        <div class="spesa-icon-row">
+          <span class="spesa-icon-side" data-scadenza-slot="3" hidden></span>
+          <span class="spesa-icon-side" data-scadenza-slot="1" hidden></span>
+          <button id="scadenzaEditIconBtn" class="spesa-icon-circle" type="button" aria-label="Apri selettore icone">📅</button>
+          <span class="spesa-icon-side" data-scadenza-slot="2" hidden></span>
+          <span class="spesa-icon-side" data-scadenza-slot="4" hidden></span>
+        </div>
+        <div class="form-row">
+          <label for="scadenzaEditTitolo">Titolo</label>
+          <input type="text" id="scadenzaEditTitolo" placeholder="Scadenza patente, revisione auto, compleanno..." autocomplete="off" autocapitalize="sentences">
+        </div>
+        <div class="form-row">
+          <label for="scadenzaEditData">Data scadenza</label>
+          <input type="date" id="scadenzaEditData">
+        </div>
+        <div class="form-row">
+          <label>Promemoria — quanti giorni prima</label>
+          <div id="scadenzaAnticipoChips" class="anticipo-chips">
+            <button type="button" class="anticipo-chip" data-anticipo="0">il giorno</button>
+            <button type="button" class="anticipo-chip" data-anticipo="1">1 g</button>
+            <button type="button" class="anticipo-chip" data-anticipo="3">3 g</button>
+            <button type="button" class="anticipo-chip active" data-anticipo="7">1 sett</button>
+            <button type="button" class="anticipo-chip" data-anticipo="14">2 sett</button>
+            <button type="button" class="anticipo-chip" data-anticipo="30">1 mese</button>
+            <button type="button" class="anticipo-chip" data-anticipo="60">2 mesi</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Ricorrenza</label>
+          <div id="scadenzaRicorrenzaChips" class="anticipo-chips">
+            <button type="button" class="anticipo-chip active" data-ric="no">una tantum</button>
+            <button type="button" class="anticipo-chip" data-ric="giornaliera">giornaliera</button>
+            <button type="button" class="anticipo-chip" data-ric="settimanale">settimanale</button>
+            <button type="button" class="anticipo-chip" data-ric="mensile">mensile</button>
+            <button type="button" class="anticipo-chip" data-ric="annuale">annuale</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label for="scadenzaEditNote">Note</label>
+          <input type="text" id="scadenzaEditNote" placeholder="numero contratto, luogo, dettagli..." autocomplete="off">
+        </div>
+        <button id="scadenzaEditSave" class="btn-primary">Salva</button>
+        <button id="scadenzaEditDelete" class="btn-secondary" style="margin-top:8px;display:none">Elimina</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal "Segna come completata" -->
+  <div class="modal modal-center" id="modalScadenzaComplete">
+    <div class="sheet" id="sheetScadenzaComplete">
+      <div class="sheet-header">
+        <h3 id="scadCompleteTitle">Segna come completata</h3>
+        <button class="sheet-close" data-close="modalScadenzaComplete">✕</button>
+      </div>
+      <div class="sheet-body">
+        <p class="txt-dim" style="font-size:14px;margin:4px 0 14px;line-height:1.5;" id="scadCompleteSubtitle">
+          Vuoi segnare questa scadenza come completata?
+        </p>
+        <div class="form-row">
+          <label for="scadCompleteNota">Nota (opzionale)</label>
+          <input type="text" id="scadCompleteNota" placeholder="es. pagato in posta, ricevuta n. 1234..." autocomplete="off">
+        </div>
+        <button id="scadCompleteSave" class="btn-primary" type="button">✓ Sì, completata</button>
+        <button class="btn-secondary" type="button" data-close="modalScadenzaComplete" style="margin-top:8px">Annulla</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal scelta scope svuotamento Scadenze -->
+  <div class="modal modal-center" id="modalClearScadenze">
+    <div class="sheet" id="sheetClearScadenze">
+      <div class="sheet-header">
+        <h3>Pulizia scadenze</h3>
+        <button class="sheet-close" data-close="modalClearScadenze">✕</button>
+      </div>
+      <div class="sheet-body">
+        <p class="txt-dim" style="font-size:14px;margin:4px 0 14px;line-height:1.5;">Cosa vuoi eliminare?</p>
+        <button id="clearScadPassed" class="btn-secondary" type="button" style="margin-bottom:8px">⏰ Solo passate (non ricorrenti)</button>
+        <button id="clearScadDone" class="btn-secondary" type="button" style="margin-bottom:8px">✓ Solo segnate come fatte</button>
+        <button id="clearScadAll" class="btn-primary" type="button">🗑 Elimina tutte</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Filtri (categorie + autori) -->
+  <div class="modal" id="modalFilters">
+    <div class="sheet" id="sheetFilters">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3>Filtri</h3>
+        <button class="sheet-close" data-close="modalFilters">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="filter-section">
+          <h4 class="filter-title">Categorie</h4>
+          <div id="filterCats" class="filter-chips"></div>
+        </div>
+        <div class="filter-section">
+          <h4 class="filter-title">Autori</h4>
+          <div id="filterAutori" class="filter-chips"></div>
+        </div>
+        <button id="btnApplyFilters" class="btn-primary">Fatto</button>
+        <button id="btnResetFilters" class="btn-secondary" style="margin-top:8px">Azzera filtri</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modalUser">
+    <div class="sheet" id="sheetUser">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3 id="userEditTitle">Nuovo utente autorizzato</h3>
+        <button class="sheet-close" data-close="modalUser">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="form-field">
+          <label>Nome</label>
+          <input type="text" id="userEditNome" placeholder="es. Flavia Rossi" autocomplete="off">
+        </div>
+        <div class="form-field">
+          <label>Email Gmail</label>
+          <input type="email" id="userEditEmail" placeholder="esempio@gmail.com" autocomplete="off" inputmode="email">
+        </div>
+        <button id="userEditSave" class="btn-primary">Salva</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm modal -->
+  <div class="modal modal-center" id="modalConfirm">
+    <div class="sheet" id="sheetConfirm">
+      <div class="sheet-header">
+        <h3 id="confirmTitle">Conferma</h3>
+      </div>
+      <div class="sheet-body">
+        <p id="confirmMsg" class="txt-dim" style="font-size:14px;margin:4px 0 18px;line-height:1.5;"></p>
+        <button id="confirmOk" class="btn-primary">Conferma</button>
+        <button id="confirmCancel" class="btn-secondary" style="margin-top:8px">Annulla</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal scelta scope svuotamento Lista Spesa -->
+  <div class="modal modal-center" id="modalClearSpesa">
+    <div class="sheet" id="sheetClearSpesa">
+      <div class="sheet-header">
+        <h3>Svuota la lista</h3>
+        <button class="sheet-close" data-close="modalClearSpesa">✕</button>
+      </div>
+      <div class="sheet-body">
+        <p class="txt-dim" style="font-size:14px;margin:4px 0 14px;line-height:1.5;">Cosa vuoi svuotare?</p>
+        <button id="clearSpesaToBuy" class="btn-secondary" type="button" style="margin-bottom:8px">📋 Solo "Da prendere"</button>
+        <button id="clearSpesaBought" class="btn-secondary" type="button" style="margin-bottom:8px">✓ Solo "Presi"</button>
+        <button id="clearSpesaAll" class="btn-primary" type="button">🗑 Svuota tutto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast">
+    <span id="toastIc" class="toast-ic"></span>
+    <span id="toastMsg" class="toast-msg"></span>
+  </div>
+
+  <!-- Riallineamento fondi scatolo -->
+  <div class="modal modal-center" id="modalRiallineo">
+    <div class="sheet">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3>⚖️ Riallinea fondi scatolo</h3>
+        <button class="sheet-close" data-close="modalRiallineo">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="rial-balance">Nello scatolo ora: <b id="rialBalance">—</b></div>
+        <div class="wiz-seg" id="rialDir" data-val="togli">
+          <div class="wiz-seg-bg"></div>
+          <button type="button" data-val="togli" class="active">➖ Togli</button>
+          <button type="button" data-val="aggiungi">➕ Aggiungi</button>
+        </div>
+        <div class="form-field">
+          <label>Importo</label>
+          <input type="number" id="rialAmt" step="0.01" min="0" inputmode="decimal" placeholder="0,00">
+        </div>
+        <label class="pers-toggle" id="rialContaRow" for="rialConta">
+          <input type="checkbox" id="rialConta" checked>
+          <span class="pers-toggle-track"></span>
+          <span class="pers-toggle-label"><span class="pers-toggle-ic">🏠</span> Conta come <b>spesa di casa</b></span>
+        </label>
+        <div class="rial-hint" id="rialHint">Se l'avevi già speso ma non segnato, lascialo attivo. Se è solo una correzione del conteggio, disattivalo.</div>
+        <div class="form-field">
+          <label>Note (opzionale)</label>
+          <input type="text" id="rialNote" placeholder="es. ricontato i contanti nello scatolo">
+        </div>
+        <button id="rialSave" class="btn-primary">Salva riallineamento</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Guida: come leggere i numeri (cassa vs competenza) -->
+  <div class="modal modal-center" id="modalGuida">
+    <div class="sheet">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3>Come leggere i numeri</h3>
+        <button class="sheet-close" data-close="modalGuida">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="guida-item"><b>📦 Scatolo</b><span>I contanti nel fondo comune: versamenti − spese pagate dallo scatolo − prelievi. È cumulativo (non riparte ogni anno).</span></div>
+        <div class="guida-item"><b>⚖️ Equilibrio</b><span>Chi ha anticipato più dell'altro, <b>quest'anno</b>. Ogni euro messo di tasca propria (versamento o spesa dal proprio conto) è comune 50/50: l'altro ne deve metà. Le spese dallo scatolo sono neutre.</span></div>
+        <div class="guida-item"><b>💸 Flusso cassa</b><span>Quanti soldi sono <b>usciti davvero</b> questo mese, contati per data di pagamento. Include le spese straordinarie.</span></div>
+        <div class="guida-item"><b>🗓️ Spese per questo mese</b><span>Quanto ci <b>costa</b> questo mese: le bollette lunghe (TARI, assicurazione…) sono <b>spalmate</b> sui mesi di competenza. Straordinarie escluse.</span></div>
+        <div class="guida-item"><b>📊 Media mensile</b><span>Quanto costa vivere insieme, al mese: spese spalmate dell'anno ÷ mesi trascorsi. Straordinarie escluse.</span></div>
+        <div class="guida-item"><b>👥 Contribuzione</b><span>Quanto ha messo ciascuno: versamenti + pagamenti diretti − prelievi.</span></div>
+        <div class="guida-note">Perché a volte due schermate mostrano cifre diverse? Perché rispondono a domande diverse: <b>Flusso cassa</b> = «quanto è uscito» (per data), <b>Spese/Media</b> = «quanto ci costa» (spalmato per competenza). Una bolletta di 240€ pagata a gennaio è 240€ di flusso a gennaio, ma 20€/mese di costo per tutto l'anno.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Registra il riequilibrio (importo anche parziale) -->
+  <div class="modal modal-center" id="modalRieq">
+    <div class="sheet">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3>⚖️ Registra il riequilibrio</h3>
+        <button class="sheet-close" data-close="modalRieq">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="rieq-who" id="rieqWho"></div>
+        <div class="form-field">
+          <label for="rieqAmt">Quanto è stato dato davvero</label>
+          <input type="number" id="rieqAmt" step="0.01" min="0" inputmode="decimal">
+        </div>
+        <div class="rieq-after" id="rieqAfter"></div>
+        <p class="txt-dim" style="font-size:12px;line-height:1.45;margin:12px 0 14px">Puoi registrare anche un <b>acconto</b>: l'importo che scrivi viene scalato <b>per intero</b> dallo squilibrio. Vengono annotati due movimenti «Riequilibrio conti» — non entrano nelle spese di casa né nelle medie, spostano solo l'equilibrio.</p>
+        <button id="rieqSave" class="btn-primary">Registra</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ripristino da backup (modal) -->
+  <div class="modal modal-center" id="modalRestore">
+    <div class="sheet">
+      <div class="sheet-handle" data-drag></div>
+      <div class="sheet-header">
+        <h3>Ripristina da un backup</h3>
+        <button class="sheet-close" data-close="modalRestore">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div id="restoreBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+  <script src="./equity.js?v=202"></script>
+  <script src="./backup.js?v=202"></script>
+  <script src="./charts.js?v=202"></script>
+  <script src="./app.js?v=202"></script>
+</body>
+</html>
